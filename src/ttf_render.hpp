@@ -2,6 +2,19 @@
 #include "ttf.hpp"
 #include "bitmap.hpp"
 
+/**
+ * 
+ * ttf_render.hpp
+ * 
+ * For rendering ttf glyphs
+ * 
+ * written by muffinshades 2024-2025
+ * 
+ * Stil working on this ;-;
+ * 
+ * 
+ */
+
 #ifdef MSFL_DLL
 #ifdef MSFL_EXPORTS
 #define MSFL_EXP __declspec(dllexport)

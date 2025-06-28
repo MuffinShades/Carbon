@@ -16,13 +16,7 @@ public:
     Frees the vectors memory
 
     */
-    void free() {
-        if (this->dat) {
-            delete[] this->dat;
-            this->dat = nullptr;
-        }
-        this->sz = this->allocSz = 0;
-    }
+    void free();
 
     /*
 

@@ -1,21 +1,3 @@
-/**
- *
- * balloon.cpp
- *
- * Baloon 2.0
- * Zlib inflate and deflate functions for C++
- *
- * programmed by muffinshades 2024
- *
- * idk what else to add rn
- *
- * Compression Speeds: ??
- * Decompression Speeds: ??
- *
- * 2,000+ lines of code
- *
- */
-
  /*
 
  Future TODOS:
@@ -134,10 +116,10 @@ const int compression_table_old[10][5] = {
  * CodeLengthCodesOrder - trees encode & decode
  *
  */
-constexpr u32 LengthExtraBits[] = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0 };
-constexpr u32 LengthBase[] = { 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258 };
-constexpr u32 DistanceExtraBits[] = { 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13 };
-constexpr u32 DistanceBase[] = { 1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577 };
+constexpr u32 LengthExtraBits[] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0};
+constexpr u32 LengthBase[] = {3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258};
+constexpr u32 DistanceExtraBits[] = {0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13};
+constexpr u32 DistanceBase[] = {1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
 constexpr u32 CodeLengthCodesOrder[] = { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
 
 /**
@@ -958,9 +940,9 @@ u32 DecodeSymbol(BitStream* stream, huffman_node* tree) {
     huffman_node* n = tree;
 
     while (n->left || n->right) {
-        i32 b = stream->readBit();
+        bit b = stream->readBit();
 
-        if (!!b) {
+        if (b) {
             if (!n->right) break;
 
             n = n->right;
@@ -1784,6 +1766,8 @@ huffman_node** _decode_trees(BitStream* stream) {
         nDistCodes = stream->readBits(5) + 1,
         nClCodes = stream->readBits(4) + 4;
 
+    std::cout << "Tree Info:" << "\n\tNLitCodes: " << nLitCodes << "\n\tNDistCodes: " << nDistCodes << "\n\tNClCodes: " << nClCodes << std::endl;
+
     //extract cl bit lengths
     const size_t N_CLCODES = 19;
     u32* clBitLens = new u32[N_CLCODES];
@@ -1890,42 +1874,56 @@ huffman_node** _decode_trees(BitStream* stream) {
     return _tContain;
 }
 
-void _inflate_block_generic(InflateBlock* block, BitStream* stream, huffman_node* litTree, huffman_node* distTree, const block_settings settings) {
+void _inflate_block_generic(InflateBlock* block, InflateBlock* prev_block, BitStream* stream, huffman_node* litTree, huffman_node* distTree, const block_settings settings) {
+    std::cout << "Inflating Normal Block @" << stream->tell() << std::endl;
     if (!litTree || !distTree)
         return;
 
     std::vector<byte> dec_data;
 
     for (;;) {
-        u32 sym = DecodeSymbol(stream, litTree);
+        const u32 sym = DecodeSymbol(stream, litTree);
 
-        if (sym <= 255)
+        if (sym <= 255) {
             dec_data.push_back((byte)sym & 0xff);
-        else if (sym == 256)
+        } else if (sym == 256) {
             break;
 
         //back ref :O
-        else {
-            i32 lenIdx = sym - 257;
+        } else {
+            if (abs((i64)dec_data.size() - 93576) < 0xff)
+                std::cout << "Back Ref at " << stream->tell() << " | Data Len: " << dec_data.size() << " | Ref Type: " << sym << std::endl;
+            const size_t lenIdx = sym - 257;
 
             //get length
-            u32 lenExtraBits = LengthExtraBits[lenIdx],
+            const u32 lenExtraBits = LengthExtraBits[lenIdx],
                 lenExtra = stream->readBits(lenExtraBits),
                 len = LengthBase[lenIdx] + lenExtra;
             //get distance
-            i32 distIdx = DecodeSymbol(stream, distTree);
+            const size_t distIdx = DecodeSymbol(stream, distTree);
 
-            u32 distExtraBits = DistanceExtraBits[distIdx],
+            const u32 distExtraBits = DistanceExtraBits[distIdx],
                 distExtra = stream->readBits(distExtraBits),
                 dist = DistanceBase[distIdx] + distExtra;
 
             //copy character from back ref
             size_t decSz = dec_data.size();
             forrange(len) {
-                if (dist > decSz)
-                    continue;
-                byte dbg_sym;
-                dec_data.push_back(dbg_sym = dec_data[(decSz++) - dist]);
+                if (dist > decSz) {
+                    if (prev_block) {
+                        const size_t subDist = dist - decSz, prevSz = prev_block->sz;
+                        if (subDist < prevSz) {
+                            dec_data.push_back(prev_block->data[
+                                prevSz - subDist
+                            ]);
+                        } else
+                            std::cout << "Balloon warning: accessing far far back data!" << std::endl;
+                    }
+                } else {
+                    byte dbg_sym;
+                    dec_data.push_back(dbg_sym = dec_data[decSz - dist]);
+                }
+                decSz++;
             }
         }
 
@@ -1942,6 +1940,7 @@ void _inflate_block_generic(InflateBlock* block, BitStream* stream, huffman_node
 }
 
 void _inflate_block_none(InflateBlock* block, BitStream* stream, const block_settings settings) {
+    std::cout << "Inflating Uncompressed Block!!!" << std::endl;
     if (!block || !stream)
         return;
 
@@ -1955,7 +1954,8 @@ void _inflate_block_none(InflateBlock* block, BitStream* stream, const block_set
         *b = stream->readByte();
 }
 
-void _inflate_block_static(InflateBlock* block, BitStream* stream, const block_settings settings) {
+void _inflate_block_static(InflateBlock* block, InflateBlock* prev_block, BitStream* stream, const block_settings settings) {
+    std::cout << "Inflating Static Block!!!" << std::endl;
     if (!block || !stream)
         return;
 
@@ -1995,13 +1995,13 @@ void _inflate_block_static(InflateBlock* block, BitStream* stream, const block_s
     }
 
     //inflate block
-    _inflate_block_generic(block, stream, llTree, distTree, settings);
+    _inflate_block_generic(block, prev_block, stream, llTree, distTree, settings);
 
     TreeFree(distTree);
     TreeFree(llTree);
 }
 
-void _inflate_block_dynamic(InflateBlock* block, BitStream* stream, const block_settings settings) {
+void _inflate_block_dynamic(InflateBlock* block, InflateBlock* prev_block, BitStream* stream, const block_settings settings) {
     if (!block || !stream)
         return;
 
@@ -2012,7 +2012,7 @@ void _inflate_block_dynamic(InflateBlock* block, BitStream* stream, const block_
         return;
     }
 
-    _inflate_block_generic(block, stream, trees[0], trees[1], settings);
+    _inflate_block_generic(block, prev_block, stream, trees[0], trees[1], settings);
 
     //memory management
     TreeFree(trees[0]);
@@ -2021,7 +2021,7 @@ void _inflate_block_dynamic(InflateBlock* block, BitStream* stream, const block_
 }
 
 //
-InflateBlock _stream_block_inflate(BitStream* stream, const block_settings blck_settings) {
+InflateBlock _stream_block_inflate(BitStream* stream, InflateBlock* prev_block, block_settings blck_settings) {
     if (!stream)
         return { 0 };
 
@@ -2033,21 +2033,23 @@ InflateBlock _stream_block_inflate(BitStream* stream, const block_settings blck_
         .block_type = (deflate_block_type)stream->readBits(2)
     };
 
+    std::cout << "Decoded Block: " << block.block_type << " | " << block.blockFinal << std::endl;
+
     //decode block data
     switch (block.block_type) {
     case dfb_none:
         _inflate_block_none(&block, stream, blck_settings);
         break;
     case dfb_static:
-        _inflate_block_static(&block, stream, blck_settings);
+        _inflate_block_static(&block, prev_block, stream, blck_settings);
         break;
     case dfb_dynamic:
-        _inflate_block_dynamic(&block, stream, blck_settings);
+        _inflate_block_dynamic(&block, prev_block, stream, blck_settings);
         break;
     default:
         std::cout << "Zlib error! Invalid block type @" << stream->tell() << "." << stream->subBitTell() << std::endl;
         stream->bitSeek((stream->tell() << 3));
-        std::cout << "T-Byte: " << (int)stream->readByte() << std::endl; 
+        std::cout << "T-Byte: " << (i32)stream->readByte() << std::endl; 
         stream->__printDebugInfo();
         break;
     }
@@ -2063,8 +2065,8 @@ balloon_result Balloon::Inflate(byte* data, size_t sz) {
     //create a simple stream
     BitStream datStream = BitStream(data, sz);
 
-    byte cmf = datStream.readByte();
-    byte flg = datStream.readByte();
+    const byte cmf = datStream.readByte();
+    const byte flg = datStream.readByte();
 
     if ((cmf * 256 + flg) % 31 != 0) {
         std::cout << "Inflate Error, invalid flag checksum!!" << std::endl;
@@ -2080,7 +2082,7 @@ balloon_result Balloon::Inflate(byte* data, size_t sz) {
     }
 
     //dictionary check
-    bool dictionary = (flg >> 5) & 1;
+    const bool dictionary = (flg >> 5) & 1;
 
     if (dictionary) {
         std::cout << "Inflate Error, dictionary not supported!" << std::endl;
@@ -2105,11 +2107,19 @@ balloon_result Balloon::Inflate(byte* data, size_t sz) {
     };
 
     size_t nBlocks = 0 ;
+    InflateBlock *prev_block = nullptr;
 
     while (!eos) {
-        InflateBlock c_block = _stream_block_inflate(&datStream, _blck_set);
+        std::cout << "Inflating New Block @" << datStream.tell() << " OutputData@" << totalBlockSize << std::endl;
+        InflateBlock c_block = _stream_block_inflate(
+            &datStream, 
+            prev_block,
+            _blck_set
+        );
+        //std::cout << "Block Start: " << totalBlockSize << std::endl;
         totalBlockSize += c_block.sz;
         blocks.push_back(c_block);
+        prev_block = &blocks[nBlocks]; //access block from vector since c_block will be deleted when scope ends
         eos = c_block.blockFinal || !datStream.canAdv();
         nBlocks ++ ;
     }

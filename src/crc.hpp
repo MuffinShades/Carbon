@@ -56,4 +56,4 @@ const u32 crc_poly_32[] = {
     0x2d02ef8dL
 };
 
-static u32 crc32(byte* dat, size_t sz);
+static const u32 crc32(byte* dat, size_t sz);

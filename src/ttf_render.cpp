@@ -10,6 +10,7 @@
  * Written by muffinshades 2024
  *
  */
+
 Point pLerp(Point p0, Point p1, float t) {
     return {
         lerp(p0.x, p1.x, t),

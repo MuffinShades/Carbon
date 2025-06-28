@@ -1,14 +1,14 @@
 #pragma once
-#include "util.hpp"
+#include "msutil.hpp"
 #include <iostream>
 #include <thread>
 #include <queue>
 #include <mutex>
 #include <future>
-
+#include <functional>
 /*
 
-silk.hpp
+Silk
 
 thread pooling thing
 
@@ -17,6 +17,8 @@ doesn't use mutex since I am chad programmer - muffinshades 2025
 	  because of custom mutex stuff, so just kinda copy the logic 
 	  from https://github.com/mtrebi/thread-pool/blob/master/include/ThreadPool.h
 	  in that cause and call it a day
+	
+it does use mutex since I am not chad programmer - muffinshades 2025
 
 */
 
@@ -47,7 +49,7 @@ namespace Silk {
 		ThreadErr_FailedToExecute
 	};
 
-	class TFail : public std::exception {
+	/*class TFail : public std::exception {
 	private:
 		ThreadErr __reason = ThreadErr_Unknown;
 	public:
@@ -57,7 +59,7 @@ namespace Silk {
 		ThreadErr reason() {
 			return this->__reason;
 		}
-	};
+	};*/
 
 	class Task {
 	private:
@@ -83,13 +85,13 @@ namespace Silk {
 		TPool(size_t nThreads);
 		template<typename _Fn, typename... _Args> auto Exe(_Fn&& func, _Args&&... args) -> std::future<decltype(func(args...))> {
 			if (this->nThreads <= 0)
-				throw TFail(ThreadErr_PoolNoCreated);
+				throw std::invalid_argument("Not enough threads!");
 
 			auto fn_bind = std::bind(std::forward<_Fn>(func), std::forward<_Args>(args)...); //bind the function 
 			auto fn_ptr = std::make_shared<std::packaged_task<decltype(func(args...))()>>(fn_bind); //create a function pointer
 
 			if (!fn_ptr)
-				throw TFail(ThreadErr_InvalidFnPtr);
+				throw std::invalid_argument("idk");
 
 			auto t_res = fn_ptr->get_future();
 			{

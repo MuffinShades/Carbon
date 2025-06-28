@@ -9,26 +9,30 @@
  *      made better
  * Version 1.1 written June 2025 [New]
  * 	    slight optimizations with bugs fixes
+ * Version 1.1.2 written June 28th 2025 [New]
+ * 		fixed small part of inflate where the lz77 algorithm can reference data from prev blocks
  * Version 1.2  written June 18th 2025 [In Developement]
  * 		optimizations
  *
  * Program written by muffinshades
  *
- * Copyright (c) 2024 muffinshades
+ * Copyright (c) 2024-Present muffinshades
  *
  * You can do what ever you want with the software but you must
  * credit the author (muffinshades) with the original creation
- * of the software. Idk what else to put here lmao.
+ * of the software.
+ * 
+ * All modifications of this piece of software must be noted in
+ * this header file
  *
  * Balloon Notes:
  *
  * This library is a implementation of the zlib or Inflate / Deflate
  * compression algorithm.
  *
- * Right now compression speeds are around 4-6mb/s and decompression
+ * Right now compression speeds are around 8-10mb/s and decompression
  * speeds are much faster. This isn't the worlds fastest implementation,
- * but its decently fast and lightweight. One day I will improve the LZ77
- * hash functions, but for now it's gonna stay at around 5mb/s.
+ * but its decently fast and lightweight.
  *
  * This program should be able to function with any other inflate / deflate
  * implementation apart from the whole compression level calculations being

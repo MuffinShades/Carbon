@@ -225,3 +225,59 @@ void Logger::SetLogBgColor(Color c) {
 void Logger::SetLogColor(Color c) {
 	this->_Desc.logColor = c;
 }
+
+void Logger::DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp) {
+	renderH >>= 1;
+	const f32 dx = (f32) bmp.header.w / (f32) renderW;
+	const f32 dy = (f32) bmp.header.h / (f32) renderH;
+
+	u32 x, y;
+	f32 ix = 0, iy = 0;
+
+	const byte* bmp_data = bmp.data;
+	const size_t by_pp = bmp.header.bitsPerPixel >> 3;
+
+	if (by_pp < 3) {
+		this->Warn("Cannot render bitmap! Color space must be either rgb or rgba!");
+		return;
+	}
+
+	const size_t rowLen = bmp.header.w;
+
+	bool stripe_ln = 1;
+
+	for (y = 0; y < renderH; y++) {
+		this->SetSpectrumOutputColor({._auto = true}, {
+				0,0,0
+		});
+		std::cout << "\n";
+
+		for (x = 0; x < renderW; x++) {
+			const size_t iPos = (floor(ix) + floor(iy) * bmp.header.w) * by_pp;
+
+			this->SetSpectrumOutputColor({._auto = true}, {
+				bmp_data[iPos + 0],
+				bmp_data[iPos + 1],
+				bmp_data[iPos + 2]
+			});
+
+			std::cout << " ";
+			ix += dx;
+		}
+
+		this->SetSpectrumOutputColor({._auto = true}, {
+				(byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127)
+		});
+
+		stripe_ln = !stripe_ln;
+		std::cout << " ";
+
+		ix = 0;
+		iy += dy;
+	}
+
+	this->SetSpectrumOutputColor({._auto = true}, {0,0,0});
+	std::cout << " ";
+
+	std::cout << std::endl;
+}

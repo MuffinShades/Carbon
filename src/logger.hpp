@@ -2,6 +2,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include "bitmap.hpp"
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -78,6 +79,7 @@ public:
 	void SetSpectrumOutputColor(std::stringstream& stream, Color fg, Color bg = { 0 });
 	void SetLogColor(Color c);
 	void SetLogBgColor(Color c);
+	void DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp);
 	template<class _ObjTy> inline void LogObjHex(_ObjTy obj) {
 		this->LogHex(reinterpret_cast<unsigned char*>(&obj), sizeof(_ObjTy));
 	}

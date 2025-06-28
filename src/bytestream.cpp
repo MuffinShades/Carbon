@@ -294,12 +294,13 @@ void ByteStream::pos_adv(const size_t sz) {
 
 	//
 	size_t bytesLeft = sz;
-	while ((this->blockPos += bytesLeft) >= this->cur_block->sz) {
+	while ((this->blockPos + bytesLeft) >= this->cur_block->sz) {
 		bytesLeft -= this->cur_block->sz;
 		this->block_adv();
-		this->blockPos = 0;
 		this->cur = this->cur_block->dat;
 	}
+
+	this->blockPos = bytesLeft;
 
 	this->cur += bytesLeft;
 }
@@ -313,10 +314,24 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 	this->end();
 	this->len_inc(sz);
 	size_t blockBytesLeft;
-	size_t rCopy = mu_min(sz, (blockBytesLeft = (this->cur_block->sz - this->blockPos))); //TODO: DONT USE MIN
+	size_t rCopy = 
+		mu_min(sz, 
+			(blockBytesLeft = (this->cur_block->sz - this->blockPos) - 1)
+		);
 
-	in_memcpy(this->cur_block->dat, dat, rCopy);
+	this->blockPos = this->pos - this->cur_block->pos;
+
+	std::cout << "first copy: " << this->blockPos << " | " << this->pos << " | RCopy: " << rCopy << std::endl;
+	std::cout << "Block info: " << std::endl;
+	std::cout << "\tBlock Size: " << this->cur_block->sz << std::endl;
+	std::cout << "\tDat Ptr: " << (uintptr_t) this->cur_block->dat << std::endl;
+
+	if (rCopy > 0)
+		in_memcpy(this->cur, dat, rCopy);
+	
 	sz -= rCopy;
+
+	if (sz == 0) return;
 
 	byte *dp = dat + rCopy;
 
@@ -329,16 +344,18 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 	//in_memcpy just better
 
 	while (sz > this->blockAllocSz) {
-		in_memcpy(this->cur_block->dat, dp, sz);
+		this->block_adv(0, 1);
+		in_memcpy(this->cur, dp, sz);
 		sz -= this->blockAllocSz;
 		dp += this->blockAllocSz;
+		this->pos_adv(this->blockAllocSz);
 	}
 
-	this->block_adv(0, 1);
-
 	if (sz > 0) {
+		this->block_adv(0, 1);
 		in_memcpy(this->cur, dp, sz);
 		this->cur += sz;
+		this->pos_adv(sz);
 	}
 }
 

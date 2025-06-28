@@ -9,6 +9,8 @@
 #include "msutil.hpp"
 #include "types.hpp"
 
+#define NO_FAST_MEMCPY
+
 #if (defined(_WIN32) || defined(WIN32))
 //#include <mmsystem.h>
 #elif defined(__unix)
@@ -19,7 +21,7 @@
 #include <immintrin.h>
 #endif
 
-#if ((defined(_WIN32) || defined(WIN32) || defined(__unix) || defined(__APPLE__)))
+#if ((defined(_WIN32) || defined(WIN32) || defined(__unix) || defined(__APPLE__))) && !defined(NO_FAST_MEMCPY)
 #if !defined(APPLE_SILICON)
 
 //16 byte copy functions

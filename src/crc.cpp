@@ -1,7 +1,7 @@
 #include "crc.hpp"
 #include "msutil.hpp"
 
-u32 crc32(byte* dat, size_t sz) {
+const u32 crc32(byte* dat, size_t sz) {
 	if (!dat || sz <= 0)
 		return 0;
 

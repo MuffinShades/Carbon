@@ -1,4 +1,7 @@
 #include "bitmap.hpp"
+#include "logger.hpp"
+
+static Logger l;
 
 #define BMP_SIG 0x4d42
 #define BMP_HEADER_SZ 40
@@ -27,7 +30,7 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
         src.length() <= 0 ||
         !bmp ||
         !bmp->data
-        ) return 1;
+    ) return 1;
 
     std::cout << "Writing bmp stream" << std::endl;
 
@@ -45,13 +48,16 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
     //create file stream
     ByteStream oStream;
 
-    oStream.int_mode = IntFormat_BigEndian;
+    oStream.int_mode = IntFormat_LittleEndian;
 
     oStream.writeUInt16(BMP_SIG); //sig
     oStream.writeUInt32(datStream.size()); //how many bytes in file
     oStream.writeUInt32(0); // reserved
     oStream.writeUInt32(oStream.size() + sizeof(u32) + datPos); //data offset
+
+    std::cout << "Data offset: " << oStream.size() + sizeof(u32) + datPos << std::endl;
     oStream.writeBytes(datStream.getBytePtr(), datStream.size());
+    l.LogHex(oStream.getBytePtr(), 100);
 
     datStream.free();
 
