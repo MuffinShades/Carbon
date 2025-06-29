@@ -1,6 +1,6 @@
 #include "logger.hpp"
 
-#define _COLOR_COMPARE(c1, c2) ((c1).r == (c2).r && (c1).g == (c2).g && (c1).b == (c2).b)
+#define _COLOR_COMPARE(c1, c2) ((c1).red() == (c2).red() && (c1).green() == (c2).green() && (c1).blue() == (c2).blue())
 
 //static values for the ConsoleStateHandler
 Color ConsoleStateHandler::_ccfg = { 255, 0, 0 };
@@ -10,12 +10,12 @@ Color ConsoleStateHandler::_ccbg = { 0, 0, 0 };
 void Logger::SetSpectrumOutputColor(Color fg, Color bg) {
 
 	//make sure we dont update color twice
-	if (!_COLOR_COMPARE(fg, ConsoleStateHandler::_ccfg) && !fg._auto){
-		std::cout << "\x1B[38;2;" << (int)fg.r << ";" << (int)fg.g << ";" << (int)fg.b << "m";
+	if (!_COLOR_COMPARE(fg, ConsoleStateHandler::_ccfg) && !fg.autoColor()){
+		std::cout << "\x1B[38;2;" << (int)fg.red() << ";" << (int)fg.green() << ";" << (int)fg.blue() << "m";
 		ConsoleStateHandler::_ccfg = fg;
 	}
-	if (!_COLOR_COMPARE(bg, ConsoleStateHandler::_ccbg) && !bg._auto) {
-		std::cout << "\x1B[48;2;" << (int)bg.r << ";" << (int)bg.g << ";" << (int)bg.b << "m";
+	if (!_COLOR_COMPARE(bg, ConsoleStateHandler::_ccbg) && !bg.autoColor()) {
+		std::cout << "\x1B[48;2;" << (int)bg.red() << ";" << (int)bg.green() << ";" << (int)bg.blue() << "m";
 		ConsoleStateHandler::_ccbg = bg;
 	}
 }
@@ -23,12 +23,12 @@ void Logger::SetSpectrumOutputColor(Color fg, Color bg) {
 void Logger::SetSpectrumOutputColor(std::stringstream& stream, Color fg, Color bg) {
 
 	//make sure we dont update color twice
-	if (!_COLOR_COMPARE(fg, ConsoleStateHandler::_ccfg) && !fg._auto) {
-		stream << "\x1B[38;2;" << (int)fg.r << ";" << (int)fg.g << ";" << (int)fg.b << "m";
+	if (!_COLOR_COMPARE(fg, ConsoleStateHandler::_ccfg) && !fg.autoColor()) {
+		stream << "\x1B[38;2;" << (int)fg.red() << ";" << (int)fg.green() << ";" << (int)fg.blue() << "m";
 		ConsoleStateHandler::_ccfg = fg;
 	}
-	if (!_COLOR_COMPARE(bg, ConsoleStateHandler::_ccbg) && !bg._auto) {
-		stream << "\x1B[48;2;" << (int)bg.r << ";" << (int)bg.g << ";" << (int)bg.b << "m";
+	if (!_COLOR_COMPARE(bg, ConsoleStateHandler::_ccbg) && !bg.autoColor()) {
+		stream << "\x1B[48;2;" << (int)bg.red() << ";" << (int)bg.green() << ";" << (int)bg.blue() << "m";
 		ConsoleStateHandler::_ccbg = bg;
 	}
 }
@@ -44,27 +44,33 @@ void Logger::PrintColor(std::string dat, Color fg, Color bg) {
 	std::cout << dat << std::endl;
 }
 
-void Logger::Log(std::string dat, Color c) {
-	if (!c._auto) {
+void Logger::Log(std::string dat) {
+	/*  if (!c.autoColor()) {
 		this->PrintColor(
 			"[Log] "+dat,
 			c,
-			{ ._auto = true }
+			{ AUTO_COLOR }
 		);
 		this->SetSpectrumOutputColor(this->_Desc.logColor);
 	} else 
 		this->PrintColor(
 			"[Log] "+dat,
 			this->_Desc.logColor,
-			{ ._auto = true }
-		);
+			{ AUTO_COLOR }
+		);*/
+
+	this->PrintColor(
+		"[Log] " + dat,
+		this->_Desc.logColor,
+		{ AUTO_COLOR }
+	);
 }
 
 void Logger::Warn(std::string dat) {
 	this->PrintColor(
 		"[Warning] "+dat,
 		this->_Desc.warnColor,
-		{ ._auto = true }
+		{ AUTO_COLOR }
 	);
 }
 
@@ -72,7 +78,7 @@ void Logger::Error(std::string dat) {
 	this->PrintColor(
 		"[Error] "+dat,
 		this->_Desc.errColor,
-		{ ._auto = true }
+		{ AUTO_COLOR }
 	);
 }
 
@@ -80,13 +86,13 @@ void Logger::Inform(std::string dat) {
 	this->PrintColor(
 		"[Info (i)] " + dat,
 		this->_Desc.infoColor,
-		{ ._auto = true }
+		{ AUTO_COLOR }
 	);
 }
 
 void Logger::PrintSeparator(bool adjustColor) {
 	if (adjustColor)
-		this->SetSpectrumOutputColor(this->_Desc.seperatorColor, { ._auto = true });
+		this->SetSpectrumOutputColor(this->_Desc.seperatorColor, { AUTO_COLOR });
 
 	std::cout << this->sep << std::endl;
 }
@@ -129,7 +135,7 @@ void Logger::LogHex(unsigned char* dat, size_t nBytes, HexSettings disp_settings
 	std::string tlSpace = GenSpaceString(rowDispLen);
 
 	//first display byte thing at top row
-	this->SetSpectrumOutputColor({ 128,128,128 }, { ._auto = true });
+	this->SetSpectrumOutputColor({ 128,128,128 }, { AUTO_COLOR });
 	std::cout << tlSpace << " ";
 	for (int i = 0; i < disp_settings.bytesPerRow; i++)
 		std::cout << pHex(i, 2) << " ";
@@ -141,9 +147,9 @@ void Logger::LogHex(unsigned char* dat, size_t nBytes, HexSettings disp_settings
 	const int bpr = disp_settings.bytesPerRow;
 
 	while (cb < nBytes) {
-		this->SetSpectrumOutputColor({ 128,128,128 }, { ._auto = true });
+		this->SetSpectrumOutputColor({ 128,128,128 }, { AUTO_COLOR });
 		std::cout << pHex(y, rowDispLen) << " ";
-		this->SetSpectrumOutputColor({ 255,255,255 }, { ._auto = true });
+		this->SetSpectrumOutputColor({ 255,255,255 }, { AUTO_COLOR });
 		x = bpr;
 		while (x--)
 			if (cb < nBytes)
@@ -190,7 +196,7 @@ std::string Logger::LogProgress(float p, size_t w, bool log) {
 
 	std::stringstream tStream;
 
-	this->SetSpectrumOutputColor(tStream, { 0,255,0 }, { ._auto = true });
+	this->SetSpectrumOutputColor(tStream, { 0,255,0 }, { AUTO_COLOR });
 	tStream << "[";
 	while (fw--) tStream << "#";
 	while (dw--) tStream << ".";
@@ -247,7 +253,7 @@ void Logger::DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp) {
 	bool stripe_ln = 1;
 
 	for (y = 0; y < renderH; y++) {
-		this->SetSpectrumOutputColor({._auto = true}, {
+		this->SetSpectrumOutputColor({ AUTO_COLOR }, {
 				0,0,0
 		});
 		std::cout << "\n";
@@ -255,7 +261,7 @@ void Logger::DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp) {
 		for (x = 0; x < renderW; x++) {
 			const size_t iPos = (floor(ix) + floor(iy) * bmp.header.w) * by_pp;
 
-			this->SetSpectrumOutputColor({._auto = true}, {
+			this->SetSpectrumOutputColor({ AUTO_COLOR }, {
 				bmp_data[iPos + 0],
 				bmp_data[iPos + 1],
 				bmp_data[iPos + 2]
@@ -265,7 +271,7 @@ void Logger::DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp) {
 			ix += dx;
 		}
 
-		this->SetSpectrumOutputColor({._auto = true}, {
+		this->SetSpectrumOutputColor({ AUTO_COLOR }, {
 				(byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127)
 		});
 
@@ -276,7 +282,7 @@ void Logger::DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp) {
 		iy += dy;
 	}
 
-	this->SetSpectrumOutputColor({._auto = true}, {0,0,0});
+	this->SetSpectrumOutputColor({ AUTO_COLOR }, {0,0,0});
 	std::cout << " ";
 
 	std::cout << std::endl;

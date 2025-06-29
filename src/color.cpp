@@ -11,6 +11,10 @@ void Color::__ch_compute() {
 	this->a = GET_COLOR_CHANNEL(this->i, 3);
 }
 
+Color::Color(ColorMode mode) {
+	this->_mode = mode;
+}
+
 Color::Color(u8 r, u8 g, u8 b, u8 a) {
 	this->i = MAKECOLOR(r,g,b,a);
 }
@@ -60,33 +64,41 @@ void Color::setA(u8 a) {
 }
 
 u8 Color::luma() {
-
+	return 0;
 }
 
 u8 Color::chromaR() {
-
+	return 0;
 }
 
 u8 Color::chromaB() {
-
+	return 0;
 }
 
 u32 Color::yCrCb() {
-
+	return 0;
 }
 
 u16 Color::hue() {
-
+	return 0;
 }
 
 u8 Color::saturation() {
-
+	return 0;
 }
 
 u8 Color::lightness() {
-
+	return 0;
 }
 
 u8 Color::vibrance() {
-	
+	return 0;
+}
+
+ColorMode Color::mode() {
+	return this->_mode;
+}
+
+bool Color::autoColor() {
+	return this->_mode == AUTO_COLOR;
 }

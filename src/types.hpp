@@ -31,6 +31,20 @@ typedef float f32;
 typedef double f64;
 
 //words
+#ifdef WORD
+#undef WORD
+#endif
+
 typedef int16_t WORD;
+
+#ifdef DWORD
+#undef DWORD
+#endif
+
 typedef int32_t DWORD;
+
+#ifdef QWORD
+#undef QWORD
+#endif
+
 typedef int64_t QWORD;

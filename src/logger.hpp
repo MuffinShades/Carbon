@@ -3,9 +3,10 @@
 #include <iomanip>
 #include <sstream>
 #include "bitmap.hpp"
-#ifdef WIN32
-#include <windows.h>
-#endif
+#include "Color.hpp"
+//#ifdef WIN32
+//#include <windows.h>
+//#endif
 
 /*enum ConsoleColor {
 	CCBlack = 30,
@@ -26,10 +27,10 @@
 	CCWhite = 97
 };*/
 
-struct Color {
+/*struct Color {
 	unsigned char r, g, b;
 	bool _auto = false;
-};
+};*/
 
 struct LogDescriptor {
 	Color logColor = { 255, 255, 255 },
@@ -60,7 +61,7 @@ public:
 	Logger() {
 		this->SetSeparatorSize(this->_Desc.separatorSize);
 	}
-	void Log(std::string dat, Color c = {._auto = true});
+	void Log(std::string dat);
 	void Warn(std::string dat);
 	void Error(std::string dat);
 	template<class _ErrTy> _ErrTy ThrowableError(std::string dat) {
@@ -68,15 +69,15 @@ public:
 		return _ErrTy(dat);
 	};
 	void Inform(std::string dat);
-	void PrintColor(std::string dat, Color fb, Color bg = {0});
+	void PrintColor(std::string dat, Color fb, Color bg = {});
 	void PrintSeparator(bool adjustColor = true);
 	void SetSeparatorSize(size_t sz);
 	void LogHex(unsigned char* dat, size_t nBytes, HexSettings disp_settings = {});
 	std::string LogProgress(float p, size_t w, bool log = false);
 	void ClearLastLine();
 	void NextLine();
-	void SetSpectrumOutputColor(Color fg, Color bg = {0});
-	void SetSpectrumOutputColor(std::stringstream& stream, Color fg, Color bg = { 0 });
+	void SetSpectrumOutputColor(Color fg, Color bg = {});
+	void SetSpectrumOutputColor(std::stringstream& stream, Color fg, Color bg = {});
 	void SetLogColor(Color c);
 	void SetLogBgColor(Color c);
 	void DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp);

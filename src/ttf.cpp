@@ -41,20 +41,20 @@ enum iTable getITableEnum(offsetTable tbl) {
 //reference: https://developer.apple.com/fonts/TrueType-Reference-Manual/
 
 //ttfSream stuff
-short ttfStream::readFWord() {
+i16 ttfStream::readFWord() {
     return this->readInt16();
 }
 
-unsigned short ttfStream::readUFWord() {
+u16 ttfStream::readUFWord() {
     return this->readUInt16();
 }
 
-float ttfStream::readF2Dot14() {
-    return (float)(this->readInt16()) / (float)(1 << 14);
+f32 ttfStream::readF2Dot14() {
+    return (f32)(this->readInt16()) / (f32)(1 << 14);
 }
 
-float ttfStream::readFixed() {
-    return (float)(this->readInt32()) / (float)(1 << 16);
+f32 ttfStream::readFixed() {
+    return (f32)(this->readInt32()) / (f32)(1 << 16);
 }
 
 ttfLongDateTime ttfStream::readDate() {

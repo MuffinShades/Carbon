@@ -1,3 +1,10 @@
 build/
 build_vs/
 src/main.cpp
+.vs/
+out/
+vs/
+*.DS_Store
+.vscode/
+.VSCodeCounter/
+.git/

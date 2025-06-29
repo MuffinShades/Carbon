@@ -14,15 +14,22 @@
 #define GET_COLOR_CHANNEL(col, ch) (((col) >> (mu_min(ch, 3)) << 3) & 0xff)
 #define MODIFY_COLOR_CHANNEL(col, ch, val) ((col) ^ ((col) & (0xff << (mu_min(ch, 3) << 3)))) | (((val) & 0xff) << (mu_min(ch, 3) << 3))
 
+enum ColorMode {
+	DEFAULT_COLOR,
+	AUTO_COLOR
+};
+
 class Color {
 private:
 	u8 r = 0, g = 0, b = 0, a = 255;
 	u32 i = 0;
+	ColorMode _mode = DEFAULT_COLOR;
 	void __i_compute();
 	void __ch_compute();
 public:
 	Color(u8 r = 0, u8 g = 0, u8 b = 0, u8 a = 255);
 	Color(u32 i);
+	Color(ColorMode mode);
 	u32 rgb();
 	u32 rgba();
 	u8 red();
@@ -37,6 +44,8 @@ public:
 	u8 saturation();
 	u8 lightness();
 	u8 vibrance();
+	ColorMode mode();
+	bool autoColor();
 	void setR(u8 r);
 	void setG(u8 g);
 	void setB(u8 b);
