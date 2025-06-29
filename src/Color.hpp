@@ -29,10 +29,25 @@ public:
 	u8 green();
 	u8 blue();
 	u8 alpha();
+	u8 luma();
+	u8 chromaR();
+	u8 chromaB();
+	u32 yCrCb();
+	u16 hue();
+	u8 saturation();
+	u8 lightness();
+	u8 vibrance();
 	void setR(u8 r);
 	void setG(u8 g);
 	void setB(u8 b);
 	void setA(u8 a);
+	void setLuma(u8 y);
+	void setChromaR(u8 cr);
+	void setChromaB(u8 cb);
+	void setHue(u16 h);
+	void setSaturation(u8 s);
+	void setLightness(u8 l);
+	void setVibrance(u8 v);
 };
 
 struct GradColorStop {

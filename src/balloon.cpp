@@ -37,10 +37,16 @@ Possible optimizations
     * use consteval and constexpr when appropriate
     * etc.
     * remove the f*cking std::couts << :skull:
+    * use a 65kb memory region instead of std::vector for inflating a block of data
+    * improve speeds of lz77 back ref in inflate
+    * make bytestream support a read only from a data source mode or add non "data own" chunks to the stream
 
 POSSIBLE BUGS
-    * bobs bit length service may be need on distance trees; possible fix is adding a maxLen param when calling
+    * bobs bit length service may be needed on distance trees; possible fix is adding a maxLen param when calling
       GenCanonicalTreeInf
+
+Known Bugs
+    * Inflate level 0 doesn't work -> (I think)
 
 Resolved Bugs
     * trees with 1 node are not created - resolved 6/14/2025
@@ -1099,12 +1105,12 @@ lzr lz77_encode(byte* dat, size_t sz, size_t winBits) {
 
             //make sure things are valid
             if (distIdx >= dsb_len || distIdx < 0) {
-                std::cout << "ZLib Error: invalid match distance!";
+                std::cout << "Balloon error: invalid match distance!";
                 continue;
             }
 
             if (lenIdx >= lnb_len || lenIdx < 0) {
-                std::cout << "ZLib Error: invalid match length!";
+                std::cout << "Balloon error: invalid match length!";
                 continue;
             }
 
@@ -1472,8 +1478,6 @@ void _lzr_stream_write(BitStream* stream, lzr* l, u32* checksum, bool writeCapBy
     for (i32 i = 0; i < buf_len; i++) { //maybe this one
         u32 sym = dat_buf[i]; //this line is slow!!!
 
-        //std::cout << std::hex << sym << " ";
-
         adler32_compute_next(*checksum, sym);
 
         const size_t bl = enc_tree_inf.bitLens[sym];
@@ -1692,7 +1696,6 @@ balloon_result Balloon::Deflate(byte* data, size_t sz, u32 compressionLevel, con
     size_t totalSz = 0, nBlocks = 0;
 
     while (bytesLeft > 0) {
-        std::cout << "BYTES LEFT: " << bytesLeft << std::endl;
         size_t blockSz = mu_min(bytesLeft, BLOCK_SIZE_MAX);
 
         bin block_dat = {
@@ -1723,8 +1726,6 @@ balloon_result Balloon::Deflate(byte* data, size_t sz, u32 compressionLevel, con
     std::cout << "Encode Speed: " << (((double)totalSz / duration.count()) * 1e3) << " kb/s" << std::endl;
     std::cout << "N Blocks: " << nBlocks << std::endl;
 #endif
-
-std::cout << "Encode Speed: " << (((double)totalSz / duration.count())) << " mb/s" << std::endl;
 
     //construct result
     balloon_result res = {
@@ -1766,7 +1767,9 @@ huffman_node** _decode_trees(BitStream* stream) {
         nDistCodes = stream->readBits(5) + 1,
         nClCodes = stream->readBits(4) + 4;
 
+#ifdef MSFL_DEBUG
     std::cout << "Tree Info:" << "\n\tNLitCodes: " << nLitCodes << "\n\tNDistCodes: " << nDistCodes << "\n\tNClCodes: " << nClCodes << std::endl;
+#endif
 
     //extract cl bit lengths
     const size_t N_CLCODES = 19;
@@ -1875,7 +1878,11 @@ huffman_node** _decode_trees(BitStream* stream) {
 }
 
 void _inflate_block_generic(InflateBlock* block, InflateBlock* prev_block, BitStream* stream, huffman_node* litTree, huffman_node* distTree, const block_settings settings) {
+    
+    #ifdef MSFL_DEBUG
     std::cout << "Inflating Normal Block @" << stream->tell() << std::endl;
+    #endif
+
     if (!litTree || !distTree)
         return;
 
@@ -1891,8 +1898,6 @@ void _inflate_block_generic(InflateBlock* block, InflateBlock* prev_block, BitSt
 
         //back ref :O
         } else {
-            if (abs((i64)dec_data.size() - 93576) < 0xff)
-                std::cout << "Back Ref at " << stream->tell() << " | Data Len: " << dec_data.size() << " | Ref Type: " << sym << std::endl;
             const size_t lenIdx = sym - 257;
 
             //get length
@@ -1916,8 +1921,13 @@ void _inflate_block_generic(InflateBlock* block, InflateBlock* prev_block, BitSt
                             dec_data.push_back(prev_block->data[
                                 prevSz - subDist
                             ]);
-                        } else
+                        } else {
                             std::cout << "Balloon warning: accessing far far back data!" << std::endl;
+                            dec_data.push_back(0);
+                        }
+                    } else {
+                        std::cout << "Balloon warning: accessing far far back data!" << std::endl;
+                        dec_data.push_back(0);
                     }
                 } else {
                     byte dbg_sym;
@@ -1940,7 +1950,6 @@ void _inflate_block_generic(InflateBlock* block, InflateBlock* prev_block, BitSt
 }
 
 void _inflate_block_none(InflateBlock* block, BitStream* stream, const block_settings settings) {
-    std::cout << "Inflating Uncompressed Block!!!" << std::endl;
     if (!block || !stream)
         return;
 
@@ -1955,7 +1964,6 @@ void _inflate_block_none(InflateBlock* block, BitStream* stream, const block_set
 }
 
 void _inflate_block_static(InflateBlock* block, InflateBlock* prev_block, BitStream* stream, const block_settings settings) {
-    std::cout << "Inflating Static Block!!!" << std::endl;
     if (!block || !stream)
         return;
 
@@ -2033,8 +2041,6 @@ InflateBlock _stream_block_inflate(BitStream* stream, InflateBlock* prev_block, 
         .block_type = (deflate_block_type)stream->readBits(2)
     };
 
-    std::cout << "Decoded Block: " << block.block_type << " | " << block.blockFinal << std::endl;
-
     //decode block data
     switch (block.block_type) {
     case dfb_none:
@@ -2110,7 +2116,6 @@ balloon_result Balloon::Inflate(byte* data, size_t sz) {
     InflateBlock *prev_block = nullptr;
 
     while (!eos) {
-        std::cout << "Inflating New Block @" << datStream.tell() << " OutputData@" << totalBlockSize << std::endl;
         InflateBlock c_block = _stream_block_inflate(
             &datStream, 
             prev_block,

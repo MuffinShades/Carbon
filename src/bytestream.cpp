@@ -1010,3 +1010,23 @@ bool ByteStream::canAdv() {
 void ByteStream::enable_manual_mode() {
     this->manual_stream = true;
 }
+
+bool ByteStream::atCurBlockEnd() {
+	if (!this->cur_block)
+		return false;
+
+	this->blockPos = this->pos - this->cur_block->pos;
+	return this->blockPos >= this->cur_block->data_len;
+}
+
+ByteStream::block_write_status ByteStream::canWriteToCurBlock() {
+	if (!this->cur_block)
+		return stream_bws_cannotWrite;
+
+	this->blockPos = this->pos - this->cur_block->pos;
+	if (this->blockPos >= this->cur_block->sz)
+		return stream_bws_cannotWrite;
+	if (this->blockPos >= this->cur_block->data_len)
+		return stream_bws_canWriteAtCur;
+	return stream_bws_canWriteWithSplit;
+}

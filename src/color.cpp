@@ -58,3 +58,35 @@ void Color::setB(u8 b) {
 void Color::setA(u8 a) {
 	this->i = MODIFY_COLOR_CHANNEL(this->i, 3, a);
 }
+
+u8 Color::luma() {
+
+}
+
+u8 Color::chromaR() {
+
+}
+
+u8 Color::chromaB() {
+
+}
+
+u32 Color::yCrCb() {
+
+}
+
+u16 Color::hue() {
+
+}
+
+u8 Color::saturation() {
+
+}
+
+u8 Color::lightness() {
+
+}
+
+u8 Color::vibrance() {
+	
+}

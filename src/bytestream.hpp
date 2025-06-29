@@ -4,10 +4,18 @@
 
 /**
  * 
- * Fast Bytestream for Oxygen
+ * Fast Bytestream for Oxygen and Carvon
  * 
  * Copyright James Weigand 2025 All rights reserved
  * 
+ * Version 1.0 [Current]
+ * 	basic class
+ * Version 1.1 [In Dev]
+ * 	adding filestream capabilities
+ *  better memory usage
+ *  ability to write anywhere in the stream (fast!)
+ *  stream settings & read-only streams
+ *  safer data pointers
  */
 
 #ifdef MSFL_DLL
@@ -29,12 +37,26 @@ extern "C" {
 constexpr size_t MAX_BLOCK_SIZE = 0xffffffff, MAX_BLOCK_SIZE_LOG16 = 8;
 constexpr size_t MIN_BLOCK_SIZE = 16;
 constexpr size_t BYTESTREAM_DEFAULT_BLOCK_PADDING = 0xf;
+constexpr size_t BYTESTREAM_DEFAULT_BLOCK_ALLOC = 0xffff;
 
 struct mem_block {
+	//sz -> # of bytes allocated in the block
+	//data_len -> # of bytes that are actual data
 	size_t sz = 0, pos = 0, padding = 1;
+	size_t data_len = 0;
 	mem_block* next = nullptr, *prev = nullptr;
 	byte* dat = nullptr, *dat_end = nullptr;
-	bool data_own = true; //not used
+	/*
+	whether or not the memory block owns its data
+
+	when set to false (recieving data from another source) this block 
+	will not! free itself
+
+	when freeed this block will just no longer point to the data
+
+	DO NOT FREE DATA PASSED TO THE STREAM UNLESS YOU FREE THE STREAM!!!
+	*/
+	bool data_own = true; 
 	u64 side_info = 0; //side info sub_classes can use for holding info
 };
 
@@ -46,12 +68,56 @@ struct StreamExport {
 	u32 crc;
 };
 
+struct StreamSettings {
+	/*
+	
+	Whether or not the ByteStream is read-only
+	
+	*/
+	bool readOnly = false;
+
+	/*
+	
+	Whether or not the stream is protected
+
+	When protected:
+		- cannot get a raw byte pointer
+		- something else i planned in my head but forgot
+	
+	*/
+	bool protectedStream = false;
+
+	/*
+	
+	Whether or not when adding data to the stream, liek bytes,
+	the stream will copy all the data into either the current
+	block or a new block or will create a reference block and
+	disable the data_own flag on the new block
+	
+	*/
+	bool copyAllData = false;
+	/*
+	
+	Amount of memory to allocate with each new memory block
+
+	Default is 64kb
+	
+	*/
+	size_t blockAllocSz = BYTESTREAM_DEFAULT_BLOCK_ALLOC;
+};
+
 class ByteStream {
 private:
 	bool sz_aligned = false;
     bool manual_stream = false;
 protected:
-	size_t blockAllocSz = 0xffff, 
+	enum block_write_status {
+		stream_bws_canWriteAtCur = 0,
+		stream_bws_canWriteWithSplit = 1,
+		stream_bws_cannotWrite = 2
+	};
+
+	size_t blockAllocSz = BYTESTREAM_DEFAULT_BLOCK_ALLOC, 
 		   blockAllocSzLog16 = 4, 
 		   blockAllocSzLog2 = 16;
 	#ifdef COMPILER_MODE_64_BIT
@@ -93,8 +159,13 @@ protected:
 
 	void block_end();
 	void set_cur_block(mem_block *block);
+
 	virtual void len_inc();
 	virtual void len_inc(const size_t sz);
+
+	//more block helper functions
+	bool atCurBlockEnd();
+	block_write_status canWriteToCurBlock();
 
 	mem_block *get_t_block(size_t pos);
 	u32 mod_block_sz(const u64 val);

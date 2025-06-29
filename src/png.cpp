@@ -313,7 +313,6 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 
 		//x scan
 		for (df_inst.scanX = 0; df_inst.scanX < scanline; df_inst.scanX++) {
-			std::cout << "method: " << (i32)method << std::endl;
 			switch (method) {
 
 			//none
@@ -353,8 +352,8 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 };
 
 //decode a file
-png_file PngParse::Decode(std::string src) {
-	png_file rs;
+png_image PngParse::Decode(std::string src) {
+	png_image rs;
 	if (src == "" || src.length() <= 0)
 		return rs;
 	file fDat = FileWrite::readFromBin(src);
@@ -382,12 +381,12 @@ void free_png_chunk(png_chunk* p) {
 
 #define MSFL_PNG_DEBUG
 
-png_file PngParse::DecodeBytes(byte* bytes, size_t sz) {
+png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 
 	ByteStream stream = ByteStream(bytes, sz);
 	stream.int_mode = IntFormat_BigEndian; //set stream mode to big endian since that's what pngs use
 
-	png_file rpng;
+	png_image rpng;
 
 	//get for signature
 	for (auto sig_byte : sig)
@@ -484,7 +483,7 @@ png_file PngParse::DecodeBytes(byte* bytes, size_t sz) {
 
 	for (const png_chunk& idatChunk : iData) {
 		size_t chunkLen;
-		std::cout << "IDAT Copy: " << curCopy << " | Size: " << idatChunk.len << std::endl;
+
 		memcpy(compressedIdata + curCopy, idatChunk.dat, chunkLen = idatChunk.len);
 		compressedIdataSz += idatChunk.len;
 		free_png_chunk(const_cast<png_chunk*>(&idatChunk));
@@ -498,8 +497,6 @@ png_file PngParse::DecodeBytes(byte* bytes, size_t sz) {
 		//	break;
 	}
 
-	l.Log("Compressed Data Size: "+std::to_string(compressedIdataSz));
-
 	iData.clear();
 	
 	//decompress all the idata chunks
@@ -510,11 +507,11 @@ png_file PngParse::DecodeBytes(byte* bytes, size_t sz) {
 	l.Log("Compressed Data: ");
 	l.LogHex(compressedIdata, mu_min(256, compressedIdataSz));
 
-	FileWrite::writeToBin("idatDumpCompressed.bin", compressedIdata, compressedIdataSz);
+	//FileWrite::writeToBin("idatDumpCompressed.bin", compressedIdata, compressedIdataSz);
 	
 	balloon_result rawImgData = Balloon::Inflate(compressedIdata, compressedIdataSz);
 
-	FileWrite::writeToBin("idatDumpDecompressed.bin", rawImgData.data, rawImgData.sz);
+	//FileWrite::writeToBin("idatDumpDecompressed.bin", rawImgData.data, rawImgData.sz);
 
 	_safe_free_a(compressedIdata);
 
@@ -534,8 +531,6 @@ png_file PngParse::DecodeBytes(byte* bytes, size_t sz) {
 	}
 
 	//defilter the data
-	std::cout << "Defiltering..." << std::endl;
-
 	imgDat = defilterDat(imgDat, decodeDatSz, &png_header);
 
 	const size_t defilterSize = png_header.w * png_header.h * png_header.bytesPerPixel;
@@ -565,7 +560,7 @@ png_file PngParse::DecodeBytes(byte* bytes, size_t sz) {
 	};
 }
 
-bool PngParse::Encode(std::string src, png_file p) {
+bool PngParse::Encode(std::string src, png_image p) {
 	if (src.length() <= 0 || src == "" || p.sz <= 0 || !p.data)
 		return false;
 

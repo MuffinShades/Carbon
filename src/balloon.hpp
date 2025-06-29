@@ -2,6 +2,8 @@
 /**
  *
  * BALLOON - C++ lightweight zlib implementation
+ * 
+ * Current Version: 1.1.2 / dev1.2
  *
  * Version 0.0 written May 2024 [Old]
  * 		poorly made
@@ -70,12 +72,18 @@ struct balloon_result {
 	byte compressionMethod;
 };
 
+struct huffman_result {
+
+};
+
 #define BALLOON_MAX_THREADS_AUTO -1
 
 class Balloon {
 public:
 	CARBON_EXP static balloon_result Deflate(byte* data, size_t sz, u32 compressionLevel = 2, const size_t winBits = 0xf);
 	CARBON_EXP static balloon_result Inflate(byte* data, size_t sz);
+	CARBON_EXP static huffman_result HuffmanEncode();
+	CARBON_EXP static huffman_result HuffmanDecode();
 	static bool DeflateFileToFile(std::string in_src, std::string out_src, u32 compressionLevel = 2, const size_t winBits = 0xf);
 	static bool InflateFileToFile(std::string in_src, std::string out_src);
 	static balloon_result MultiThreadDeflate(byte* data, size_t sz, i32 maxThreads = BALLOON_MAX_THREADS_AUTO, u32 compressionLevel = 2, const size_t winBits = 0xf);
