@@ -210,29 +210,29 @@ class DefilterMethod {
 public: 
 	//sub defilter
 	static void sub(DefilterContext* inst) {
-		if (!inst)
+		if (!inst || inst->oStream >= inst->o_end)
 			return;
 		
-		*inst->oStream++ = (defilter_context_cur(inst) + defilter_getLeft(inst)) & 0xff;
+		*inst->oStream = (defilter_context_cur(inst) + defilter_getLeft(inst)) & 0xff;
 	};
 	//up defilter
 	static void up(DefilterContext* inst) {
-		if (!inst)
+		if (!inst || inst->oStream >= inst->o_end)
 			return;
-		*inst->oStream++ = (defilter_context_cur(inst) + defilter_getTop(inst)) & 0xff;
+		*inst->oStream = (defilter_context_cur(inst) + defilter_getTop(inst)) & 0xff;
 	};
 	//avg defilter
 	static void avg(DefilterContext* inst) {
-		if (!inst)
+		if (!inst || inst->oStream >= inst->o_end)
 			return;
 		const i32 avg = (defilter_getLeft(inst) + defilter_getTop(inst)) >> 1;
-		*inst->oStream++ = (defilter_context_cur(inst) + avg) & 0xff;
+		*inst->oStream = (defilter_context_cur(inst) + avg) & 0xff;
 	};
 	//paeth defilter, he
 	static void paeth(DefilterContext* inst) {
-		if (!inst)
+		if (!inst || inst->oStream >= inst->o_end)
 			return;
-		*inst->oStream++ = (defilter_context_cur(inst) + paeth_predict(inst)) & 0xff;
+		*inst->oStream = (defilter_context_cur(inst) + paeth_predict(inst)) & 0xff;
 	};
 };
 
@@ -291,7 +291,7 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 	}
 
 	const size_t scanline = hdr->w * hdr->bytesPerPixel;
-	const size_t defilterSz = (scanline * hdr->h) - hdr->h; // - hdr->h for each filter type bytes
+	const size_t defilterSz = (scanline * hdr->h);
 
 	byte* out = new byte[defilterSz];
 	ZeroMem(out, defilterSz);
@@ -307,7 +307,10 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 		.o_end = out + defilterSz
 	};
 
+	df_inst.scanY = 0;
+
 	//y scan
+	std::cout << "W: " << hdr->w << " | H: " << hdr->h << " | Mem Allocated: " << defilterSz << std::endl;
 	for (; df_inst.scanY < hdr->h; df_inst.scanY++) {
 		const byte method = defilter_context_next(&df_inst); //get defilter method
 
@@ -317,7 +320,7 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 
 			//none
 			case 0:
-				*df_inst.oStream++ = defilter_context_cur(&df_inst);
+				*df_inst.oStream = defilter_context_cur(&df_inst);
 				break;
 			//sub
 			case 1: 
@@ -337,13 +340,16 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 				break;
 			default:
 				l.Error("Failed to defilter png!");
-				*df_inst.oStream++ = defilter_context_cur(&df_inst);
+				*df_inst.oStream = defilter_context_cur(&df_inst);
 				//_safe_free_a(out);
 				//return nullptr;
 				break;
 			}
 			df_inst.p++;
+			df_inst.oStream++;
 		}
+
+		std::cout << "Space Left: " << (uintptr_t)(df_inst.o_end - df_inst.oStream) << std::endl;
 	}
 
 	_safe_free_a(i_dat);
@@ -547,7 +553,7 @@ png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 
 	l.DrawBitMapClip(70,70,testOut);
 
-	//BitmapParse::WriteToFile("testpngread.bmp", &testOut);
+	BitmapParse::WriteToFile("testpngread.bmp", &testOut);
 
 	return {
 		.data = imgDat,

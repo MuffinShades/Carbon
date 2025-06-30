@@ -57,9 +57,11 @@ class Logger {
 private:
 	LogDescriptor _Desc;
 	std::string sep;
+	static void EnableConsoleColoring();
 public:
 	Logger() {
 		this->SetSeparatorSize(this->_Desc.separatorSize);
+		EnableConsoleColoring();
 	}
 	void Log(std::string dat);
 	void Warn(std::string dat);

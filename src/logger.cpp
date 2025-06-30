@@ -1,5 +1,23 @@
 #include "logger.hpp"
 
+#ifdef WIN32
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#define DISABLE_NEWLINE_AUTO_RETURN  0x0008
+#include <windows.h>
+#endif //WIN32
+
+void Logger::EnableConsoleColoring() {
+#ifdef WIN32
+	std::cout << "ASDF" << std::endl;
+	HANDLE handleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	DWORD consoleMode;
+	GetConsoleMode(handleOut, &consoleMode);
+	consoleMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+	consoleMode |= DISABLE_NEWLINE_AUTO_RETURN;
+	SetConsoleMode(handleOut, consoleMode);
+#endif //WIN32
+}
+
 #define _COLOR_COMPARE(c1, c2) ((c1).red() == (c2).red() && (c1).green() == (c2).green() && (c1).blue() == (c2).blue())
 
 //static values for the ConsoleStateHandler

@@ -254,6 +254,8 @@ bool ByteStream::block_adv(bool pos_adv, bool write) {
 			this->pos = this->cur_block->pos;
 		return true;
 	} else if (write) {
+		if (!this->cur_block)
+			this->block_repair();
 		this->add_new_block(this->blockAllocSz);
 		return this->block_adv(pos_adv, false);
 	}
@@ -295,7 +297,7 @@ void ByteStream::pos_adv(const size_t sz) {
 	//
 	size_t bytesLeft = sz;
 	while ((this->blockPos + bytesLeft) >= this->cur_block->sz) {
-		bytesLeft -= this->cur_block->sz;
+		bytesLeft -= mu_min(bytesLeft, this->cur_block->sz);
 		this->block_adv();
 		this->cur = this->cur_block->dat;
 	}
@@ -308,26 +310,29 @@ void ByteStream::pos_adv(const size_t sz) {
 
 //TODO: this function
 void ByteStream::writeBytes(byte *dat, size_t sz) {
-	//if (!dat || sz <= 0)
-		//return;
-	assert(dat && sz > 0);
-	this->end();
+	if (!dat || sz <= 0)
+		return;
+	
+	//this->end();
 	this->len_inc(sz);
-	size_t blockBytesLeft;
-	size_t rCopy = 
-		mu_min(sz, 
-			(blockBytesLeft = (this->cur_block->sz - this->blockPos) - 1)
-		);
 
 	this->blockPos = this->pos - this->cur_block->pos;
+
+	size_t blockBytesLeft = (this->cur_block->sz - this->blockPos) - 1;
+	size_t rCopy = 
+		mu_min(sz, 
+			blockBytesLeft
+		);
 
 	std::cout << "first copy: " << this->blockPos << " | " << this->pos << " | RCopy: " << rCopy << std::endl;
 	std::cout << "Block info: " << std::endl;
 	std::cout << "\tBlock Size: " << this->cur_block->sz << std::endl;
 	std::cout << "\tDat Ptr: " << (uintptr_t) this->cur_block->dat << std::endl;
 
-	if (rCopy > 0)
+	if (rCopy > 0) {
 		in_memcpy(this->cur, dat, rCopy);
+		this->pos_adv(rCopy);
+	}
 	
 	sz -= rCopy;
 
@@ -340,22 +345,26 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 	//still have an if between dynamic copy and just normal memcpy since for
 	//small byte writes memcpy is likely faster
 	//
-	//lol lost you thought dy_memcpy was fast
+	//lol loser you thought dy_memcpy was fast
 	//in_memcpy just better
 
-	while (sz > this->blockAllocSz) {
+	while (sz >= this->blockAllocSz) {
 		this->block_adv(0, 1);
-		in_memcpy(this->cur, dp, sz);
+		in_memcpy(this->cur, dp, this->blockAllocSz);
 		sz -= this->blockAllocSz;
 		dp += this->blockAllocSz;
-		this->pos_adv(this->blockAllocSz);
+		//this->pos_adv(this->blockAllocSz);
+		this->pos += this->blockAllocSz;
 	}
+
+	this->blockPos = 0;
 
 	if (sz > 0) {
 		this->block_adv(0, 1);
 		in_memcpy(this->cur, dp, sz);
 		this->cur += sz;
-		this->pos_adv(sz);
+		this->blockPos = sz;
+		this->pos += sz;
 	}
 }
 

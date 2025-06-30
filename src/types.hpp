@@ -35,13 +35,17 @@ typedef double f64;
 #undef WORD
 #endif
 
+#ifndef WIN32
 typedef int16_t WORD;
+#endif
 
 #ifdef DWORD
 #undef DWORD
 #endif
 
+#ifndef WIN32
 typedef int32_t DWORD;
+#endif
 
 #ifdef QWORD
 #undef QWORD

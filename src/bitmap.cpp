@@ -55,6 +55,8 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
     oStream.writeUInt32(0); // reserved
     oStream.writeUInt32(oStream.size() + sizeof(u32) + datPos); //data offset
 
+    l.LogHex(datStream.getBytePtr(), 16);
+
     std::cout << "Data offset: " << oStream.size() + sizeof(u32) + datPos << std::endl;
     oStream.writeBytes(datStream.getBytePtr(), datStream.size());
     l.LogHex(oStream.getBytePtr(), 100);
