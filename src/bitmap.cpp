@@ -25,6 +25,9 @@ int write_bmp_header(Bitmap* bmp, ByteStream* stream) {
     return 0;
 }
 
+//TODO: 
+//fix rgb bitmaps -> rgba but with 0 for alpha
+//fix order of rgba bitmaps -> argb instead of rgba
 i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
     if (
         src.length() <= 0 ||
