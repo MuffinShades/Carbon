@@ -358,3 +358,5 @@ static void jumpOffABridge() {
     //volatile int* C4 = 0x0000000;
     //*C4 = NULL; //crash program :3
 }
+
+#define EXTRACT_BYTE_FLAG(flag, select) (((flag) >> (select)) & 1ULL)

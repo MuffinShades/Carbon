@@ -23,6 +23,7 @@ struct jpeg_image {
 };
 
 class JpegParse {
+public:
     static jpeg_image Decode(const std::string src);
 	static jpeg_image DecodeBytes(byte* bytes, size_t sz);
 	static bool Encode(std::string src, jpeg_image p);

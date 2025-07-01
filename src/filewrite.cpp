@@ -39,6 +39,7 @@ file FileWrite::readFromBin(std::string src) {
 	ZeroMem(buf, f_len);
 
 	is.read(reinterpret_cast<char*>(buf), f_len);
+	is.close();
 
 	return {
 		.len = f_len,

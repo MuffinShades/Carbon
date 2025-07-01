@@ -348,8 +348,6 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 			df_inst.p++;
 			df_inst.oStream++;
 		}
-
-		std::cout << "Space Left: " << (uintptr_t)(df_inst.o_end - df_inst.oStream) << std::endl;
 	}
 
 	_safe_free_a(i_dat);

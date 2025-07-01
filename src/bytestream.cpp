@@ -1039,3 +1039,16 @@ ByteStream::block_write_status ByteStream::canWriteToCurBlock() {
 		return stream_bws_canWriteAtCur;
 	return stream_bws_canWriteWithSplit;
 }
+
+byte ByteStream::nextByte() {
+	return *this->cur;
+}
+
+void ByteStream::stepBack(size_t nBytes) {
+	const size_t p = this->tell();
+
+	if (p >= nBytes)
+		this->seek(p - nBytes);
+	else
+		this->seek(0);
+}

@@ -1,11 +1,17 @@
 #include "jpeg.hpp"
 #include "bytestream.hpp"
 #include "bitstream.hpp"
+#include "filewrite.hpp"
+#include "Logger.hpp"
+
+static Logger l;
 
 constexpr size_t IMG_BLOCK_W = 8;
 constexpr size_t IMG_BLOCK_H = 8;
 constexpr size_t IMG_BLOCK_SZ = IMG_BLOCK_W * IMG_BLOCK_H;
 constexpr size_t MAX_CODES = 0x100;
+constexpr u32 APP_JPG_SIG = 0x4a464946; // "JFIF"
+constexpr size_t Q_MATRIX_SIZE = IMG_BLOCK_SZ;
 
 constexpr size_t zig_zag[] = {
     0,  1,   5,  6, 14, 15, 27, 28,
@@ -30,6 +36,14 @@ enum jpg_block_id {
     jpg_block_unknown = 0xffff
 };
 
+enum huff_table_id {
+    luma_DC,
+    luma_AC,
+    chroma_DC,
+    chroma_AC,
+    nHuffTables
+};
+
 struct imgBlock {
     byte *dat = nullptr;
     const size_t sz = IMG_BLOCK_SZ;
@@ -39,6 +53,29 @@ struct huff_table {
     size_t n_symbols;
     size_t *code_lens;
     byte inf;
+    size_t table_idx;
+};
+
+struct q_table {
+    byte qDest;
+    byte m[Q_MATRIX_SIZE];
+};
+
+struct jpg_header {
+    size_t w = 0, h = 0;
+};
+
+struct app_header {
+    u16 version;
+    byte units;
+    u16 densityX, densityY;
+    byte thumbX, thumbY;
+};
+
+struct JpgContext {
+    jpg_header header;
+    app_header app_header;
+    huff_table huffTables[nHuffTables];
 };
 
 /**
@@ -56,14 +93,25 @@ struct huff_table {
  * 4 bits -> Th, table destination
  * 
  */
-huff_table decode_huf_table(ByteStream *stream) {
+huff_table decode_huf_table(ByteStream* stream) {
     const size_t tableSz = stream->readUInt16();
     const byte ht_inf = stream->readByte();
-    
+
     huff_table tab = {
         .inf = ht_inf
     };
+
+    //process inf a bit
+    const flag tableType = EXTRACT_BYTE_FLAG(ht_inf, 4);
+    const size_t tablePos = ht_inf & 15;
+
+    if (tablePos > 1) {
+        std::cout << "Jpeg Warning: huffman table is out of bounds!" << std::endl;
+    }
+
+    tab.table_idx = ((tablePos << 1) | tableType);
     
+    //extract the codelengths
     const size_t MAX_CODE_LENGTH = 16, MAX_CODE_VAL = 0xff;
     
     //
@@ -92,39 +140,209 @@ huff_table decode_huf_table(ByteStream *stream) {
     return tab;
 }
 
+app_header decode_app_header(ByteStream* stream) {
+    if (!stream)
+        return {};
+
+    IntFormat oFormat = stream->int_mode;
+    stream->int_mode = IntFormat_BigEndian;
+
+    const size_t headerLen = stream->readUInt32();
+    const size_t JFIF_label = stream->readUInt32();
+
+    if (JFIF_label != APP_JPG_SIG) {
+        std::cout << "Jpeg Error: Invalid app header sig!" << std::endl;
+        return {};
+    }
+
+    const app_header h = {
+        .version = stream->readUInt16(),
+
+    };
+
+    stream->int_mode = oFormat;
+    return h;
+}
+
+q_table decode_q_table(ByteStream* stream) {
+    const size_t tableSz = stream->readUInt16();
+    q_table table;
+
+    table.qDest = stream->readByte();
+
+    if (table.qDest != 0 && table.qDest != 1) {
+        std::cout << "Jpeg Error: Invalid quantization table destination! Expected 0 (luma) or 1 (chroma)" << std::endl;
+        return table;
+    }
+
+    ZeroMem(table.m, Q_MATRIX_SIZE);
+
+    //read in the qTable values
+    u32 i, tv;
+
+    for (i = 0; i < Q_MATRIX_SIZE; i++) {
+        table.m[i] = (tv = stream->readByte());
+
+        //all 0xff's must be preceded by a 0x00 if it isn't a header!!
+        if (tv == 0xFF) {
+            const byte zByte = stream->readByte();
+
+            if (zByte != 0) {
+                std::cout << "Jpeg Error: Failed to decoded quantization table. Not enough entries!" << std::endl;
+                stream->stepBack(2);
+                break;
+            }
+        }
+    }
+
+    return table;
+}
+
 static void skip_chunk(ByteStream *stream) {
     const size_t chunkSz = stream->readUInt16();
     stream->skip(chunkSz);
 }
 
-jpg_block_id handle_block(ByteStream *stream) {
-    const u16 blockId = stream->readUInt16();
+#define JPG_GET_N_BLOCK_IN_DIR(dir) (((dir) >> 3) + (((dir) & 7) > 0))
+
+u32 jpg_decodeIData(ByteStream* stream, JpgContext* jContext) {
+    if (!stream || !jContext) {
+        l.Error("Jpg Error: invalid stream or context!");
+        return 1;
+    }
+
+    const size_t nXBlocks = JPG_GET_N_BLOCK_IN_DIR(jContext->header.w),
+                 nYBlocks = JPG_GET_N_BLOCK_IN_DIR(jContext->header.h);
+
+    /*
+    
+    How the blocks are stored:
+
+                  nXBlocks
+    +----------------------------------+
+    |{ [Y][Cr][Cb] }
+    |
+    |
+    +----------------------------------+
+
+    */
+
+    //loop over every image block
+    size_t bx, by;
+
+    for (by = 0; by < nYBlocks; ++by) {
+        for (bx = 0; bx < nXBlocks; ++bx) {
+
+        }
+    }
+
+    return 0;
+}
+
+jpg_block_id handle_block(ByteStream* stream, JpgContext* jContext) {
+    if (!stream || !jContext) {
+        l.Error("Jpg Error: invalid stream or context!");
+        return jpg_block_null;
+    }
+
+    //look for the start of a block
+    u8 blockFF;
+
+    //look for a hex code in the form 0xFFXX, where XX is not 00
+    while (
+        (blockFF = stream->readByte()) != 0xFF ||
+        stream->nextByte() == 0x00
+    ) {
+        //do nothing :D
+        if (!stream->canAdv()) {
+            std::cout << "Jpg Warning: Reached stream end without finding a block!!" << std::endl;
+            break;
+        }
+    }
+
+    //get block code
+    const u16 blockId = 0xFF00 | stream->readByte();
+
+    std::cout << "Decoded Block: " << blockId << std::endl;
+    //l.LogObjHex(blockId);
+
+    bool invalidBlock = false;
     
     switch (blockId) {
         case jpg_block_soi: {
-            
+            std::cout << "Found Stat of Image!" << std::endl;
             break;
         }
         case jpg_block_hufTable: {
             huff_table decodedTable = decode_huf_table(stream);
             break;
         }
+        case jpg_block_header: {
+            jContext->app_header = decode_app_header(stream);
+            break;
+        }
+        case jpg_block_qtable: {
+            q_table table = decode_q_table(stream);
+            break;
+        }
+        case jpg_block_scanStart: {
+            u32 decodeStat;
+            if (decodeStat = jpg_decodeIData(stream, jContext)) {
+                std::cout << "Jpeg Error: Failed to decode image data [" << decodeStat << "]" << std::endl;
+            }
+            break;
+        }
+        case jpg_block_eoi: {
+            std::cout << "Found End of Image!" << std::endl;
+            break;
+        }
         default: {
             //thorw error or smth
+            invalidBlock = true;
             skip_chunk(stream);
             break;
         }
     }
     
-    return jpg_block_null;
+    return invalidBlock ? jpg_block_null : (jpg_block_id) blockId;
 }
 
 jpeg_image JpegParse::DecodeBytes(byte *dat, size_t sz) {
     if (dat == nullptr || sz <= 0) return {};
     
     ByteStream stream = ByteStream(dat, sz);
+
+    stream.__printDebugInfo();
+
+    JpgContext ctx;
     
-    handle_block(&stream);
+    for (;;) {
+        jpg_block_id c_block = handle_block(&stream, &ctx);
+
+        const bool atStreamEnd = !stream.canAdv();
+
+        if (c_block == jpg_block_eoi || atStreamEnd) {
+            if (atStreamEnd)
+                std::cout << "Jpeg Warning: reached end of stream with no end block!" << std::endl;
+            break;
+        }
+    }
     
     return {};
+}
+
+jpeg_image JpegParse::Decode(const std::string src) {
+    jpeg_image rs;
+    if (src == "" || src.length() <= 0)
+        return rs;
+    file fDat = FileWrite::readFromBin(src);
+
+    //error check
+    if (!fDat.dat) {
+        std::cout << "Failed to read jpeg..." << std::endl;
+        return rs;
+    }
+    rs = JpegParse::DecodeBytes(fDat.dat, fDat.len);
+    delete[] fDat.dat;
+    return rs;
 }

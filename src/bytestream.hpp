@@ -208,6 +208,9 @@ public:
 	MSFL_EXP virtual u48 readUInt48();
 	MSFL_EXP virtual i64 readInt64();
 	MSFL_EXP virtual u64 readUInt64();
+
+	//next functions
+	MSFL_EXP virtual byte nextByte();
 	
 	MSFL_EXP void clear();
 	MSFL_EXP void free();
@@ -218,6 +221,7 @@ public:
 	MSFL_EXP size_t tell();
 	MSFL_EXP size_t size();
 	MSFL_EXP void skip(size_t nBytes);
+	MSFL_EXP void stepBack(size_t nBytes);
 
 	MSFL_EXP void resize(size_t sz);
 	MSFL_EXP void clip();
