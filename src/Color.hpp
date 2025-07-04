@@ -19,6 +19,17 @@ enum ColorMode {
 	AUTO_COLOR
 };
 
+enum ColorFormat {
+	ColorFormat_RGB,
+	ColorFormat_RGBA,
+	ColorFormat_HSV,
+	ColorFormat_HSL,
+	ColorFormat_YCrCb,
+	ColorFormat_GrayScale
+};
+
+extern const size_t GetColorFormatSize(ColorFormat fm);
+
 class Color {
 private:
 	u8 r = 0, g = 0, b = 0, a = 255;

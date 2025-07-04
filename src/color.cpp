@@ -102,3 +102,20 @@ ColorMode Color::mode() {
 bool Color::autoColor() {
 	return this->_mode == AUTO_COLOR;
 }
+
+const size_t GetColorFormatSize(ColorFormat fm) {
+	switch (fm) {
+	case ColorFormat_RGB:
+		return 3;
+	case ColorFormat_RGBA:
+		return 4;
+	case ColorFormat_HSV:
+		return 3;
+	case ColorFormat_YCrCb:
+		return 3;
+	case ColorFormat_GrayScale:
+		return 1;
+	}
+
+	return 0;
+}
