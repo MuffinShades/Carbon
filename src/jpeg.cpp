@@ -2,7 +2,7 @@
 #include "bytestream.hpp"
 #include "bitstream.hpp"
 #include "filewrite.hpp"
-#include "Logger.hpp"
+#include "logger.hpp"
 
 static Logger l;
 
@@ -48,7 +48,7 @@ enum jpg_block_id {
     jpg_block_unknown = 0xffff
 };
 
-enum huff_table_id {
+enum class huff_table_id {
     luma_DC,
     luma_AC,
     chroma_DC,
@@ -73,8 +73,18 @@ struct q_table {
     byte m[Q_MATRIX_SIZE];
 };
 
+struct component_inf {
+    u8 hRes = 0, vRes = 0; //horizontal and vertical resolutions
+    u8 q_idx = 0; //index of quantization table
+    u8 id = 0; //component id
+};
+
 struct jpg_header {
+    u8 precision = 8;
     size_t w = 0, h = 0;
+    u16 maxHRes, maxVRes;
+    size_t nChannels = 3;
+    component_inf channelInf[3];
 };
 
 struct app_header {
@@ -87,7 +97,16 @@ struct app_header {
 struct JpgContext {
     jpg_header header;
     app_header app_header;
-    huff_table huffTables[nHuffTables];
+    huff_table huffTables[static_cast<size_t>(huff_table_id::nHuffTables)];
+};
+
+enum class component_id {
+    Unknown = 0,
+    Luma = 1,
+    ChromaR = 3,
+    ChromaB = 2,
+    I = 4,
+    Q = 5
 };
 
 /**
@@ -159,7 +178,7 @@ app_header decode_app_header(ByteStream* stream) {
     IntFormat oFormat = stream->int_mode;
     stream->int_mode = IntFormat_BigEndian;
 
-    const size_t headerLen = stream->readUInt32();
+    const size_t headerLen = stream->readUInt32(), endJmp = stream->tell() + headerLen;
     const size_t JFIF_label = stream->readUInt32();
 
     if (JFIF_label != APP_JPG_SIG) {
@@ -172,6 +191,7 @@ app_header decode_app_header(ByteStream* stream) {
 
     };
 
+    stream->seek(endJmp);
     stream->int_mode = oFormat;
     return h;
 }
@@ -215,6 +235,37 @@ static void skip_chunk(ByteStream *stream) {
     stream->skip(chunkSz);
 }
 
+jpg_header decode_sof(ByteStream* stream) {
+    if (!stream) return {};
+
+    const size_t blockSz = stream->readUInt16();
+
+    u32 i, resInf, cInf;
+
+    jpg_header h = {};
+
+    //Possible TODO: read everything as a u48 and use bit manipulation to decode the individual values (sketchy)
+    h.precision = stream->readByte();
+    h.h = stream->readUInt16();
+    h.w = stream->readUInt16();
+    h.nChannels = stream->readByte();
+
+    //read channel info (stored in u24s)
+    for (i = 0; i < h.nChannels; i++) {
+        cInf = stream->readUInt24();
+        component_inf I;
+
+        resInf = (cInf >> 8) & 0xff;
+
+        I.id = (cInf >> 16) & 0xff;
+        I.q_idx = cInf & 0xff;
+        I.vRes = resInf & 0xf;
+        I.hRes = (resInf >> 4) & 0xf;
+
+        h.channelInf[i] = I;
+    }
+}
+
 #define JPG_GET_N_BLOCK_IN_DIR(dir) (((dir) >> 3) + (((dir) & 7) > 0))
 
 u32 jpg_decodeIData(ByteStream* stream, JpgContext* jContext) {
@@ -242,14 +293,18 @@ u32 jpg_decodeIData(ByteStream* stream, JpgContext* jContext) {
     //loop over every image block
     size_t bx, by;
 
+    u32 lumaRef = 0, chromaRef_r = 0, chromaRef_b = 0;
+
     for (by = 0; by < nYBlocks; ++by) {
         for (bx = 0; bx < nXBlocks; ++bx) {
-
+            
         }
     }
 
     return 0;
 }
+
+
 
 jpg_block_id handle_block(ByteStream* stream, JpgContext* jContext) {
     if (!stream || !jContext) {
