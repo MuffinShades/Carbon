@@ -281,12 +281,12 @@ u32 jpg_decodeIData(ByteStream* stream, JpgContext* jContext) {
     
     How the blocks are stored:
 
-                  nXBlocks
-    +----------------------------------+
-    |{ [Y][Cr][Cb] }
+              nXBlocks
+    +--------------------------+
+    | { [Yx4][Crx2][Cbx2] }...
+    | ...
     |
-    |
-    +----------------------------------+
+    +--------------------------+
 
     */
 
