@@ -274,6 +274,11 @@ u32 jpg_decodeIData(ByteStream* stream, JpgContext* jContext) {
         return 1;
     }
 
+    if (jContext->header.w == 0 || jContext->header.h == 0) {
+        l.Error("Jpg Error: image dimensions are zero or no header has been found!");
+        return 2;
+    }
+
     const size_t nXBlocks = JPG_GET_N_BLOCK_IN_DIR(jContext->header.w),
                  nYBlocks = JPG_GET_N_BLOCK_IN_DIR(jContext->header.h);
 
@@ -337,7 +342,7 @@ jpg_block_id handle_block(ByteStream* stream, JpgContext* jContext) {
     
     switch (blockId) {
         case jpg_block_soi: {
-            std::cout << "Found Stat of Image!" << std::endl;
+            std::cout << "Found Start of Image!" << std::endl;
             break;
         }
         case jpg_block_hufTable: {
@@ -350,6 +355,10 @@ jpg_block_id handle_block(ByteStream* stream, JpgContext* jContext) {
         }
         case jpg_block_qtable: {
             q_table table = decode_q_table(stream);
+            break;
+        }
+        case jpg_block_sof: {
+            jContext->header = decode_sof(stream);
             break;
         }
         case jpg_block_scanStart: {
