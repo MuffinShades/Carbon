@@ -82,9 +82,10 @@ struct component_inf {
 struct jpg_header {
     u8 precision = 8;
     size_t w = 0, h = 0;
-    u16 maxHRes, maxVRes;
+    u16 maxHRes = 0, maxVRes = 0;
     size_t nChannels = 3;
     component_inf channelInf[3];
+    size_t channelDataSz[3];
 };
 
 struct app_header {
@@ -262,11 +263,40 @@ jpg_header decode_sof(ByteStream* stream) {
         I.vRes = resInf & 0xf;
         I.hRes = (resInf >> 4) & 0xf;
 
+        h.maxHRes = mu_max(h.maxHRes, I.hRes);
+        h.maxVRes = mu_max(h.maxVRes, I.vRes);
         h.channelInf[i] = I;
     }
+
+    return h;
 }
 
 #define JPG_GET_N_BLOCK_IN_DIR(dir) (((dir) >> 3) + (((dir) & 7) > 0))
+
+
+
+void jpg_build_block(JpgContext* jContext, byte* out_buffer, size_t& old_dc_coeff) {
+    if (!jContext || !out_buffer) return;
+
+
+}
+
+u32 jpg_decode_channel_blocks(JpgContext* jContext, byte **blockData, u8 channelSelect) {
+    if (!blockData || !jContext) return 1;
+
+    const u32 h_res = jContext->header.channelInf[channelSelect].hRes,
+              v_res = jContext->header.channelInf[channelSelect].vRes;
+
+    u32 h, v;
+    
+    for (v = 0; v < v_res; v++) {
+        for (h = 0; h < h_res; h++) {
+
+        }
+    }
+
+    return 0;
+}
 
 u32 jpg_decodeIData(ByteStream* stream, JpgContext* jContext) {
     if (!stream || !jContext) {
@@ -300,8 +330,19 @@ u32 jpg_decodeIData(ByteStream* stream, JpgContext* jContext) {
 
     u32 lumaRef = 0, chromaRef_r = 0, chromaRef_b = 0;
 
-    for (by = 0; by < nYBlocks; ++by) {
-        for (bx = 0; bx < nXBlocks; ++bx) {
+    byte **blockData = new byte*[jContext->header.nChannels];
+
+    forrange(jContext->header.nChannels) {
+        f32 h_ratio = (f32) jContext->header.channelInf[i].hRes / (f32) jContext->header.maxHRes,
+            v_ratio = (f32) jContext->header.channelInf[i].vRes / (f32) jContext->header.maxVRes;
+        const size_t nb = (size_t)(h_ratio * nXBlocks) * (size_t)(v_ratio * nYBlocks);
+        blockData[i] = new byte[nb];
+        ZeroMem(blockData, nb); //TODO: maybe remove the zeromem since it isn't really needed
+        jContext->header.channelDataSz[i] = nb;
+    }
+
+    for (by = 0; by < nYBlocks; by++) {
+        for (bx = 0; bx < nXBlocks; bx++) {
             
         }
     }
