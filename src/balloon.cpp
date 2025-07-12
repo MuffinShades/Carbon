@@ -175,26 +175,11 @@ struct block_settings {
 u64 bitReverse(u64 v, size_t nBits) {
     u64 rs = 0x00;
     for (i32 i = nBits - 1; i >= 0; i--)
-        rs |= (((v & (1 << i)) >> i) & 1) << ((nBits - 1) - i); //yes just a lot of bit shifting stuff
+        rs |= (((v & (1ULL << i)) >> i) & 1ULL) << ((nBits - 1ULL) - i); //yes just a lot of bit shifting stuff
     return rs;
 }
 
 //this is where cool stuff begins
-
-struct huffman_node {
-    huffman_node* left = nullptr, * right = nullptr; //left and right pointers
-    u32 val = 0;
-    size_t count = 0, depth = 0, cmpCount = 0;
-    bool leaf = false;
-    i32* symCodes = nullptr;
-    size_t alphaSz = 0;
-};
-
-struct HuffmanTreeInfo {
-    huffman_node* t;
-    u32* bitLens;
-    size_t alphaSz;
-};
 
 //
 struct treeComparison {
@@ -286,7 +271,7 @@ void GenerateCodeTable(huffman_node* tree, size_t alphaSz = 0) {
  * Used to free huffman trees
  *
  */
-void TreeFree(huffman_node* root) {
+void Huffman::TreeFree(huffman_node *root) {
     if (root == nullptr) return;
 
     if (root->symCodes)
@@ -299,6 +284,12 @@ void TreeFree(huffman_node* root) {
     root = nullptr;
 }
 
+void Huffman::TreeFree(huffman_tree *tree) {
+    Huffman::TreeFree(tree->root);
+    _safe_free_a(tree->bitLens);
+    ZeroMem(tree, sizeof(huffman_tree));
+}
+
 /**
  *
  * InsertNode
@@ -309,14 +300,18 @@ void TreeFree(huffman_node* root) {
  *
  */
 
-void InsertNode(u32 code, size_t codeLen, u32 val, huffman_node* tree) {
+void Huffman::InsertNodeIntoTree(const u64 code, const size_t codeLen, const u64 val, huffman_node* tree) {
     huffman_node* current = tree;
 
-    for (i32 i = codeLen - 1; i >= 0; i--) {
-        u32 bit = (code >> i) & 1;
+    if (!current) current = new huffman_node{ .count = 0 };
 
-        if (!!bit) {
-            if (current->right == nullptr)
+    i64 i;
+
+    for (i = codeLen - 1; i >= 0; i--) {
+        bit b = (code >> i) & 1;
+
+        if (!!b) {
+            if (!current->right)
                 current->right = new huffman_node{
                     .count = 0
                 };
@@ -324,7 +319,7 @@ void InsertNode(u32 code, size_t codeLen, u32 val, huffman_node* tree) {
             current = current->right;
         }
         else {
-            if (current->left == nullptr)
+            if (!current->left)
                 current->left = new huffman_node{
                     .count = 0
                 };
@@ -334,6 +329,12 @@ void InsertNode(u32 code, size_t codeLen, u32 val, huffman_node* tree) {
     }
 
     current->val = val;
+}
+
+void Huffman::InsertNodeIntoTree(const u64 code, const size_t codeLen, const u64 val, huffman_tree* tree) {
+    if (!tree) return;
+
+    Huffman::InsertNodeIntoTree(code, codeLen, val, tree->root);
 }
 
 /**
@@ -355,14 +356,14 @@ void InsertNode(u32 code, size_t codeLen, u32 val, huffman_node* tree) {
  *
  */
 
-template<size_t alphaSz> huffman_node* GenTreeFromCounts(size_t* counts, i32 maxLen = -1) {
-    if (counts == nullptr || alphaSz <= 0)
+huffman_node* Huffman::GenTreeFromCounts(size_t* counts, size_t alphabetSize, i32 maxLen) {
+    if (counts == nullptr || alphabetSize <= 0)
         return nullptr;
 
     //convert all of the char counts into a priority queue of huffman nodes
     std::priority_queue<huffman_node*, std::vector<huffman_node*>, treeComparison> tNodes;
     size_t _val = 0;
-    foreach_ptr(size_t, count, counts, alphaSz)
+    foreach_ptr(size_t, count, counts, alphabetSize)
         if (*count > 0)
             tNodes.push(new huffman_node{
                 .val = (u32)_val++,
@@ -403,15 +404,15 @@ template<size_t alphaSz> huffman_node* GenTreeFromCounts(size_t* counts, i32 max
  * gets the length of the bit lengths for a tree
  *
  */
-u32* getTreeBitLens(huffman_node* tree, size_t alphabetSize, i32 currentLen = 0, u32* cbl = nullptr) {
+u32* Huffman::GetTreeBitLens(huffman_node* tree, size_t alphabetSize, i32 currentLen, u32* cbl) {
     if (!cbl) {
         cbl = new u32[alphabetSize];
         ZeroMem(cbl, alphabetSize);
     }
 
     if (tree->right || tree->left) {
-        if (tree->left) getTreeBitLens(tree->left, alphabetSize, currentLen + 1, cbl);
-        if (tree->right) getTreeBitLens(tree->right, alphabetSize, currentLen + 1, cbl);
+        if (tree->left) Huffman::GetTreeBitLens(tree->left, alphabetSize, currentLen + 1, cbl);
+        if (tree->right) Huffman::GetTreeBitLens(tree->right, alphabetSize, currentLen + 1, cbl);
     }
     else {
         if (tree->val < alphabetSize)
@@ -431,7 +432,7 @@ u32* getTreeBitLens(huffman_node* tree, size_t alphabetSize, i32 currentLen = 0,
  * gets the bit lengths counts for a tree uh yeah
  *
  */
-size_t* getBitLenCounts(u32* bitLens, const size_t blLen, const size_t MAX_BITS) {
+size_t* Huffman::GetBitLenCounts(u32* bitLens, const size_t blLen, const size_t MAX_BITS) {
     size_t* res = new size_t[MAX_BITS + 1];
     ZeroMem(res, MAX_BITS + 1);
 
@@ -451,9 +452,9 @@ size_t* getBitLenCounts(u32* bitLens, const size_t blLen, const size_t MAX_BITS)
  * blLEn - number of bit lengths
  *
  */
-huffman_node* BitLengthsToHTree(u32* bitLens, size_t blLen, size_t aLen) {
+huffman_node* Huffman::BitLengthsToTree(u32* bitLens, size_t blLen, size_t aLen) {
     const size_t MAX_BITS = ArrMax<u32>(bitLens, blLen);
-    size_t* blCount = getBitLenCounts(bitLens, blLen, MAX_BITS);
+    size_t* blCount = Huffman::GetBitLenCounts(bitLens, blLen, MAX_BITS);
 
     if (!blCount)
         return nullptr;
@@ -470,7 +471,7 @@ huffman_node* BitLengthsToHTree(u32* bitLens, size_t blLen, size_t aLen) {
 
     while (i < aLen && i < blLen) {
         if (bitLens[i] != 0) {
-            InsertNode(nextCode[bitLens[i]], bitLens[i], i, res);
+            Huffman::InsertNodeIntoTree(nextCode[bitLens[i]], bitLens[i], i, res);
             nextCode[bitLens[i]]++;
         }
         i++;
@@ -489,18 +490,18 @@ huffman_node* BitLengthsToHTree(u32* bitLens, size_t blLen, size_t aLen) {
  * converts a tree into its canonical form :O
  *
  */
-huffman_node* CovnertTreeToCanonical(huffman_node* tree, size_t alphabetSize, bool deleteOld = false) {
+huffman_node* Huffman::CovnertTreeToCanonical(huffman_node* tree, size_t alphabetSize, bool deleteOld) {
     //get bit lengths of each code
-    u32* bitLens = getTreeBitLens(tree, alphabetSize);
+    u32* bitLens = Huffman::GetTreeBitLens(tree, alphabetSize);
 
     //start to create le tree
-    huffman_node* cTree = BitLengthsToHTree(bitLens, alphabetSize, alphabetSize);
+    huffman_node* cTree = Huffman::BitLengthsToTree(bitLens, alphabetSize, alphabetSize);
 
     //free memory and return new tree
     delete[] bitLens;
 
     if (deleteOld)
-        TreeFree(tree);
+        Huffman::TreeFree(tree);
 
     cTree->alphaSz = alphabetSize;
     return cTree;
@@ -600,7 +601,7 @@ u32* BobsBitLengthRepairServices(u32* bitLens, size_t alphaSz, const i32 maxBl) 
  * also counting bit lengths
  *
  */
-huffman_node* GenCanonicalTreeFromCounts(size_t* counts, size_t alphaSz, i32 maxLen = -1) {
+huffman_node* Huffman::GenCanonicalTreeFromCounts(size_t* counts, size_t alphaSz, i32 maxLen) {
     if (counts == nullptr || alphaSz <= 0)
         return nullptr;
 
@@ -647,10 +648,9 @@ huffman_node* GenCanonicalTreeFromCounts(size_t* counts, size_t alphaSz, i32 max
             callBob = true; //oh crap somethings wrong! must call Bob!
     }
 
-    TreeFree(root); //delete temporary tree
+    Huffman::TreeFree(root); //delete temporary tree
 
     if (callBob) {
-
         bitLens = BobsBitLengthRepairServices(bitLens, alphaSz, maxLen);
 
         if (!bitLens) {
@@ -660,7 +660,7 @@ huffman_node* GenCanonicalTreeFromCounts(size_t* counts, size_t alphaSz, i32 max
     }
 
     //generate canonical tree
-    huffman_node* r = BitLengthsToHTree(bitLens, alphaSz, alphaSz);
+    huffman_node* r = Huffman::BitLengthsToTree(bitLens, alphaSz, alphaSz);
     r->alphaSz = alphaSz;
     _safe_free_a(bitLens);
     return r;
@@ -675,8 +675,8 @@ huffman_node* GenCanonicalTreeFromCounts(size_t* counts, size_t alphaSz, i32 max
  * generated during tree construction
  *
  */
-HuffmanTreeInfo GenCanonicalTreeInfFromCounts(size_t* counts, size_t alphaSz, i32 maxLen = -1) {
-    if (counts == nullptr || alphaSz <= 0)
+huffman_tree Huffman::GenCanonicalTreeAndInfFromCounts(size_t* counts, size_t alphaSz, i32 maxLen) {
+    if (!counts || alphaSz <= 0)
         return {};
 
     //convert all of the char counts into a priority queue of huffman nodes
@@ -697,7 +697,7 @@ HuffmanTreeInfo GenCanonicalTreeInfFromCounts(size_t* counts, size_t alphaSz, i3
 
     //tree root
     huffman_node* root = nullptr;
-    HuffmanTreeInfo t_inf = {
+    huffman_tree t_inf = {
         .bitLens = new u32[alphaSz],
         .alphaSz = alphaSz
     };
@@ -741,8 +741,8 @@ HuffmanTreeInfo GenCanonicalTreeInfFromCounts(size_t* counts, size_t alphaSz, i3
     }
 
     //generate canonical tree
-    t_inf.t = BitLengthsToHTree(t_inf.bitLens, alphaSz, alphaSz);
-    t_inf.t->alphaSz = alphaSz;
+    t_inf.root = Huffman::BitLengthsToTree(t_inf.bitLens, alphaSz, alphaSz);
+    t_inf.root->alphaSz = alphaSz;
     return t_inf;
 }
 
@@ -822,7 +822,7 @@ i32 lz77_get_dist_idx(size_t dist) {
 struct lzr {
     byte* encDat;
     size_t encSz, winBits, sz_per_ele = 2;
-    HuffmanTreeInfo distTree;
+    huffman_tree distTree;
     size_t* charCounts;
     size_t charCountSz;
 };
@@ -921,13 +921,13 @@ _match longest_match(hash_node<byte*>* firstMatch, lz_inst* ls, match_settings m
 
 
  //TODO: fix this function in this context
-u32 EncodeSymbol(u32 sym, huffman_node* tree) {
+u32 Huffman::EncodeSymbol(u32 sym, huffman_node* tree) {
     assert(sym < tree->alphaSz);
 
-    if (tree->symCodes == nullptr)
+    if (!tree->symCodes)
         GenerateCodeTable(tree, tree->alphaSz);
 
-    if (tree->symCodes != nullptr)
+    if (tree->symCodes)
         return tree->symCodes[sym];
     else
         return 0u;
@@ -942,7 +942,7 @@ u32 EncodeSymbol(u32 sym, huffman_node* tree) {
  *
  */
 
-u32 DecodeSymbol(BitStream* stream, huffman_node* tree) {
+u32 Huffman::DecodeSymbol(BitStream* stream, huffman_node* tree) {
     huffman_node* n = tree;
 
     while (n->left || n->right) {
@@ -969,8 +969,8 @@ void lzr_free(lzr* l) {
     if (l->encDat)
         _safe_free_a(l->encDat);
 
-    if (l->distTree.t)
-        TreeFree(l->distTree.t);
+    if (l->distTree.root)
+        Huffman::TreeFree(l->distTree.root);
 
     if (l->distTree.bitLens)
         _safe_free_a(l->distTree.bitLens);
@@ -1158,9 +1158,9 @@ lzr lz77_encode(byte* dat, size_t sz, size_t winBits) {
     hashTable.free();
 
     //construct distance tree and other stuff we need
-    res.distTree = GenCanonicalTreeInfFromCounts(distCharCount, dsb_len, MAX_CODE_LENGTH);
+    res.distTree = Huffman::GenCanonicalTreeAndInfFromCounts(distCharCount, dsb_len, MAX_CODE_LENGTH);
 
-    if (!res.distTree.t || !res.distTree.bitLens) {
+    if (!res.distTree.root || !res.distTree.bitLens) {
         std::cout << "Something went wrong when generating distance tree!" << std::endl;
     }
 
@@ -1191,7 +1191,7 @@ bool lzr_good(lzr* l) {
         return false;
     }
 
-    if (!l->distTree.t) {
+    if (!l->distTree.root) {
         std::cout << "Lz77 dist tree is no good" << std::endl;
         return false;
     }
@@ -1303,7 +1303,7 @@ _codeLenInf _tree_rle_encode(u32* ccLens, size_t nc, const size_t codeLengthAlph
 //goal: encode literal and distance tree
 //
 //
-void _stream_tree_write(BitStream* stream, HuffmanTreeInfo* litTree, HuffmanTreeInfo* distTree) {
+void _stream_tree_write(BitStream* stream, huffman_tree* litTree, huffman_tree* distTree) {
     if (!litTree || !distTree || !stream) {
         std::cout << "Error invalid tree!" << std::endl;
         return;
@@ -1353,17 +1353,14 @@ void _stream_tree_write(BitStream* stream, HuffmanTreeInfo* litTree, HuffmanTree
 
     //make the code length tree
     const i32 CL_MAX_CODE_LENGTH = 7; //0b111 (since stored as 3 bits)
-    HuffmanTreeInfo clTree = GenCanonicalTreeInfFromCounts(clRleInf.cl_counts, codeLengthAlphaSz, CL_MAX_CODE_LENGTH);
+    huffman_tree clTree = Huffman::GenCanonicalTreeAndInfFromCounts(clRleInf.cl_counts, codeLengthAlphaSz, CL_MAX_CODE_LENGTH);
 
+    //encode the literal and distance tree
+    constexpr size_t __rESz = sizeof(u32); //size of 1 rle encoded element
 
-    if (!clTree.bitLens || !clTree.t) {
+    if (!clTree.bitLens || !clTree.root) {
         std::cout << "Failed to generate code length tree!" << std::endl;
-        _safe_free_a(combinedBl);
-        _safe_free_a(clRleInf.cl_counts);
-        _safe_free_a(clRleInf.rle_dat);
-        _safe_free_a(clTree.bitLens);
-        TreeFree(clTree.t);
-        return;
+        goto mem_free;
     }
 
     //write the code length tree bit length data to the stream
@@ -1372,17 +1369,11 @@ void _stream_tree_write(BitStream* stream, HuffmanTreeInfo* litTree, HuffmanTree
 
         if (clbl > CL_MAX_CODE_LENGTH) {
             std::cout << "Error cl code length too long!" << std::endl;
-            _safe_free_a(combinedBl);
-            _safe_free_a(clRleInf.cl_counts);
-            _safe_free_a(clRleInf.rle_dat);
-            return;
+            goto mem_free;
         }
         else
             stream->writeBits(clTree.bitLens[CodeLengthCodesOrder[i]], 3);
     }
-
-    //encode the literal and distance tree
-    const size_t __rESz = sizeof(u32); //size of 1 rle encoded element
 
     //TODO: NOT EVERY POINTER IS A VOID POINTER YOU DONUT
     for (
@@ -1395,7 +1386,7 @@ void _stream_tree_write(BitStream* stream, HuffmanTreeInfo* litTree, HuffmanTree
 
         stream->writeBits(
             bitReverse(
-                EncodeSymbol(sym, clTree.t),
+                Huffman::EncodeSymbol(sym, clTree.root),
                 code_len
             ),
             code_len
@@ -1432,11 +1423,12 @@ void _stream_tree_write(BitStream* stream, HuffmanTreeInfo* litTree, HuffmanTree
     }
 
     //memory cleanup
+mem_free:
     _safe_free_a(combinedBl);
     _safe_free_a(clRleInf.cl_counts);
     _safe_free_a(clRleInf.rle_dat);
     _safe_free_a(clTree.bitLens);
-    TreeFree(clTree.t);
+    Huffman::TreeFree(clTree.root);
 }
 
 /**
@@ -1458,7 +1450,7 @@ void _lzr_stream_write(BitStream* stream, lzr* l, u32* checksum, bool writeCapBy
     //generate encode tree
     if (writeCapByte && l->charCountSz >= 256)
         l->charCounts[256]++;
-    HuffmanTreeInfo enc_tree_inf = GenCanonicalTreeInfFromCounts((size_t*)l->charCounts, l->charCountSz, MAX_CODE_LENGTH);
+    huffman_tree enc_tree_inf = Huffman::GenCanonicalTreeAndInfFromCounts((size_t*)l->charCounts, l->charCountSz, MAX_CODE_LENGTH);
 
     if (!enc_tree_inf.bitLens)
         return;
@@ -1493,15 +1485,15 @@ void _lzr_stream_write(BitStream* stream, lzr* l, u32* checksum, bool writeCapBy
             size_t distBl = l->distTree.bitLens[distIdx];
 
             //write the back reference
-            stream->writeBits(bitReverse(EncodeSymbol(sym & 0xfff, enc_tree_inf.t), bl), bl); //length base
+            stream->writeBits(bitReverse(Huffman::EncodeSymbol(sym & 0xfff, enc_tree_inf.root), bl), bl); //length base
             stream->writeBits(lenExtra, LengthExtraBits[lenIdx]); //length extra
-            stream->writeBits(bitReverse(EncodeSymbol(distIdx, l->distTree.t), distBl), distBl); //distance base
+            stream->writeBits(bitReverse(Huffman::EncodeSymbol(distIdx, l->distTree.root), distBl), distBl); //distance base
             stream->writeBits(distExtra, DistanceExtraBits[distIdx]); //distance extra
         }
         else
             stream->writeBits(
                 bitReverse(
-                    EncodeSymbol(sym, enc_tree_inf.t),
+                    Huffman::EncodeSymbol(sym, enc_tree_inf.root),
                     bl
                 ),
                 bl
@@ -1511,12 +1503,12 @@ void _lzr_stream_write(BitStream* stream, lzr* l, u32* checksum, bool writeCapBy
     //writes a 0x100 to the end to indicate the end of a block
     if (writeCapByte && enc_tree_inf.alphaSz >= 256) {
         const size_t bl = enc_tree_inf.bitLens[256];
-        stream->writeBits(bitReverse(EncodeSymbol(256, enc_tree_inf.t), bl), bl);
+        stream->writeBits(bitReverse(Huffman::EncodeSymbol(256, enc_tree_inf.root), bl), bl);
     }
 
     //stream->writeValue(*checksum); //ok don't write the checksum during blocks
     _safe_free_a(enc_tree_inf.bitLens);
-    TreeFree(enc_tree_inf.t);
+    Huffman::TreeFree(enc_tree_inf.root);
 }
 
 /**
@@ -1581,7 +1573,7 @@ i32 WriteDeflateBlockToStream(BitStream* stream, bin* block_data, const size_t w
         ZeroMem(distBl, 30);
 
         mimic.distTree = {
-            .t = nullptr,
+            .root = nullptr,
             .bitLens = distBl,
             .alphaSz = 30
         };
@@ -1780,7 +1772,7 @@ huffman_node** _decode_trees(BitStream* stream) {
         clBitLens[CodeLengthCodesOrder[i]] = stream->readBits(3);
 
     //create code length tree
-    huffman_node* clTree = BitLengthsToHTree(clBitLens, N_CLCODES, N_CLCODES);
+    huffman_node* clTree = Huffman::BitLengthsToTree(clBitLens, N_CLCODES, N_CLCODES);
 
     if (!clTree) {
         std::cout << "Inflate Error, failed to read or create code length tree!" << std::endl;
@@ -1793,7 +1785,7 @@ huffman_node** _decode_trees(BitStream* stream) {
     ZeroMem(combinedBitLens, nTotalCodes);
 
     foreach_ptr_m(u32, curBl, combinedBitLens, nTotalCodes) {
-        u32 sym = DecodeSymbol(stream, clTree);
+        u32 sym = Huffman::DecodeSymbol(stream, clTree);
 
         if (sym <= 15)
             *curBl++ = sym;
@@ -1847,8 +1839,8 @@ huffman_node** _decode_trees(BitStream* stream) {
     in_memcpy(distBl, combinedBitLens + nLitCodes, nDistCodes * sizeof(u32));
 
     //create the 2 trees
-    huffman_node* litTree = BitLengthsToHTree(litBl, nLitCodes, nLitCodes),
-        * distTree = BitLengthsToHTree(distBl, nDistCodes, nDistCodes);
+    huffman_node* litTree = Huffman::BitLengthsToTree(litBl, nLitCodes, nLitCodes),
+        * distTree = Huffman::BitLengthsToTree(distBl, nDistCodes, nDistCodes);
 
     //manage le memory and error check
     _safe_free_a(combinedBitLens);
@@ -1858,14 +1850,14 @@ huffman_node** _decode_trees(BitStream* stream) {
     if (!litTree) {
         std::cout << "Failed to generate literal tree!" << std::endl;
         if (distTree)
-            TreeFree(distTree);
+            Huffman::TreeFree(distTree);
         return nullptr;
     }
 
     if (!distTree) {
         std::cout << "Failed to generate distance tree!" << std::endl;
         if (litTree)
-            TreeFree(litTree);
+            Huffman::TreeFree(litTree);
         return nullptr;
     }
 
@@ -1889,7 +1881,7 @@ void _inflate_block_generic(InflateBlock* block, InflateBlock* prev_block, BitSt
     std::vector<byte> dec_data;
 
     for (;;) {
-        const u32 sym = DecodeSymbol(stream, litTree);
+        const u32 sym = Huffman::DecodeSymbol(stream, litTree);
 
         if (sym <= 255) {
             dec_data.push_back((byte)sym & 0xff);
@@ -1978,7 +1970,7 @@ void _inflate_block_static(InflateBlock* block, InflateBlock* prev_block, BitStr
     memfill(bitLens + 280, 8u, 8);
 
     //create the literal trwee
-    huffman_node* llTree = BitLengthsToHTree(bitLens, DEFAULT_ALPHABET_SIZE, DEFAULT_ALPHABET_SIZE);
+    huffman_node* llTree = Huffman::BitLengthsToTree(bitLens, DEFAULT_ALPHABET_SIZE, DEFAULT_ALPHABET_SIZE);
     _safe_free_a(bitLens);
 
     //quick error check
@@ -1993,7 +1985,7 @@ void _inflate_block_static(InflateBlock* block, InflateBlock* prev_block, BitStr
     memfill(distBitLens, 5u, 30);
 
     //create distance tree
-    huffman_node* distTree = BitLengthsToHTree(distBitLens, 30, 30);
+    huffman_node* distTree = Huffman::BitLengthsToTree(distBitLens, 30, 30);
     _safe_free_a(distBitLens);
 
     //quick error check again
@@ -2005,8 +1997,8 @@ void _inflate_block_static(InflateBlock* block, InflateBlock* prev_block, BitStr
     //inflate block
     _inflate_block_generic(block, prev_block, stream, llTree, distTree, settings);
 
-    TreeFree(distTree);
-    TreeFree(llTree);
+    Huffman::TreeFree(distTree);
+    Huffman::TreeFree(llTree);
 }
 
 void _inflate_block_dynamic(InflateBlock* block, InflateBlock* prev_block, BitStream* stream, const block_settings settings) {
@@ -2023,8 +2015,8 @@ void _inflate_block_dynamic(InflateBlock* block, InflateBlock* prev_block, BitSt
     _inflate_block_generic(block, prev_block, stream, trees[0], trees[1], settings);
 
     //memory management
-    TreeFree(trees[0]);
-    TreeFree(trees[1]);
+    Huffman::TreeFree(trees[0]);
+    Huffman::TreeFree(trees[1]);
     _safe_free_a(trees);
 }
 

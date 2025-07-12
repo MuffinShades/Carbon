@@ -3,6 +3,7 @@
 #include "bitstream.hpp"
 #include "filewrite.hpp"
 #include "logger.hpp"
+#include "balloon.hpp"
 
 static Logger l;
 
@@ -48,13 +49,35 @@ enum jpg_block_id {
     jpg_block_unknown = 0xffff
 };
 
+enum class huff_table_id_fragment {
+    luma = 0b000,
+    chroma = 0b010,
+    AC = 0b101,
+    DC = 0b100
+};
+
 enum class huff_table_id {
     luma_DC,
     luma_AC,
     chroma_DC,
     chroma_AC,
-    nHuffTables
+    nHuffTables,
+    unknown = 0xffff
 };
+
+/*
+
+component -> luma or chroma
+current -> AC or DC
+
+*/
+inline static huff_table_id getTableId(huff_table_id_fragment component, huff_table_id_fragment current) {
+    const u32 id = ((u32)component & 3) | ((u32)current & 3);
+    if (id < (u32)huff_table_id::nHuffTables)
+        return (huff_table_id)id;
+    else
+        return huff_table_id::unknown;
+}
 
 struct imgBlock {
     byte *dat = nullptr;
@@ -63,9 +86,10 @@ struct imgBlock {
 
 struct huff_table {
     size_t n_symbols;
-    size_t *code_lens;
+    u32 *code_lens = nullptr;
     byte inf;
-    size_t table_idx;
+    huff_table_id table_id;
+    huffman_node* root = nullptr;
 };
 
 struct q_table {
@@ -141,13 +165,18 @@ huff_table decode_huf_table(ByteStream* stream) {
         std::cout << "Jpeg Warning: huffman table is out of bounds!" << std::endl;
     }
 
-    tab.table_idx = ((tablePos << 1) | tableType);
+    const u32 id = ((tablePos << 1) | tableType);
+
+    if (id < (u32) huff_table_id::nHuffTables)
+        tab.table_id = (huff_table_id)id;
+    else 
+        tab.table_id = huff_table_id::unknown;
     
     //extract the codelengths
     const size_t MAX_CODE_LENGTH = 16, MAX_CODE_VAL = 0xff;
     
     //
-    tab.code_lens = new size_t[MAX_CODE_VAL];
+    tab.code_lens = new u32[MAX_CODE_VAL];
     ZeroMem(tab.code_lens, MAX_CODE_VAL);
     
     //decode how many symbols there are per code
@@ -167,6 +196,7 @@ huff_table decode_huf_table(ByteStream* stream) {
     }
 
     //TODO: generate the trees -> using the canonical tree thingys in balloon
+    tab.root = Huffman::BitLengthsToTree(tab.code_lens, MAX_CODE_VAL, MAX_CODE_VAL);
     
     //
     return tab;
@@ -273,12 +303,35 @@ jpg_header decode_sof(ByteStream* stream) {
 
 #define JPG_GET_N_BLOCK_IN_DIR(dir) (((dir) >> 3) + (((dir) & 7) > 0))
 
+i32 ConvertDCCode(const u32 code, const u32 extra) {
+    const i32 l = 1 << (code - 1);
 
+    if (extra >= l)
+        return extra;
+    else
+        return ((signed) extra) - ((l << 1) - 1);
+}
 
-void jpg_build_block(JpgContext* jContext, byte* out_buffer, size_t& old_dc_coeff) {
-    if (!jContext || !out_buffer) return;
+void jpg_build_block(JpgContext* jContext, BitStream* b_stream, huff_table_id_fragment component, i32* out_buffer, i32& old_dc_coeff) {
+    if (!jContext || !out_buffer || !b_stream) return;
 
+    const huff_table_id dc_table_select = getTableId(component, huff_table_id_fragment::DC);
 
+    if (dc_table_select == huff_table_id::unknown) {
+        std::cout << "Jpeg error! Cannot decode invalid component: " << (u32)component << std::endl;
+    }
+
+    //decode dc coeff and update ref coeff
+    const u32 dc_code = Huffman::DecodeSymbol(b_stream, jContext->huffTables[(size_t)dc_table_select].root),
+              dc_extra = b_stream->readBits(dc_code);
+    const i32 dc_coeff = ConvertDCCode(dc_code, dc_extra) + old_dc_coeff;
+
+    old_dc_coeff = dc_coeff;
+
+    out_buffer[0] = dc_coeff; //TODO: scale with quantization matrix
+
+    //decode ac coeffs
+    const huff_table_id ac_table_select = getTableId(component, huff_table_id_fragment::AC);
 }
 
 u32 jpg_decode_channel_blocks(JpgContext* jContext, byte **blockData, u8 channelSelect) {
