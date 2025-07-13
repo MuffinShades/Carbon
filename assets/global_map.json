@@ -1,0 +1,7 @@
+{
+    "Global": {
+        "output_file": "game.pak",
+        "dir": "assets/",
+        "map_target": "map.json"
+    }
+}

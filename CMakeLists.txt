@@ -9,38 +9,37 @@ file(GLOB_RECURSE SOURCES
     src/*.c
     src/*.hpp
     src/*.h
-#    glad/include/glad/glad.h
-#    glad/include/KHR/khrplatform.h
-#    glad/src/glad.c
+    gl_lib/glad/include/glad/glad.h
+    gl_lib/glad/include/KHR/khrplatform.h
+    gl_lib/glad/src/glad.c
 )
 
 add_executable(carbon ${SOURCES})
 
 #libs
-#target_include_directories(carbon PUBLIC 
-#   ${PROJECT_SOURCE_DIR}/glfw/include 
-#   ${PROJECT_SOURCE_DIR}/glad/include/glad
-#   ${PROJECT_SOURCE_DIR}/glad/include/KHR
-#   ${PROJECT_SOURCE_DIR}/msfl/src
-#)
+target_include_directories(carbon PUBLIC 
+   ${PROJECT_SOURCE_DIR}/gl_lib/glfw/include 
+   ${PROJECT_SOURCE_DIR}/gl_lib/glad/include/glad
+   ${PROJECT_SOURCE_DIR}/gl_lib/glad/include/KHR
+)
 
-#if (WIN32) #Windows
-#    find_package(OpenGL REQUIRED)
-#
-#    add_compile_definitions(WIN32)
-#    target_link_libraries(carbon PUBLIC
-#       ${PROJECT_SOURCE_DIR}/glfw/glfw3dll.lib
-#       OpenGL::GL
-#    )
-#else (WIN32) #UNIX / Mac
-#    add_compile_definitions(MAC)
-#    target_link_libraries(carbon PUBLIC
-#        ${PROJECT_SOURCE_DIR}/glfw/lib-arm64/libglfw3.a
-#        "-framework Cocoa"
-#        "-framework OpenGL"
-#        "-framework IOKit"
-#    )
-#endif (WIN32)
+if (WIN32) #Windows
+    find_package(OpenGL REQUIRED)
+
+    add_compile_definitions(WIN32)
+    target_link_libraries(carbon PUBLIC
+       ${PROJECT_SOURCE_DIR}/gl_lib/glfw/glfw3dll.lib
+       OpenGL::GL
+    )
+else (WIN32) #UNIX / Mac
+    add_compile_definitions(MAC)
+    target_link_libraries(carbon PUBLIC
+        ${PROJECT_SOURCE_DIR}/gl_lib/glfw/lib-arm64/libglfw3.a
+        "-framework Cocoa"
+        "-framework OpenGL"
+        "-framework IOKit"
+    )
+endif (WIN32)
 
 include(CTest)
 enable_testing()

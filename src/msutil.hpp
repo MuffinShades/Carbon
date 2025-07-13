@@ -349,6 +349,17 @@ enum IntFormat {
     IntFormat_LittleEndian = 1
 };
 
+static std::string escapeStrBackslashes(std::string str) {
+    std::string res = "";
+    for (char c : str) {
+        if (c == '\\')
+            res += "\\\\";
+        else
+            res += c;
+    }
+    return res;
+}
+
 constexpr inline static IntFormat __getOSEndian() {
     constexpr byte v = 1;
     return ((*(&v)) == 1) ? IntFormat_LittleEndian : IntFormat_BigEndian;

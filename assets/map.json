@@ -1,0 +1,27 @@
+{
+    "Graphics": {
+        "Shaders": {
+            "Font": {
+                "Frag": "../src/shaders/font_frag.glsl"
+            },
+            "Core": {
+
+            }
+        },
+        "Fonts": {
+            
+        }
+    },
+    "Scripts": {
+
+    },
+    "Globe": {
+        "Ini": "moop.ini",
+        "Map": "global_map.json"
+    },
+    "Test": {
+        "Image": {
+            "asdf":"../test/asdf.png"
+        }
+    }
+}
