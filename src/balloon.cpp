@@ -1897,7 +1897,7 @@ void _inflate_block_generic(InflateBlock* block, InflateBlock* prev_block, BitSt
                 lenExtra = stream->readBits(lenExtraBits),
                 len = LengthBase[lenIdx] + lenExtra;
             //get distance
-            const size_t distIdx = DecodeSymbol(stream, distTree);
+            const size_t distIdx = Huffman::DecodeSymbol(stream, distTree);
 
             const u32 distExtraBits = DistanceExtraBits[distIdx],
                 distExtra = stream->readBits(distExtraBits),

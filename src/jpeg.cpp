@@ -26,7 +26,7 @@ constexpr size_t zig_zag[] = {
 };
 
 //change to double if goofniess occurs
-static const float idct_matrix[] = {
+constexpr float idct_matrix[] = {
     0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,
     0.980785f,  0.831470f,  0.555570f,  0.195090f, -0.195090f, -0.555570f, -0.831470f, -0.980785f,
     0.923880f,  0.382683f, -0.382683f, -0.923880f, -0.923880f, -0.382683f,  0.382683f,  0.923880f,
@@ -303,17 +303,23 @@ jpg_header decode_sof(ByteStream* stream) {
 
 #define JPG_GET_N_BLOCK_IN_DIR(dir) (((dir) >> 3) + (((dir) & 7) > 0))
 
-i32 ConvertDCCode(const u32 code, const u32 extra) {
+i32 ConvertCode(const u32 code, const u32 extra) {
     const i32 l = 1 << (code - 1);
 
     if (extra >= l)
         return extra;
     else
-        return ((signed) extra) - ((l << 1) - 1);
+        return ((signed) extra) + ((-1 << l) + 1);
 }
 
-void jpg_build_block(JpgContext* jContext, BitStream* b_stream, huff_table_id_fragment component, i32* out_buffer, i32& old_dc_coeff) {
-    if (!jContext || !out_buffer || !b_stream) return;
+void jpg_transform_raw_block(i32* block_buffer) {
+    //perform IDCT
+
+    //then rescale from -128 -> 127 to 0 -> 255
+}
+
+void jpg_build_block(JpgContext* jContext, BitStream* b_stream, huff_table_id_fragment component, i32* block_buffer, i32& old_dc_coeff) {
+    if (!jContext || !block_buffer || !b_stream) return;
 
     const huff_table_id dc_table_select = getTableId(component, huff_table_id_fragment::DC);
 
@@ -324,14 +330,38 @@ void jpg_build_block(JpgContext* jContext, BitStream* b_stream, huff_table_id_fr
     //decode dc coeff and update ref coeff
     const u32 dc_code = Huffman::DecodeSymbol(b_stream, jContext->huffTables[(size_t)dc_table_select].root),
               dc_extra = b_stream->readBits(dc_code);
-    const i32 dc_coeff = ConvertDCCode(dc_code, dc_extra) + old_dc_coeff;
+    const i32 dc_coeff = ConvertCode(dc_code, dc_extra) + old_dc_coeff;
 
     old_dc_coeff = dc_coeff;
 
-    out_buffer[0] = dc_coeff; //TODO: scale with quantization matrix
+    block_buffer[zig_zag[0]] = dc_coeff; //TODO: scale with quantization matrix
 
     //decode ac coeffs
     const huff_table_id ac_table_select = getTableId(component, huff_table_id_fragment::AC);
+
+    huffman_node* ac_tree = jContext->huffTables[(size_t)ac_table_select].root;
+
+    size_t p = 1;
+    u32 ac_code, ac_extra, ac_coeff;
+
+    while (p < 64) {
+        ac_code = Huffman::DecodeSymbol(b_stream, ac_tree);
+
+        //codes > 15 indicate zero skip then a code
+        if (ac_code > 15)
+            p += ac_code >> 4;
+
+        //
+        ac_extra = b_stream->readBits(ac_code & 0xf);
+
+        if (p < 64) {
+            ac_coeff = ConvertCode(ac_code, ac_extra);
+            //simply convert zig zag here
+            block_buffer[zig_zag[p++]] = ac_coeff; //TODO: scale with quantization matrix
+        }
+    }
+
+    //
 }
 
 u32 jpg_decode_channel_blocks(JpgContext* jContext, byte **blockData, u8 channelSelect) {

@@ -22,5 +22,5 @@ Picture MakeBlankPicture(pic_header h) {
 
 	ZeroMem(r_pic.data, dataSz);
 
-	return r_pic
+	return r_pic;
 }

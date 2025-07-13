@@ -48,6 +48,7 @@
 #include <iostream>
 #include <cstring>
 #include "msutil.hpp"
+#include "bitstream.hpp"
 
 #ifdef CARBON_DLL
 #ifdef CARBON_EXPORTS
