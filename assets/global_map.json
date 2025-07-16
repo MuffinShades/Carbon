@@ -1,6 +1,6 @@
 {
     "Global": {
-        "output_file": "game.pak",
+        "output_file": "moop.pak",
         "dir": "assets/",
         "map_target": "map.json"
     }

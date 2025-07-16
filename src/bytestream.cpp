@@ -263,6 +263,7 @@ bool ByteStream::block_adv(bool pos_adv, bool write) {
 	return false;
 }
 
+//WARNING: pos and block pos could get desynced here
 void ByteStream::pos_adv() {
 	if (++this->pos >= this->len) {
 		this->pos = this->len - 1;
@@ -282,20 +283,22 @@ void ByteStream::len_inc() {
 
 void ByteStream::len_inc(const size_t sz) {
 	this->len += sz;
-	while (this->len > this->allocSz) {
+	while (this->len >= this->allocSz) {
 		this->add_new_block(this->blockAllocSz);
 	}
 }
 
 //TODO: fix position change after increasing by sz
 void ByteStream::pos_adv(const size_t sz) {
-	if ((this->pos += sz) >= this->len) {
+	const size_t pPos = this->pos;
+	size_t bytesLeft = sz;
+
+	if ((this->pos += sz) > this->len) {
 		this->pos = this->len - 1;
-		return;
+		bytesLeft = this->pos - pPos;
 	}
 
 	//
-	size_t bytesLeft = sz;
 	while ((this->blockPos + bytesLeft) >= this->cur_block->sz) {
 		bytesLeft -= mu_min(bytesLeft, this->cur_block->sz);
 		this->block_adv();
@@ -312,11 +315,24 @@ void ByteStream::pos_adv(const size_t sz) {
 void ByteStream::writeBytes(byte *dat, size_t sz) {
 	if (!dat || sz <= 0)
 		return;
+
+	if (!this->cur_block) {
+		if (this->head_block)
+			this->set_cur_block(this->head_block);
+		else
+			this->add_new_block(this->blockAllocSz);
+	}
+
+
+	//TODO: this low-key kinda slow bro
+	if (!this->cur || !this->head_block || !this->tail_block || !this->cur_block) this->Repair();
 	
 	//this->end();
 	this->len_inc(sz);
 
 	this->blockPos = this->pos - this->cur_block->pos;
+
+	//std::cout << "Writing " << sz << "bytes to block at pos " << this->cur_block->pos << " | " << this->blockPos << std::endl;
 
 	size_t blockBytesLeft = (this->cur_block->sz - this->blockPos) - 1;
 	size_t rCopy = 
@@ -324,15 +340,17 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 			blockBytesLeft
 		);
 
-	std::cout << "first copy: " << this->blockPos << " | " << this->pos << " | RCopy: " << rCopy << std::endl;
-	std::cout << "Block info: " << std::endl;
-	std::cout << "\tBlock Size: " << this->cur_block->sz << std::endl;
-	std::cout << "\tDat Ptr: " << (uintptr_t) this->cur_block->dat << std::endl;
+	//std::cout << "first copy: " << this->blockPos << " | " << this->pos << " | RCopy: " << rCopy << std::endl;
+	//std::cout << "Block info: " << std::endl;
+	//std::cout << "\tBlock Size: " << this->cur_block->sz << std::endl;
+	//std::cout << "\tDat Ptr: " << (uintptr_t) this->cur_block->dat << std::endl;
 
 	if (rCopy > 0) {
 		in_memcpy(this->cur, dat, rCopy);
 		this->pos_adv(rCopy);
 	}
+
+	//std::cout << this->pos << " | " << rCopy << std::endl;
 	
 	sz -= rCopy;
 
@@ -370,7 +388,17 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 
 //possible fix: if this function doesn't write to end of block then well whoops :3
 void ByteStream::writeByte(byte b) {
-	if (!this->cur) return;
+	if (!this->cur) {
+		if (!this->head_block) {
+			this->add_new_block(this->blockAllocSz);
+			//this->Repair();
+		}
+
+		this->cur = this->head_block->dat;
+
+		if (!this->cur)
+			this->block_adv(0, 1);
+	}
 
 	//increase length then block since len allocates and block just advances the current block
 	this->pos = this->len;
@@ -590,6 +618,7 @@ i64 ByteStream::readInt(size_t nBytes) {
 	return res;
 }
 
+//TODO: MAKE THIS FASTER!!!
 u64 ByteStream::readUInt(size_t nBytes) {
 	u64 res = 0;
     if (nBytes <= 0) return 0;
@@ -747,11 +776,11 @@ void ByteStream::pack() {
 	//adjust a bunch of stuff
 	h_block->pos = 0;
 	this->allocSz = this->len;
-	if (this->pos >= this->len)
-		this->pos = this->blockPos = this->len - 1;
+	//if (this->pos >= this->len)
+	//	this->pos = this->len - 1; //pos can be len as long as we are writing and not reading
 	
 	this->blockPos = this->pos;
-	this->cur = h_block->dat;
+	this->cur = h_block->dat + this->pos;
 	this->cur_block = (this->head_block = (this->tail_block = h_block));
 }
 
@@ -796,10 +825,10 @@ size_t ByteStream::seek(size_t pos) {
 	}
 
 	this->cur_block = t;
-	this->cur = this->cur_block->dat;
 
 	//block pos calculations
 	this->blockPos = this->pos - this->cur_block->pos;
+	this->cur = this->cur_block->dat + this->blockPos;
 
 	return pSave;
 }
@@ -899,7 +928,7 @@ void ByteStream::skip(size_t nBytes) {
 
 std::string ByteStream::readStr(size_t len) {
 	char *c_str = reinterpret_cast<char*>(this->readBytes(len));
-	return std::string(c_str);
+	return std::string(c_str, len);
 }
 
 byte ByteStream::operator[](size_t i) {

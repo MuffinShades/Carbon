@@ -142,7 +142,7 @@ AssetContainer* AssetContainer::GetNode(std::string id) {
 
 void AssetContainer::SetAssetData(Asset a) {
     this->_ty = _aTypeAsset;
-    memcpy(&this->_assetData, &a, sizeof(Asset));
+    in_memcpy(&this->_assetData, &a, sizeof(Asset));
 
     //std::cout << "\n\t\t\t\tAsset Data Addr: " << std::addressof(this->_assetData.bytes) << " " << this->_assetData.inf.fname << std::endl;
 
@@ -316,7 +316,7 @@ void write_header(_AssetHeader header, ByteStream* stream) {
     );
 
     //write sig
-    stream->writeUInt32((unsigned int)header.sig);
+    stream->writeUInt32(header.sig);
     //write file version
     stream->writeUInt64(header.fVersion.getLong());
 
@@ -335,14 +335,18 @@ void write_chunk(enum _ChunkType chunkType, ByteStream* chunkStream, ByteStream*
 
     //write chunk label / identifier
     const std::string chunkLabel = chunkTypeStrs[chunkType];
+    const size_t len = chunkLabel.length() & 0xff;
 
-    outStream->writeByte(chunkLabel.length() & 0xff);
+    //outStream->writeUInt32(0xaabbccdd);
+    outStream->writeByte(len);
     outStream->writeBytes(
         reinterpret_cast<byte*>(
             const_cast<char*>(chunkLabel.c_str())
-            ),
-        chunkLabel.length()
+        ),
+        len
     );
+
+    //outStream->writeUInt32(0x42424242);
 
     //write chunk size
     const size_t cSz = chunkStream->size();
@@ -394,7 +398,8 @@ fPos write_asset(AssetContainer* container, ByteStream* stream) {
 
     if (aIdSz > 0xff)
         return _createFPosErr(1);
-
+    
+    //write id
     aStream.writeByte(aIdSz);
     aStream.writeBytes(
         reinterpret_cast<byte*>(
@@ -409,7 +414,7 @@ fPos write_asset(AssetContainer* container, ByteStream* stream) {
     switch (aData->inf.compressionType) {
     case 0: { //no compression
         compressedBytes = new byte[aData->sz];
-        memcpy(compressedBytes, aData->bytes, aData->sz);
+        in_memcpy(compressedBytes, aData->bytes, aData->sz);
         compressedSz = aData->sz;
         break;
     }
@@ -600,10 +605,10 @@ int AssetParse::WriteToFile(std::string src, AssetStruct* dat) {
 
     //write le data stream
     oStream.writeBytes(datStream.getBytePtr(), datStream.size());
-    datStream.free();
 
     //TODO: write the bytes to the output file
     FileWrite::writeToBin(src, oStream.getBytePtr(), oStream.size());
+    datStream.free();
     oStream.free();
 
     return 0;
@@ -774,7 +779,7 @@ i32 AssetParse::WriteToFile(std::string src, std::string jsonMap, std::string pa
     }
 
     //check fStruct
-    Asset* target = fStruct.GetAsset("a.c");
+    //Asset* target = fStruct.GetAsset("a.c");
 
     /*std::cout << "\n\t\t\t\tAsset Data Addr2: " << std::addressof(target->bytes) << " " << target->inf.fname << std::endl;
 
@@ -811,8 +816,10 @@ _AssetHeader read_header(ByteStream* stream) {
     std::string _fStr = stream->readStr(4);
 
     //verify a valid signiture
-    if (!sig_verify(_fStr, _h))
+    if (!sig_verify(_fStr, _h)) {
+        std::cout << "Asset error: invalid file sig!" << std::endl;
         return _h;
+    }
 
     //now read rest of file header stuff
     u32 _fSig = stream->readUInt32();
@@ -823,7 +830,7 @@ _AssetHeader read_header(ByteStream* stream) {
     //read file version
     u64 fVersion = stream->readUInt64();
 
-    const u32 _vMask = GMask(sizeof(i16) * 8);
+    const u32 _vMask = GMask(sizeof(i16) << 3);
 
     _h.fVersion = Version(
         (fVersion >> 32) & _vMask,
@@ -861,6 +868,9 @@ _fChunk read_chunk(ByteStream* stream) {
         .ty = _cty_max
     };
 
+    stream->__printDebugInfo();
+    std::cout << "Cur Byte: " << (u32) stream->nextByte() << std::endl;
+
     const size_t ll = stream->readByte();
 
     if (ll <= 0) {
@@ -870,6 +880,8 @@ _fChunk read_chunk(ByteStream* stream) {
 
     //get chunk type
     std::string chunkLbl = stream->readStr(ll);
+
+    std::cout << "Chunk label: " << chunkLbl << " LL: " << ll << " p: " << stream->tell() << std::endl;
 
     for (size_t i = 0; i < _cty_max; i++)
         if (chunkLbl == chunkTypeStrs[i]) {
@@ -1154,6 +1166,12 @@ Asset AssetParse::ExtractAssetFromFile(std::string src, std::string path, bool s
 
     //get to root dir
     _AssetHeader fHeader = read_header(&stream);
+
+    std::cout << "FHeader: " << std::endl;
+    std::cout << "\t" << fHeader.fStr << std::endl;
+    std::cout << "\t" << fHeader.nAssets << std::endl;
+    std::cout << "\t" << fHeader.rootOffset << std::endl;
+
     const size_t jmp_offset = stream.seek(fHeader.rootOffset);
 
     std::vector<std::string> ppath = _splitString(path, '.');
@@ -1216,7 +1234,7 @@ Asset::~Asset() {
         this->sz > 0 &&
         !this->__nb_free
         ) {
-        delete[] this->bytes;
+        //delete[] this->bytes;
         this->bytes = nullptr;
         this->sz = 0;
     }
@@ -1224,7 +1242,7 @@ Asset::~Asset() {
 
 AssetStruct::~AssetStruct() {
     if (this->map != nullptr) {
-        delete this->map;
+        //delete this->map;
         this->map = nullptr;
     }
 };
@@ -1232,7 +1250,8 @@ AssetStruct::~AssetStruct() {
 void Asset::free() {
     if (this->bytes != nullptr) {
         delete[] this->bytes;
-        this->bytes = nullptr;
-        this->sz = 0;
     }
+
+    this->bytes = nullptr;
+    this->sz = 0;
 }

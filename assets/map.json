@@ -5,7 +5,8 @@
                 "Frag": "../src/shaders/font_frag.glsl"
             },
             "Core": {
-
+                "Vert": "../src/shaders/def_vert.glsl",
+                "Frag": "../src/shaders/def_frag.glsl"
             }
         },
         "Fonts": {

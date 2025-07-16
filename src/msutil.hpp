@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "types.hpp"
+#include "memcpy.hpp"
 
 template<class _Ty> inline static void ZeroMem(_Ty* dat, size_t sz = 1) {
     if (!dat) return;
@@ -303,42 +304,44 @@ static inline size_t fast_log128(u64 val) __log_def(7)
 static inline size_t fast_log256(u64 val) __log_def(8)
 
 //may be able to make consteval / constexpr
-static inline u64 endian_swap(unsigned long long val, const size_t nBytes) {
+static inline u64 endian_swap(u64 val, const size_t nBytes) {
     switch (nBytes) {
     case 2:
-        return ((val & 0xff00) >> 8) | ((val & 0xff) << 8);
+        return ((val & 0xff00) >> 8) | ((val & 0x00ff) << 8);
     case 3:
-        return ((val & 0xff0000) >> 16) | ((val & 0xff) << 16);
+        return ((val & 0xff0000) >> 16) | ((val & 0x0000ff) << 16) | (val & 0x00ff00);
     case 4:
         return ((val & 0x000000ff) << 24) |
-            ((val & 0x0000ff00) << 8) |
-            ((val & 0x00ff0000) >> 8) |
-            ((val & 0xff000000) >> 24);
+               ((val & 0x0000ff00) << 8) |
+               ((val & 0x00ff0000) >> 8) |
+               ((val & 0xff000000) >> 24);
     case 5:
         return ((val & 0x00000000ffULL) << 32ULL) |
-            ((val & 0x000000ff00ULL) << 16ULL) |
-            ((val & 0x00ff000000ULL) >> 16ULL) |
-            ((val & 0xff00000000ULL) >> 32ULL);
+               ((val & 0x000000ff00ULL) << 16ULL) |
+                (val & 0x0000ff0000ULL) |
+               ((val & 0x00ff000000ULL) >> 16ULL) |
+               ((val & 0xff00000000ULL) >> 32ULL);
     case 6:
         return ((val & 0x0000000000ffULL) << 40ULL) |
-            ((val & 0x00000000ff00ULL) << 24ULL) |
-            ((val & 0x000000ff0000ULL) << 8ULL) |
-            ((val & 0x0000ff000000ULL) >> 8ULL) |
-            ((val & 0x00ff00000000ULL) >> 24ULL) |
-            ((val & 0xff0000000000ULL) >> 40ULL);
+               ((val & 0x00000000ff00ULL) << 24ULL) |
+               ((val & 0x000000ff0000ULL) << 8ULL) |
+               ((val & 0x0000ff000000ULL) >> 8ULL) |
+               ((val & 0x00ff00000000ULL) >> 24ULL) |
+               ((val & 0xff0000000000ULL) >> 40ULL);
     case 7:
         return ((val & 0x000000000000ffULL) << 48ULL) |
-            ((val & 0x0000000000ff00ULL) << 32ULL) |
-            ((val & 0x00000000ff0000ULL) << 16ULL) |
-            ((val & 0x0000ff00000000ULL) >> 16ULL) |
-            ((val & 0x00ff0000000000ULL) >> 32ULL) |
-            ((val & 0xff000000000000ULL) >> 48ULL);
+               ((val & 0x0000000000ff00ULL) << 32ULL) |
+               ((val & 0x00000000ff0000ULL) << 16ULL) |
+                (val & 0x000000ff000000ULL) |
+               ((val & 0x0000ff00000000ULL) >> 16ULL) |
+               ((val & 0x00ff0000000000ULL) >> 32ULL) |
+               ((val & 0xff000000000000ULL) >> 48ULL);
     case 8:
         return
             ((val & 0x00000000000000ffULL) << 56ULL) | ((val & 0xff00000000000000ULL) >> 56ULL) |
             ((val & 0x000000000000ff00ULL) << 40ULL) | ((val & 0x00ff000000000000ULL) >> 40ULL) |
             ((val & 0x0000000000ff0000ULL) << 24ULL) | ((val & 0x0000ff0000000000ULL) >> 24ULL) |
-            ((val & 0x00000000ff000000ULL) << 8ULL) | ((val & 0x000000ff00000000ULL) >> 8ULL);
+            ((val & 0x00000000ff000000ULL) << 8ULL)  | ((val & 0x000000ff00000000ULL) >> 8ULL);
     default:
         return val;
     }
@@ -371,3 +374,11 @@ static void jumpOffABridge() {
 }
 
 #define EXTRACT_BYTE_FLAG(flag, select) (((flag) >> (select)) & 1ULL)
+
+static char* CovertBytesToString(byte* dat, size_t len, bool free_dat = false) {
+    char *r = new char[len + 1];
+    in_memcpy(r, dat, len);
+    r[len] = 0;
+    if (free_dat) _safe_free_a(dat);
+    return r;
+}

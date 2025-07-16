@@ -45,8 +45,8 @@ bool Window::isRunning() {
 
 bool Window::Update() {
     this->running = !glfwWindowShouldClose(this->wHandle);
-    glfwSwapBuffers(this->wHandle);
     glfwPollEvents();
+    glfwSwapBuffers(this->wHandle);
     return true; //just do this for now idk why i made it return something
 }
 

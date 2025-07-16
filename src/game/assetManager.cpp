@@ -83,14 +83,15 @@ i32 AssetManager::compileDat(std::string map, std::string dat_out) {
 
 Asset* _create_asset_copy(Asset* a) {
     Asset* r = new Asset;
-    memcpy(r, a, sizeof(Asset));
-    memcpy(&r->inf, &a->inf, sizeof(AssetDescriptor));
+    in_memcpy(r, a, sizeof(Asset));
+    in_memcpy(&r->inf, &a->inf, sizeof(AssetDescriptor));
     r->__nb_free = true;
     return r;
 }
 
 Asset *AssetManager::ReqAsset(std::string id, std::string core_map_path, std::string core_map_id, bool store) {
-    if (_map == nullptr) {
+    if (!_map) {
+        std::cout << "Core Loc: " << Path::GetOSPath(core_map_path) << std::endl;
         Asset e = AssetParse::ExtractAssetFromFile(
             Path::GetOSPath(core_map_path),
             core_map_id
@@ -102,8 +103,12 @@ Asset *AssetManager::ReqAsset(std::string id, std::string core_map_path, std::st
         }
 
         _map = _create_asset_copy(&e);
-        std::string mapDat = std::string(const_cast<const char*>(reinterpret_cast<char*>(_map->bytes)), _map->sz);
+        std::string mapDat = CovertBytesToString(_map->bytes, _map->sz, true);
+        std::cout << "MAP DAT: " << mapDat << std::endl;
         map_struct = jparse::parseStr(mapDat.c_str());
+
+        //DO NOT FREE ASSEST E SINCE THE DATA IS NOW OWNED BY THE COPY!!!
+        //also _map does not need to be a pointer ;-;
     }
 
     std::string file = "";
@@ -120,8 +125,10 @@ Asset *AssetManager::ReqAsset(std::string id, std::string core_map_path, std::st
 
     JToken fTok = map_struct.FindToken(file);
 
-    if (!fTok.body)
+    if (!fTok.body) {
+        std::cout << "Failed to find token: " << file << std::endl;
         return nullptr;
+    }
 
     file = Path::GetOSPath(fTok.body->FindToken("output_file").rawValue);
 
