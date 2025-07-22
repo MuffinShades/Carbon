@@ -573,13 +573,17 @@ bool PngParse::Encode(std::string src, png_image p) {
 		return false;
 	}
 
-	/*_IHDR hdr = {
+	ByteStream pStream = ByteStream(p.data, p.sz);
+
+	_IHDR hdr = {
 		.w = p.width,
 		.h = p.height,
 		.bitDepth = p.bitDepth,
 		.colorSpace = p.colorMode,
-		.compressionMethod = h_stream.readByte(),
-		.filterType = h_stream.readByte(),
-		.interlaced = (bool)(h_stream.readByte() & 1)
-	};*/
+		.interlaced = false
+	};
+
+	//TODO: this
+
+	return true;
 }

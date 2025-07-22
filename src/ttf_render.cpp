@@ -88,8 +88,8 @@ void DrawPoint(BitmapGraphics* g, float x, float y) {
     g->DrawPixel(x, y);
 }
 
-const static float epsilon = 0.00001f;
-const static float invEpsilon = 1.0f / epsilon;
+constexpr float epsilon = 0.00001f;
+constexpr float invEpsilon = 1.0f / epsilon;
 #define EPSILIZE(v) (floor((v)*invEpsilon)*epsilon)
 
 struct f_roots {
@@ -364,6 +364,124 @@ i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
             if ((i & 1) != 0)
                 g.DrawPixel(x + _Tx, y + _Ty);
         }
+    }
+
+    return 0;
+}
+
+f32 pointCross(Point a, Point b) {
+    return a.x * b.y - a.y * b.x;
+}
+
+i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, size_t glyphH) {
+    if (!map)
+        return 1;
+
+    gPData cleanDat = cleanGlyphPoints(tGlyph);
+
+    const size_t nPoints = cleanDat.p.size();
+
+    const size_t bmpSize = (glyphW * glyphH) << 2;
+    byte *bmpData = new byte[bmpSize];
+    ZeroMem(bmpData, bmpSize);
+
+    map->data = bmpData;
+    map->header.bitsPerPixel = 32;
+    map->header.w = glyphW;
+    map->header.h = glyphH;
+
+    //curve and edge generation, glyph clean up, and more
+    struct BCurve {
+        Point p[3];
+    };
+
+    struct Edge {
+        BCurve *curves;
+        size_t nCurves;
+    };
+
+    std::vector<Edge> glyphEdges;
+    
+    const size_t nCurves = nPoints / 3;
+    BCurve *curveBuffer = new BCurve[nCurves]; //stores curves of current edge
+    BCurve *workingCurve = curveBuffer;
+
+    //generate glyph edges
+    u32 minPx, minPy, maxPx, maxPy;
+    i32 i, pSelect = 0, nEdgeCurves = 0;
+    Point p, nextPoint;
+    f32 cross;
+    bool workingOnACurve, pOnCurve;
+    Edge newEdge;
+
+    for (i = 0; i < nPoints - 1; ++i) {
+        p = cleanDat.p[i];
+        nextPoint = cleanDat.p[i + 1];
+
+        pOnCurve = GetFlagValue(cleanDat.f[i], PointFlag_onCurve);
+
+        workingCurve->p[pSelect++] = p; //add point to the working curve
+
+        if (pOnCurve) {
+            if (workingOnACurve) {
+                ++nEdgeCurves;
+                cross = pointCross(p, nextPoint);
+
+                //the curves are not on the same edge so contruct final edge
+                if (abs(cross) > epsilon) {
+                    BCurve *edgeData = new BCurve[nEdgeCurves];
+                    in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
+
+                    newEdge.curves = edgeData;
+                    newEdge.nCurves = nEdgeCurves;
+
+                    //WARNING: vector may not copy the struct as a new struct and, 
+                    //as a result, copies of the same edge will exists instead of 
+                    // a collection of uniquie edges
+                    glyphEdges.push_back(newEdge);
+
+                    workingCurve = curveBuffer;
+                    nEdgeCurves = 0;
+                } else
+                    workingCurve += sizeof(BCurve); //go to next wokring curve
+
+                pSelect = 0;
+                workingOnACurve = false;
+            }
+
+            workingOnACurve = true;
+        }
+    }
+
+    //add last point to the curve
+    workingCurve->p[pSelect] = cleanDat.p[nPoints - 1];
+
+    //generate final edge
+    BCurve *edgeData = new BCurve[nEdgeCurves];
+    in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
+
+    newEdge.curves = edgeData;
+    newEdge.nCurves = nEdgeCurves;
+
+    //WARNING: vector may not copy the struct as a new struct and, 
+    //as a result, copies of the same edge will exists instead of 
+    // a collection of uniquie edges
+    glyphEdges.push_back(newEdge);
+
+    //generate single channel sdf
+    i32 x,y;
+
+    for (y = 0; y < glyphH; ++y) {
+        for (x = 0; x < glyphW; ++x) {
+            p.x = (((f32)x) + 0.5f);
+            p.y = (((f32)y) + 0.5f);
+        }
+    }
+
+    //oh look were managing memory :O
+    for (Edge e : glyphEdges) {
+        _safe_free_a(e.curves);
+        e.nCurves = 0;
     }
 
     return 0;
