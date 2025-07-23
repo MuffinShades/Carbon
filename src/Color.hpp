@@ -11,7 +11,7 @@
 
 //TODO: verify all these macros are correct
 #define MAKECOLOR(r,g,b,a) (((r) & 0xff) | (((g) & 0xff) << 8) | (((b) & 0xff) << 16) | (((a) & 0xff) << 24))
-#define GET_COLOR_CHANNEL(col, ch) (((col) >> (mu_min(ch, 3)) << 3) & 0xff)
+#define GET_COLOR_CHANNEL(col, ch) (((col) >> ((mu_min(ch, 3)) << 3)) & 0xff)
 #define MODIFY_COLOR_CHANNEL(col, ch, val) ((col) ^ ((col) & (0xff << (mu_min(ch, 3) << 3)))) | (((val) & 0xff) << (mu_min(ch, 3) << 3))
 
 enum ColorMode {

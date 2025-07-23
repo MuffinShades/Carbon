@@ -578,7 +578,7 @@ bool PngParse::Encode(std::string src, png_image p) {
 	_IHDR hdr = {
 		.w = p.width,
 		.h = p.height,
-		.bitDepth = p.bitDepth,
+		.bitDepth = (byte) p.bitDepth,
 		.colorSpace = p.colorMode,
 		.interlaced = false
 	};

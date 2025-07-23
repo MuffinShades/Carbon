@@ -28,6 +28,8 @@ const std::string iTableTags[] = {
 }*/
 
 enum iTable getITableEnum(offsetTable tbl) {
+    std::cout << "Getting Table Tag: " << tbl.tag << std::endl;
+
     i32 p = 0;
     for (const std::string itm : iTableTags) {
         if (_strCompare(itm, tbl.tag))
@@ -67,7 +69,7 @@ std::string ttfStream::readString(size_t sz) {
     for (size_t i = 0; i < sz; i++)
         *cur++ = this->readByte();
 
-    std::string res = std::string((const char*)b);
+    std::string res = std::string((const char*)b,sz);
     delete[] b;
     return res;
 }
@@ -82,7 +84,7 @@ offsetTable readOffsetTable(ttfStream* stream) {
         (char)stream->readByte()
     };
 
-    res.tag = std::string(tagBytes);
+    res.tag = std::string(tagBytes, 4);
     res.checkSum = stream->readUInt32();
     res.off = stream->readUInt32();
     res.len = stream->readUInt32();
@@ -145,6 +147,8 @@ void read_offset_tables(ttfStream* stream, ttfFile* f) {
     f->searchRange = stream->readUInt16();
     f->entrySelector = stream->readUInt16();
     f->rangeShift = stream->readUInt16();
+
+    std::cout << "Found " << nTables << " tables!!" << std::endl;
 
     std::vector<offsetTable> res;
 
@@ -273,8 +277,12 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
  */
 Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     Glyph res;
-    if (stream == nullptr || f == nullptr)
+    if (stream == nullptr || f == nullptr) {
+        std::cout << "ttf error: invalid stream or file!" << std::endl;
         return res;
+    }
+
+    std::cout << "Offset: " << f->glyph_table.off << " " << loc << std::endl;
 
     size_t rPos = stream->seek(f->glyph_table.off + loc);
 
@@ -285,8 +293,12 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     res.xMax = stream->readFWord();
     res.yMax = stream->readFWord();
 
-    if (res.nContours <= 0)
+    std::cout << "Info: " << res.nContours << " " << res.xMin << " " << res.yMin << " " << res.xMax << " " << res.yMax << std::endl;
+
+    if (res.nContours <= 0) {
+        std::cout << "ttf warning: found no contours!" << std::endl;
         return res;
+    }
 
     //for now we can only read simple glyphs
     i32* contourEnds = new i32[res.nContours];
@@ -446,7 +458,7 @@ ttfFile ttfParse::ParseBin(byte* dat, size_t sz) {
 
     //test to read a location in le table
     u32 offset = getGlyphOffset(&fStream, &f, 36u);
-    Glyph tGlyph = read_glyph(&fStream, &f, offset);
+    Glyph tGlyph = read_glyph(&fStream, &f, 3);
 
     //std::cout << "Glyph Pos: " << offset << std::endl;
 
@@ -465,8 +477,10 @@ Glyph ttfParse::ReadTTFGlyph(std::string src, u32 id) {
     Glyph tGlyph;
     file fBytes = FileWrite::readFromBin(src);
 
-    if (fBytes.dat == nullptr || fBytes.len <= 0)
+    if (fBytes.dat == nullptr || fBytes.len <= 0) {
+        std::cout << "ttf error: failed to read file!" << std::endl;
         return tGlyph;
+    }
 
     ttfFile f;
     ttfStream fStream = ttfStream(fBytes.dat, fBytes.len);

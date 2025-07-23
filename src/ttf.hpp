@@ -88,7 +88,12 @@ public:
     MSFL_EXP float readFixed();
     MSFL_EXP std::string readString(size_t sz);
     MSFL_EXP ttfLongDateTime readDate();
-    using ByteStream::ByteStream;
+    ttfStream() : ByteStream() {
+        this->int_mode = IntFormat_BigEndian;
+    }
+    ttfStream(byte* dat, size_t sz) : ByteStream(dat,sz) {
+        this->int_mode = IntFormat_BigEndian;
+    }
 };
 
 struct Glyph {

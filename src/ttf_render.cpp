@@ -3,6 +3,8 @@
 #include "bitmap_render.hpp"
 #include <vector>
 
+#define MSFL_TTFRENDER_DEBUG
+
 /**
  *
  * All le code for rendering dem bezier curves
@@ -200,7 +202,7 @@ gPData cleanGlyphPoints(Glyph tGlyph) {
         Point p = tGlyph.points[i];
 
         if (i == tGlyph.contourEnds[currentContour] || i >= tGlyph.nPoints - 1) {
-            size_t cPos = currentContour > 0 ? tGlyph.contourEnds[currentContour - 1] + 1 : 0;
+            size_t cPos = (currentContour > 0) ? tGlyph.contourEnds[currentContour - 1] + 1 : 0;
             assert(cPos < tGlyph.nPoints);
 
             //check for an implied point
@@ -266,6 +268,7 @@ i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
     bmp->header.h = mapH;
     bmp->data = new byte[mapW * mapH * sizeof(u32)];
     bmp->header.fSz = mapW * mapH * sizeof(u32);
+    bmp->header.bitsPerPixel = 32;
 
     ZeroMem(bmp->data, bmp->header.fSz);
 
@@ -336,7 +339,7 @@ i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
                 //g.SetColor((np.x / (float)mapW) * 255.0f, (np.y / (float)mapH) * 255.0f, 255, 255);
                 //DrawPoint(&g, np.x - tGlyph.xMin * scale, np.y - tGlyph.yMin * scale);
                 //g.SetColor(128.0f, 128.0f, 128.0f, 255.0f);
-                g.DrawPixel(np.x - tGlyph.xMin * scale, np.y - tGlyph.yMin * scale);
+                //g.DrawPixel(np.x - tGlyph.xMin * scale, np.y - tGlyph.yMin * scale);
             }
 
             offCurve = onCurve = 0;
@@ -353,7 +356,7 @@ i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
     const float _Tx = -tGlyph.xMin * scale, _Ty = -tGlyph.yMin * scale;
 
     //try just intersting over all the pixels
-    g.SetColor(255, 255, 255, 255);
+    /*g.SetColor(255, 255, 255, 255);
     for (float y = 0; y < mapH; y++) {
         for (float x = 0; x < mapW; x++) {
             i32 i = 0;
@@ -364,7 +367,7 @@ i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
             if ((i & 1) != 0)
                 g.DrawPixel(x + _Tx, y + _Ty);
         }
-    }
+    }*/
 
     return 0;
 }
@@ -372,6 +375,114 @@ i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
 f32 pointCross(Point a, Point b) {
     return a.x * b.y - a.y * b.x;
 }
+
+struct BCurve {
+    Point p[3];
+};
+
+struct Edge {
+    BCurve *curves = nullptr;
+    size_t nCurves = 0;
+};
+
+struct PDistInfo {
+    f32 dx = INFINITY,dy = INFINITY,d = INFINITY,t = 0.0f;
+    BCurve curve;
+};
+
+const PDistInfo pSquareDist(Point p0, Point p1) {
+    PDistInfo inf;
+    inf.dx = p1.x - p0.x;
+    inf.dy = p1.y - p0.y;
+    inf.d = inf.dx*inf.dx + inf.dy*inf.dy;
+    return inf;
+}
+
+
+
+//derivative of a bezier 3
+const Point dBdt3(Point p0, Point p1, Point p2, f32 t) {
+    return {
+        .x = 2.0f * ((1.0f - t) * (p1.x - p0.x) + t * (p2.x - p1.x)),
+        .y = 2.0f * ((1.0f - t) * (p1.y - p0.y) + t * (p2.y - p1.y))
+    };
+}
+
+f32 EdgePointSignedDist(Point p, Edge e) {
+    if (!e.curves || e.nCurves == 0) return INFINITY;
+
+    constexpr size_t nCheckSteps = 25;
+    constexpr f32 dt = 1.0f / (f32) nCheckSteps;
+
+    PDistInfo d = {
+        .d = INFINITY
+    }, pd;
+
+    Point refPoint;
+
+    i32 c;
+    f32 t;
+
+    BCurve tCurve;
+
+    for (c = 0; c < e.nCurves; c++) {
+        tCurve = e.curves[c];
+        for (t = 0; t < 1.0f; t += dt) {
+            refPoint = bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],t);
+
+            pd = pSquareDist(p, refPoint);
+            
+            if (pd.d < d.d) {
+                d = pd;
+                d.t = t;
+                d.curve = tCurve;
+            }
+        }
+    }
+
+    tCurve = d.curve;
+
+    return mu_sign(pointCross(
+        dBdt3(tCurve.p[0],tCurve.p[1],tCurve.p[2],d.t),
+        {d.dx,d.dy}
+    )) * sqrtf(d.d);
+}
+
+struct EdgeDistInfo {
+    Edge tEdge;
+    size_t edgeIdx;
+    f32 signedDist;
+};
+
+EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge> edges) {
+    EdgeDistInfo inf = {
+        .signedDist = INFINITY
+    };
+
+    f32 minAbsDist = INFINITY;
+    f32 sd, ad;
+    i32 eIdx = 0;
+
+    for (Edge e : edges) {
+        sd = EdgePointSignedDist(p, e);
+        ad = abs(sd);
+
+        //std::cout << "pds: " << sd << std::endl;
+
+        if (ad < minAbsDist) {
+            inf.tEdge = e;
+            inf.edgeIdx = eIdx;
+            inf.signedDist = sd;
+            minAbsDist = ad;
+        }
+
+        eIdx++;
+    }
+
+    return inf;
+}
+
+#include "logger.hpp"
 
 i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, size_t glyphH) {
     if (!map)
@@ -389,21 +500,15 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     map->header.bitsPerPixel = 32;
     map->header.w = glyphW;
     map->header.h = glyphH;
+    map->header.fSz = glyphH * glyphW * 4;
 
     //curve and edge generation, glyph clean up, and more
-    struct BCurve {
-        Point p[3];
-    };
-
-    struct Edge {
-        BCurve *curves;
-        size_t nCurves;
-    };
 
     std::vector<Edge> glyphEdges;
     
-    const size_t nCurves = nPoints / 3;
+    const size_t nCurves = nPoints / 3 + 1;
     BCurve *curveBuffer = new BCurve[nCurves]; //stores curves of current edge
+    ZeroMem(curveBuffer, nCurves);
     BCurve *workingCurve = curveBuffer;
 
     //generate glyph edges
@@ -414,16 +519,31 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     bool workingOnACurve, pOnCurve;
     Edge newEdge;
 
+    if (nPoints > 0) {
+        minPx = maxPx = cleanDat.p[0].x;
+        minPy = maxPy = cleanDat.p[0].y;
+    }
+
     for (i = 0; i < nPoints - 1; ++i) {
         p = cleanDat.p[i];
+
+        minPx = mu_min(minPx, p.x);
+        maxPx = mu_max(maxPx, p.x);
+
+        minPy = mu_min(minPy, p.y);
+        maxPy = mu_max(maxPy, p.y);
+
         nextPoint = cleanDat.p[i + 1];
 
         pOnCurve = GetFlagValue(cleanDat.f[i], PointFlag_onCurve);
+
+        std::cout << pOnCurve << std::endl;
 
         workingCurve->p[pSelect++] = p; //add point to the working curve
 
         if (pOnCurve) {
             if (workingOnACurve) {
+                //std::cout << pSelect << std::endl;
                 ++nEdgeCurves;
                 cross = pointCross(p, nextPoint);
 
@@ -457,6 +577,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     workingCurve->p[pSelect] = cleanDat.p[nPoints - 1];
 
     //generate final edge
+    nEdgeCurves++;
     BCurve *edgeData = new BCurve[nEdgeCurves];
     in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
 
@@ -468,21 +589,62 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     // a collection of uniquie edges
     glyphEdges.push_back(newEdge);
 
+    std::cout << "Number of edges: " << glyphEdges.size() << std::endl;
+
     //generate single channel sdf
     i32 x,y;
 
+    const f32 w = maxPx - minPx,
+        h = maxPy - minPy,
+        wc = w / glyphW,
+        hc = h / glyphH,
+        maxPossibleDist = sqrtf(w*w + h*h);
+
+    std::cout << "W/H: " << w << " | " << h << std::endl;
+
+    i32 eColors[][3] = {
+        {255,0,0},
+        {0,255,0},
+        {0,0,255},
+        {255,255,0},
+        {255,0,255},
+        {0, 255,255},
+        {255,128,0},
+        {255,0,128},
+        {0,128,255},
+        {128,0,255},
+        {128,255,0},
+        {255,255,255},
+        {0,0,0}
+    };
+
     for (y = 0; y < glyphH; ++y) {
         for (x = 0; x < glyphW; ++x) {
-            p.x = (((f32)x) + 0.5f);
-            p.y = (((f32)y) + 0.5f);
+            p.x = (((f32)x) + 0.5f) * wc;
+            p.y = (((f32)y) + 0.5f) * hc;
+
+            EdgeDistInfo fieldDist = MinEdgeDist(p, glyphEdges);
+
+            const byte color = (abs(fieldDist.signedDist) / maxPossibleDist) * 512.0f;
+            const size_t mp = (x+y*glyphW) << 2;
+            map->data[mp+0] = eColors[fieldDist.edgeIdx][0];
+            map->data[mp+1] = eColors[fieldDist.edgeIdx][1];
+            map->data[mp+2] = eColors[fieldDist.edgeIdx][2];
+            map->data[mp+3] = 255;
         }
     }
+
+    Logger l;
+
+    l.DrawBitMapClip(32, 32, *map);
 
     //oh look were managing memory :O
     for (Edge e : glyphEdges) {
         _safe_free_a(e.curves);
         e.nCurves = 0;
     }
+
+    _safe_free_a(curveBuffer);
 
     return 0;
 }

@@ -382,3 +382,11 @@ static char* CovertBytesToString(byte* dat, size_t len, bool free_dat = false) {
     if (free_dat) _safe_free_a(dat);
     return r;
 }
+
+static f64 mu_sign(f64 val) {
+    return val / abs(val);
+}
+
+static i64 mu_sign(i64 val) {
+    return ((val >> 63) & 1) ? -1 : 1;
+}

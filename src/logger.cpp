@@ -289,12 +289,12 @@ void Logger::DrawBitMapClip(size_t renderW, size_t renderH, Bitmap bmp) {
 			ix += dx;
 		}
 
-		this->SetSpectrumOutputColor({ AUTO_COLOR }, {
-				(byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127)
-		});
+		//this->SetSpectrumOutputColor({ AUTO_COLOR }, {
+		//		(byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127), (byte)((128*(i32)stripe_ln)+127)
+		//});
 
-		stripe_ln = !stripe_ln;
-		std::cout << " ";
+		//stripe_ln = !stripe_ln;
+		//std::cout << " ";
 
 		ix = 0;
 		iy += dy;

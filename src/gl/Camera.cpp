@@ -9,7 +9,7 @@ void Camera::computeDirections() {
     this->lookMatrix = mat4::LookAt(this->right, this->up, this->lookDir);
 }
 
-void Camera::setPos(vec3 p, bool changeTarget = false) {
+void Camera::setPos(vec3 p, bool changeTarget) {
     if (changeTarget) {
         const vec3 dp = this->pos - p;
         this->target = this->target + dp;
@@ -19,7 +19,7 @@ void Camera::setPos(vec3 p, bool changeTarget = false) {
     this->computeDirections();
 }
 
-void Camera::move(vec3 dis, bool changeTarget = false) {
+void Camera::move(vec3 dis, bool changeTarget) {
     if (changeTarget) {
         this->target = this->target + dis;
     }
