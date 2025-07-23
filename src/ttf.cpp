@@ -458,7 +458,7 @@ ttfFile ttfParse::ParseBin(byte* dat, size_t sz) {
 
     //test to read a location in le table
     u32 offset = getGlyphOffset(&fStream, &f, 36u);
-    Glyph tGlyph = read_glyph(&fStream, &f, 3);
+    Glyph tGlyph = read_glyph(&fStream, &f, 4);
 
     //std::cout << "Glyph Pos: " << offset << std::endl;
 

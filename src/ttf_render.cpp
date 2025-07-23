@@ -411,7 +411,7 @@ const Point dBdt3(Point p0, Point p1, Point p2, f32 t) {
 f32 EdgePointSignedDist(Point p, Edge e) {
     if (!e.curves || e.nCurves == 0) return INFINITY;
 
-    constexpr size_t nCheckSteps = 25;
+    constexpr size_t nCheckSteps = 256;
     constexpr f32 dt = 1.0f / (f32) nCheckSteps;
 
     PDistInfo d = {
@@ -547,6 +547,10 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
                 ++nEdgeCurves;
                 cross = pointCross(p, nextPoint);
 
+                if (!GetFlagValue(cleanDat.f[i+1], PointFlag_onCurve)) {
+                    i--; //reuse current point for the next curve if the next point isnt on the curve
+                }
+
                 //the curves are not on the same edge so contruct final edge
                 if (abs(cross) > epsilon) {
                     BCurve *edgeData = new BCurve[nEdgeCurves];
@@ -567,9 +571,8 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
 
                 pSelect = 0;
                 workingOnACurve = false;
-            }
-
-            workingOnACurve = true;
+            } else
+                workingOnACurve = true;
         }
     }
 
@@ -627,9 +630,12 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
 
             const byte color = (abs(fieldDist.signedDist) / maxPossibleDist) * 512.0f;
             const size_t mp = (x+y*glyphW) << 2;
-            map->data[mp+0] = eColors[fieldDist.edgeIdx][0];
-            map->data[mp+1] = eColors[fieldDist.edgeIdx][1];
-            map->data[mp+2] = eColors[fieldDist.edgeIdx][2];
+            //map->data[mp+0] = eColors[fieldDist.edgeIdx][0];
+            //map->data[mp+1] = eColors[fieldDist.edgeIdx][1];
+            //map->data[mp+2] = eColors[fieldDist.edgeIdx][2];
+            map->data[mp+0] = color;
+            map->data[mp+1] = color;
+            map->data[mp+2] = color;
             map->data[mp+3] = 255;
         }
     }
@@ -647,4 +653,8 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     _safe_free_a(curveBuffer);
 
     return 0;
+}
+
+i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, size_t thresh) {
+
 }

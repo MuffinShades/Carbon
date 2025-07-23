@@ -35,6 +35,8 @@ class ttfRender {
 public:
     MSFL_EXP static i32 RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale = 1.0f);
     MSFL_EXP static i32 RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* bmp, size_t glyphW, size_t glyphH);
+    MSFL_EXP static i32 RenderGlyphMSFGToBitMap(Glyph tGlyph, Bitmap* bmp, size_t glyphW, size_t glyphH);
+    MSFL_EXP static i32 RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, size_t thresh);
 };
 
 #ifdef MSFL_DLL
