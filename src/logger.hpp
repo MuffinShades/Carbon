@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <sstream>
 #include "bitmap.hpp"
-#include "Color.hpp"
+#include "color.hpp"
 //#ifdef WIN32
 //#include <windows.h>
 //#endif
