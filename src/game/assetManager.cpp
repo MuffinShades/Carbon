@@ -123,6 +123,8 @@ Asset *AssetManager::ReqAsset(std::string id, std::string core_map_path, std::st
 
     const size_t subLen = (size_t)(_c - id_c) + 1;
 
+    std::cout << "FILE: " << file << std::endl;
+
     JToken fTok = map_struct.FindToken(file);
 
     if (!fTok.body) {

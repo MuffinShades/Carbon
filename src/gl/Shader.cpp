@@ -195,7 +195,7 @@ Shader Shader::LoadShaderFromResource(std::string asset_path, std::string map_lo
     }
 
      Asset *v = AssetManager::ReqAsset(vert_id, asset_path, map_loc),
-          *f = AssetManager::ReqAsset(frag_id, asset_path, map_loc);
+           *f = AssetManager::ReqAsset(frag_id, asset_path, map_loc);
 
 
     if (!v || !f || v->sz <= 0 || f->sz <= 0) {
