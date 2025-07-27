@@ -21,45 +21,6 @@
 #define vbo_bind(vbo) glBindBuffer(GL_ARRAY_BUFFER, (vbo))
 
 void graphics::Load() {
-    /**
-     * 
-     * Load in vertex and fragment shaders
-     *
-     */
-    Asset *def_vert = AssetManager::ReqAsset("Global.Graphics.Shaders.Core.Vert", "moop.pak", "Globe.Map"),
-          *def_frag = AssetManager::ReqAsset("Global.Graphics.Shaders.Core.Frag", "moop.pak", "Globe.Map");
-
-          std::cout << def_vert << " | " << def_frag << std::endl;
-
-    if (def_vert == nullptr || def_frag == nullptr || def_vert->sz <= 0 || def_frag->sz <= 0) {
-        std::cout << "Error failed to load default shaders!" << std::endl;
-        return;
-    }
-
-    const char* vertCode = CovertBytesToString(def_vert->bytes, def_vert->sz);
-    const char* fragCode = CovertBytesToString(def_frag->bytes, def_frag->sz);
-
-    std::cout << "Vert Code: \n" << vertCode << std::endl;
-    std::cout << "Frag Code: \n" << fragCode << std::endl;
-
-    //actually load the shaders
-    this->defShader = Shader(
-        vertCode,
-        fragCode
-    );
-
-    def_vert->free();
-    def_frag->free();
-    _safe_free_a(vertCode);
-    _safe_free_a(fragCode);
-
-    /*
-     *
-     * Create need matricies and constants
-     * 
-     */
-
-
     //opengl settings
     glEnable(GL_DEPTH_TEST);
 	glEnable(GL_ALPHA_TEST);
@@ -79,8 +40,8 @@ void graphics::Load() {
 
     define_vattrib_struct(0, Vertex, posf);
     define_vattrib_struct(1, Vertex, tex);
-    define_vattrib_struct(2, Vertex, modColor);
-    define_vattrib_struct(3, Vertex, texId);
+    //define_vattrib_struct(2, Vertex, modColor);
+    //define_vattrib_struct(3, Vertex, texId);
 
     //
 }
@@ -98,21 +59,21 @@ void graphics::WinResize(const size_t w, const size_t h) {
     //if (this->proj_matrix != nullptr && this->proj_matrix->m != nullptr)
     //    this->proj_matrix->attemptFree();
 
-    this->proj_matrix = mat4::CreateOrthoProjectionMatrix(
+    /*this->proj_matrix = mat4::CreateOrthoProjectionMatrix(
         this->winW, 
         0.0f, 
         this->winH, 
         0.0f, 
         PROJ_ZMIN, 
         PROJ_ZMAX
+    );*/
+
+    this->proj_matrix = mat4::CreatePersepctiveProjectionMatrix(
+        80.0f,
+        this->winW / this->winH,
+        PROJ_ZMIN, PROJ_ZMAX
     );
 }
-
-/*void graphics::buf_push(struct Vertex *v, size_t nVerts) {
-    if (v == nullptr || nVerts <= 0) return;
-
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
-}*/
 
 void graphics::push_verts(Vertex *v, size_t n) {
     if (!v || n == 0)
@@ -144,6 +105,7 @@ void graphics::vmem_clear() {
 }
 
 void graphics::render_flush() {
+    if (!this->s) return;
     //copy over buffer data to gpu memory
     vbo_bind(this->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
@@ -151,8 +113,8 @@ void graphics::render_flush() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     //set program variables
-    this->defShader.use();
-    this->defShader.SetMat4("proj_mat", &this->proj_matrix);
+    this->s->use();
+    this->s->SetMat4("proj_mat", &this->proj_matrix);
     this->bind_vao();
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
     this->vmem_clear();
@@ -167,7 +129,7 @@ void graphics::free() {
     this->_c_vert = 0;
 }
 
-void graphics::FillRect(float x, float y, float w, float h) {
+/*void graphics::FillRect(float x, float y, float w, float h) {
     vec2 p1 = vec2(x + w, y);
 	vec2 p2 = vec2(x, y);
 	vec2 p3 = vec2(x + w, y + h);
@@ -186,4 +148,12 @@ void graphics::FillRect(float x, float y, float w, float h) {
 	};
 
     this->push_verts(vertices, 6);
+}*/
+
+void graphics::setCurrentShader(Shader *s) {
+    if (s) this->s = s;
+}
+
+Shader* graphics::getCurrentShader() {
+    return this->s;
 }

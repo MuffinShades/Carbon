@@ -11,6 +11,14 @@
         },
         "Fonts": {
             
+        },
+        "Models": {
+            "Test": {
+                "Chicken": {
+                    "mtl": "hen.mtl",
+                    "obj": "hen.obj"
+                }
+            }
         }
     },
     "Scripts": {

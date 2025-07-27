@@ -7,7 +7,7 @@
 
 class Shader {
 public:
-    u32 PGRM;
+    u32 PGRM, vert, frag;
 	Shader(const char *vertex_data, const char *fragment_data);
 	Shader() {
 
@@ -23,6 +23,8 @@ public:
 	i32 SetiVec3(std::string label, vec3 *v);
 	i32 SetiVec4(std::string label, vec4 *v);
 	void use();
+
+	static Shader LoadShaderFromResource(std::string asset_path, std::string map_loc, std::string vert_id, std::string frag_id);
 private:
 	enum class ShaderType {
 		program,

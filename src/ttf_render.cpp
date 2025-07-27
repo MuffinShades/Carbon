@@ -320,7 +320,7 @@ i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
             g.SetColor(255.0f, 255.0f, 255.0f, 255.0f);
 
             //else draw le curve
-            for (float t = 0.0f; t < 1.0f; t += invStep) {
+            for (float t = 0.0f; t <= 1.0f; t += invStep) {
                 const _curve currentCurve = {
                     .p0 = ScalePoint(fPoints[i - 2], scale),
                     .p1 = ScalePoint(fPoints[i - 1], scale),
@@ -469,8 +469,6 @@ Point pointNormalize(Point p) {
 
 //compute orthoganality of a curve at a given point
 f32 curveOrtho(BCurve c, Point p, f32 t) {
-    std::cout << "TIME: " << t << std::endl;
-
     const Point b = bezier3(c.p[0], c.p[1], c.p[2], t);
     return abs(pointCross(pointNormalize(
         dBdt3(c.p[0], c.p[1], c.p[2], t)
@@ -566,7 +564,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     BCurve *workingCurve = curveBuffer;
 
     //generate glyph edges
-    u32 minPx, minPy, maxPx, maxPy;
+    u32 minPx = 0, minPy = 0, maxPx = 0, maxPy = 0;
     i32 i, pSelect = 0, nEdgeCurves = 0;
     Point p, nextPoint, prevPoint;
     f32 cross;
@@ -600,40 +598,41 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
 
         workingCurve->p[pSelect++] = p; //add point to the working curve
 
-        if (pOnCurve) {
-            if (workingOnACurve) {
-                //std::cout << pSelect << std::endl;
-                ++nEdgeCurves;
+        if (!pOnCurve) continue;
 
-                cross = pointCross({p.x - prevPoint.x, p.y - prevPoint.y}, {nextPoint.x - p.x, nextPoint.y - p.y});
+        if (workingOnACurve) {
+            nEdgeCurves++;
 
-                if (!GetFlagValue(cleanDat.f[i+1], PointFlag_onCurve)) {
-                    i--; //reuse current point for the next curve if the next point isnt on the curve
-                }
+            cross = pointCross(
+                {p.x - prevPoint.x, p.y - prevPoint.y}, 
+                {nextPoint.x - p.x, nextPoint.y - p.y}
+            );
 
-                //the curves are not on the same edge so contruct final edge
-                if (abs(cross) > 0.01f) {
-                    BCurve *edgeData = new BCurve[nEdgeCurves];
-                    in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
+            //the curves are not on the same edge so contruct final edge
+            if (/*abs(cross) > 0.01f*/ true) {
+                BCurve *edgeData = new BCurve[nEdgeCurves];
+                in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
 
-                    newEdge.curves = edgeData;
-                    newEdge.nCurves = nEdgeCurves;
+                newEdge.curves = edgeData;
+                newEdge.nCurves = nEdgeCurves;
 
-                    //WARNING: vector may not copy the struct as a new struct and, 
-                    //as a result, copies of the same edge will exists instead of 
-                    // a collection of uniquie edges
-                    glyphEdges.push_back(newEdge);
+                //WARNING: vector may not copy the struct as a new struct and, 
+                //as a result, copies of the same edge will exists instead of 
+                // a collection of uniquie edges
+                glyphEdges.push_back(newEdge);
 
-                    workingCurve = curveBuffer;
-                    nEdgeCurves = 0;
-                } else
-                    workingCurve += sizeof(BCurve); //go to next wokring curve
-
-                pSelect = 0;
-                workingOnACurve = false;
+                workingCurve = curveBuffer;
+                nEdgeCurves = 0;
             } else
-                workingOnACurve = true;
-        }
+                workingCurve += sizeof(BCurve); //go to next working curve
+
+            pSelect = 0;
+            workingOnACurve = false;
+
+            if (!GetFlagValue(cleanDat.f[i+1], PointFlag_onCurve))
+                i--; //reuse current point for the next curve if the next point isnt on the curve
+        } else
+            workingOnACurve = true;
     }
 
     //add last point to the curve
@@ -651,8 +650,6 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     //as a result, copies of the same edge will exists instead of 
     // a collection of uniquie edges
     glyphEdges.push_back(newEdge);
-
-    //std::cout << "Number of edges: " << glyphEdges.size() << std::endl;
 
     //generate single channel sdf
     i32 x,y;

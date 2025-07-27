@@ -5,6 +5,8 @@
 #include "../gl/window.hpp"
 #include "assetManager.hpp"
 #include "../gl/graphics.hpp"
+#include "../gl/mesh.hpp"
+#include "../gl/Camera.hpp"
 
 extern i32 game_main() {
     Path::SetProjectDir(PROJECT_DIR);
@@ -21,12 +23,47 @@ extern i32 game_main() {
 
     g.WinResize(500,500);
 
+    Vertex testFace[] = {
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 1.0f, 0.0f, 0.0f,
+
+        1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 1.0f, 0.0f, 0.0f
+    };
+
+    Mesh m;
+
+    m.setMeshData(testFace, 6);
+
+    Camera cam = Camera({0.0f, 1.0f, -1.0f});
+
+    cam.setTarget({0.5f, 0.5f, 1.0f});
+
+    Shader s = Shader::LoadShaderFromResource(
+            "moop.pak", 
+            "Globe.Map", 
+            "Graphics.Shaders.Core.Vert", 
+            "Graphics.Shaders.Core.Frag"
+        );
+
+    mat4 lookMat = cam.getLookMatrix();
+
+    g.setCurrentShader(&s);
+
     while (win.isRunning()) {
-        //glClearColor(1.0, 0.0, 0.0, 1.0);
-        g.FillRect(50, 50, 100, 100);
+        glClearColor(0.2, 0.7, 1.0, 1.0);
+
+        s.SetMat4("cam_mat", &lookMat);
+
+        g.push_verts((Vertex*)m.data(), m.size());
         g.render_flush();
+
         win.Update();
     }
+
+    m.free();
     g.free();
     return 0;
 }

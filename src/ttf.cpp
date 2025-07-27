@@ -28,8 +28,6 @@ const std::string iTableTags[] = {
 }*/
 
 enum iTable getITableEnum(offsetTable tbl) {
-    std::cout << "Getting Table Tag: " << tbl.tag << std::endl;
-
     i32 p = 0;
     for (const std::string itm : iTableTags) {
         if (_strCompare(itm, tbl.tag))
@@ -143,7 +141,7 @@ table_head read_header_table(ttfStream* stream) {
  */
 void read_offset_tables(ttfStream* stream, ttfFile* f) {
     f->scalarType = stream->readUInt32();
-    size_t nTables = stream->readUInt16();
+    const size_t nTables = stream->readUInt16();
     f->searchRange = stream->readUInt16();
     f->entrySelector = stream->readUInt16();
     f->rangeShift = stream->readUInt16();
@@ -212,17 +210,17 @@ u32 getGlyphOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
     u32 offset = 0;
 
     switch (f->header.idxToLocFormat) {
-        //short
+    //short
     case 0: {
-        size_t pOff = tChar * 2;
+        size_t pOff = tChar << 1;
         stream->seek(stream->tell() + pOff);
         offset = stream->readUInt16();
         stream->seek(rPos);
         break;
     }
-          //long / int
+    //long / int
     case 1: {
-        size_t pOff = tChar * 4;
+        size_t pOff = tChar << 2;
         stream->seek(stream->tell() + pOff);
         offset = stream->readUInt32();
         stream->seek(rPos);
@@ -233,6 +231,66 @@ u32 getGlyphOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
     }
 
     return offset;
+}
+
+struct cmap_format_4 {
+    u16 
+        table_len, 
+        lang, 
+        segCount = 0, 
+        searchRange, 
+        entrySelector, 
+        rangeShift, 
+        *endCode = nullptr, 
+        reservePad,
+        *startCode = nullptr,
+        *idDelta = nullptr,
+        *idRangeOffset = nullptr;
+    void *segValBlock = nullptr;
+};
+
+void free_cmap_format_4(cmap_format_4* c) {
+    _safe_free_a(c->segValBlock);
+    ZeroMem(c, sizeof(cmap_format_4));
+}
+
+void cmap_4(ttfStream *stream) {
+    if (!stream) return;
+
+    cmap_format_4 table = {
+        .table_len = stream->readUInt16(),
+        .lang = stream->readUInt16(),
+        .segCount = (u16) (stream->readUInt16() >> 1), //reading in segcount * 2 so we need to divide by 2 or rsh 1
+        .searchRange = stream->readUInt16(),
+        .entrySelector = stream->readUInt16(),
+        .rangeShift = stream->readUInt16()
+    };
+
+    if (table.segCount == 0) {
+        std::cout << "ttf error: failed to read cmap4, not enough segments!" << std::endl;
+        return;
+    }
+
+    //allocate a lot of memory
+    constexpr size_t nSegValues = 4;
+    u16 *segValueBlock = new u16[table.segCount * nSegValues];
+    ZeroMem(segValueBlock, table.segCount * nSegValues);
+
+    const size_t segSz = table.segCount * sizeof(u16);
+    table.segValBlock = segValueBlock;
+
+    //assign parts of the block
+    table.endCode =       segValueBlock + segSz * 0;
+    table.startCode =     segValueBlock + segSz * 1;
+    table.idDelta =       segValueBlock + segSz * 2;
+    table.idRangeOffset = segValueBlock + segSz * 3;
+
+    //memory management
+    free_cmap_format_4(&table);
+}
+
+void cmap_12() {
+    
 }
 
 /**
@@ -247,22 +305,35 @@ u32 getGlyphOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
  *
  */
 u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
-    size_t mapOff = f->cmap_table.off;
-
-    size_t rPos = stream->seek(mapOff);
+    const size_t mapOff = f->cmap_table.off;
+    const size_t rPos = stream->seek(mapOff);
 
     //read data from the cmap table
-    u16 version = stream->readUInt16();
-    u16 nSubTabls = stream->readUInt16();
+    const u16 version = stream->readUInt16();
+    const u16 nSubTabls = stream->readUInt16();
 
     //mode
     if (f->charMapMode == CMap_null) {
         f->charMapMode = (enum CMapMode)stream->readInt16();
         f->charMapModeId = stream->readInt16();
+
+        const u32 off = stream->readUInt32();
+        stream->seek(off);
+        const u16 cmap_format = stream->readUInt16();
+
+        switch (cmap_format) {
+        case 4:
+
+        default:
+            std::cout << "ttf error: unsupported cmap format: " << cmap_format << std::endl;
+            break;
+        }
     }
     else
         //since we've already read it, skip the map type and platform specific ID
         stream->skip(sizeof(i16) * 2);
+
+    stream->seek(rPos);
 
     return 0;
 }
@@ -282,9 +353,7 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
         return res;
     }
 
-    std::cout << "Offset: " << f->glyph_table.off << " " << loc << std::endl;
-
-    size_t rPos = stream->seek(f->glyph_table.off + loc);
+    const size_t rPos = stream->seek(f->glyph_table.off + loc);
 
     //read some glyph data
     res.nContours = stream->readInt16();
@@ -293,18 +362,23 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     res.xMax = stream->readFWord();
     res.yMax = stream->readFWord();
 
-    std::cout << "Info: " << res.nContours << " " << res.xMin << " " << res.yMin << " " << res.xMax << " " << res.yMax << std::endl;
-
-    if (res.nContours <= 0) {
+    if (res.nContours == 0) {
         std::cout << "ttf warning: found no contours!" << std::endl;
         return res;
+    }
+
+    if (res.nContours < 0) {
+        std::cout << "ttf warning: compound glyph!" << std::endl;
+        return read_glyph(stream, f, 0);
     }
 
     //for now we can only read simple glyphs
     i32* contourEnds = new i32[res.nContours];
     size_t nPoints = 0;
 
-    for (size_t i = 0; i < res.nContours; i++) {
+    size_t i;
+
+    for (i = 0; i < res.nContours; i++) {
         contourEnds[i] = stream->readUInt16();
 
         if (contourEnds[i] > nPoints)
@@ -320,7 +394,7 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     //flags
     byte* flags = new byte[nPoints];
 
-    for (size_t i = 0; i < nPoints; i++) {
+    for (i = 0; i < nPoints; i++) {
         byte flag = stream->readByte();
         flags[i] = flag;
 
@@ -336,21 +410,17 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     Point* glyphPoints = new Point[nPoints];
 
     //x coordinates
-    for (size_t i = 0; i < nPoints; i++) {
+    for (i = 0; i < nPoints; i++) {
         const byte flag = flags[i];
         size_t xSz = ((size_t)!((bool)GetFlagValue(flag, PointFlag_xSz))) + 1;
         bool xMode = (bool)GetFlagValue(flag, PointFlag_xMode);
         i32 xSign = xSz == 1 ? xMode ? 1 : -1 : 1;
 
-        if ((bool)(xSz - 1) && xMode) {
+        if ((bool)(xSz - 1) && xMode) { //skip offset if offset flag is set to zero
             if (i <= 0) {
-                //std::cout << "Invalid glyph x-coordinate!" << std::endl;
-                //return res;
-
                 glyphPoints[i].x = 0;
                 continue;
             }
-            //std::cout << "Coord copy...\n" << std::endl;
             glyphPoints[i].x = glyphPoints[i - 1].x;
             continue;
         }
@@ -358,12 +428,10 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
             switch (xSz) {
             case 1: {
                 glyphPoints[i].x = stream->readByte() * xSign;
-                //std::cout << "Posf: " << glyphPoints[i].x << "  8bit" << std::endl;
                 break;
             }
             case 2: {
                 glyphPoints[i].x = stream->readInt16();
-                //std::cout << "Posf: " << glyphPoints[i].x << "  16bit"<< std::endl;
                 break;
             }
             default:
@@ -372,15 +440,11 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
 
             if (i > 0)
                 glyphPoints[i].x += glyphPoints[i - 1].x;
-
-            //std::cout << "X-Coord: " << glyphPoints[i].x << " Sz: " << xSz << std::endl;
-
-            //std::cout << "\n" << std::endl;
         }
     }
 
     //y coordinates
-    for (size_t i = 0; i < nPoints; i++) {
+    for (i = 0; i < nPoints; i++) {
         const byte flag = flags[i];
         size_t ySz = ((size_t)!((bool)GetFlagValue(flag, PointFlag_ySz))) + 1;
         bool yMode = (bool)GetFlagValue(flag, PointFlag_yMode);
@@ -388,13 +452,10 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
 
         if ((bool)(ySz - 1) && yMode) {
             if (i <= 0) {
-                //std::cout << "Invalid glyph y-coordinate!" << std::endl;
-                //return res;
-
                 glyphPoints[i].y = 0;
                 continue;
             }
-            //std::cout << "Coord copy...\n" << std::endl;
+            
             glyphPoints[i].y = glyphPoints[i - 1].y;
             continue;
         }
@@ -414,8 +475,6 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
 
             if (i > 0)
                 glyphPoints[i].y += glyphPoints[i - 1].y;
-
-            //std::cout << "\n" << std::endl;
         }
     }
 
@@ -427,6 +486,10 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
 
     stream->seek(rPos);
     return res;
+}
+
+Glyph read_unicode_glyph(ttfStream* stream, ttfFile *f, u32 code) {
+
 }
 
 ttfFile create_err_file(int code) {
@@ -455,17 +518,6 @@ ttfFile ttfParse::ParseBin(byte* dat, size_t sz) {
 
     //read offset tables and other important info
     read_offset_tables(&fStream, &f);
-
-    //test to read a location in le table
-    u32 offset = getGlyphOffset(&fStream, &f, 36u);
-    Glyph tGlyph = read_glyph(&fStream, &f, 4);
-
-    //std::cout << "Glyph Pos: " << offset << std::endl;
-
-    //print le test glyph data
-    /*for (size_t i = 0; i < tGlyph.nPoints; i++) {
-        std::cout << "Glyph Point: " << tGlyph.points[i].x << ", " << tGlyph.points[i].y << std::endl;
-    }*/
 
     fStream.free();
 

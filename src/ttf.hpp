@@ -134,6 +134,7 @@ public:
     MSFL_EXP static ttfFile ParseTTFFile(std::string src);
     MSFL_EXP static ttfFile ParseBin(byte* dat, size_t sz);
     MSFL_EXP static Glyph ReadTTFGlyph(std::string src, u32 id);
+    MSFL_EXP static Glyph ReadUnicodeGlyph(std::string src, u32 id);
 };
 
 #ifdef MSFL_DLL
