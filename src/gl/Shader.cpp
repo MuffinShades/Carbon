@@ -100,14 +100,14 @@ i32 Shader::SetVec4(std::string label, vec4 *v) {
 }
 
 i32 Shader::SetMat4(std::string label, mat4 *m) {
-    if (this->PGRM == 0 || !m->m)
+    if (this->PGRM == 0)
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
     //if (loc == 0)
         //return 2;
 
-    glUniformMatrix4fv(loc, 1, GL_FALSE, m->m);
+    glUniformMatrix4fv(loc, 1, GL_FALSE, m->glPtr());
 
     return 0;
 }

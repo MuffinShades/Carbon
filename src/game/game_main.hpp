@@ -15,22 +15,19 @@ extern i32 game_main() {
     std::cout << "Asset Compliation exited with code: " << code << std::endl;
 
     Window::winIni();
-    Window win = Window("moop", 500, 500);
+    Window win = Window("your momcraft", 500, 500);
 
     graphics g = graphics(&win);
 
     g.Load();
 
-    g.WinResize(500,500);
-
     Vertex testFace[] = {
-        1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-        1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 1.0f, 0.0f, 0.0f,
-
-        1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 1.0f, 0.0f, 0.0f
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f
     };
 
     Mesh m;
@@ -39,26 +36,44 @@ extern i32 game_main() {
 
     Camera cam = Camera({0.0f, 1.0f, -1.0f});
 
-    cam.setTarget({0.5f, 0.5f, 1.0f});
+    cam.setTarget({0.0f, 0.0f, 1.0f});
 
     Shader s = Shader::LoadShaderFromResource(
             "moop.pak", 
             "Globe.Map", 
-            "Graphics.Shaders.Core.Vert", 
-            "Graphics.Shaders.Core.Frag"
+            "Global.Graphics.Shaders.Core.Vert", 
+            "Global.Graphics.Shaders.Core.Frag"
         );
 
     mat4 lookMat = cam.getLookMatrix();
 
+    f32 T = 0.0f;
+
     g.setCurrentShader(&s);
+
+    mat4 mm = mat4::CreateTranslationMatrix({0.0f, 0.0f, 10.0f});
+
+    g.WinResize(500,500);
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);
 
-        s.SetMat4("cam_mat", &lookMat);
+        //cam.move({0.0f,0.01f,0.0f}, true);
 
-        g.push_verts((Vertex*)m.data(), m.size());
+        //mm = mat4::CreateRotationMatrixZ(T, {0.0f, 0.0f, 0.0f});
+        //mm = mm * mat4::CreateRotationMatrixY(T, {0.0f, 0.0f, 0.0f});
+
+        //mm = mat4::Translate(mm, {0.0f, 0.0f, 0.01f});
+        T += 0.01f;
+
+        lookMat = cam.getLookMatrix();
+        s.SetMat4("cam_mat", &lookMat);
+        s.SetMat4("model_mat", &mm);
+
+        g.push_verts((Vertex*)testFace, 6);
         g.render_flush();
+
+        //mm = mat4();
 
         win.Update();
     }

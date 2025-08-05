@@ -10,7 +10,12 @@
 
 class mat4 {
 public:
-	f32 m[16] = {0};
+	f32 m[16] = {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
 
 	void attemptFree();
 

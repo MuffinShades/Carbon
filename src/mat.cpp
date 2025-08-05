@@ -8,18 +8,18 @@ mat4::mat4() {
 	ZeroMem(this->m, MAT4_MEMALLOC);
 }
 
-mat4::mat4(float *dat, bool free) {
-	in_memcpy(this->m, dat, sizeof(float) * MAT4_MEMALLOC);
+mat4::mat4(f32 *dat, bool free) {
+	in_memcpy(this->m, dat, sizeof(f32) * MAT4_MEMALLOC);
 
 	if (free)
 		_safe_free_a(dat);
 }
 
-mat4::mat4(float dat[MAT4_MEMALLOC]) {
-	in_memcpy(this->m, dat, sizeof(float) * MAT4_MEMALLOC);
+mat4::mat4(f32 dat[MAT4_MEMALLOC]) {
+	in_memcpy(this->m, dat, sizeof(f32) * MAT4_MEMALLOC);
 }
 
-mat4::mat4(float value) {
+mat4::mat4(f32 value) {
 	ZeroMem(this->m, MAT4_MEMALLOC);
 	this->m[0] = value;
 	this->m[5] = value;
@@ -69,13 +69,39 @@ vec3 mat4::operator*(vec3 v) {
 }
 
 mat4 mat4::CreatePersepctiveProjectionMatrix(float fov, float aspectRatio, float fNear, float fFar) {
-	f32 fovRad = 1.0f / tanf(fov * 0.5f / 180.0f * 3.1415926f);
+	constexpr f64 rad_adjust = 3.1415926 / 180.0;
+
+	/*f32 fovRad = 1.0f / tanf((fov * 0.5f) * rad_adjust);
 
 	f32 dat[16] = {
 		fovRad / aspectRatio, 0.0f, 0.0f, 0.0f,
 		0.0f, fovRad, 0.0f, 0.0f,
 		0.0f, 0.0f, (fFar + fNear) / (fNear - fFar), -1.0f,
 		0.0f, 0.0f, ((2.0f * fFar * fNear) / (fNear - fFar)), 0.0f
+	};*/
+
+	//fovY
+	/*const f32 tangent = tanf((fov * 0.5f) * rad_adjust);
+	const f32 top = fNear * tangent, right = top * aspectRatio;
+	const f32 plane_diff_rec = 1.0f / (fFar - fNear);
+
+	f32 dat[16] = {
+		fNear / right, 0.0f, 0.0f, 0.0f,
+		0.0f, fNear / top, 0.0f, 0.0f,
+		0.0f, 0.0f, -(fFar + fNear) * plane_diff_rec, -1.0f,
+		0.0f, 0.0f, (-(2.0f * fFar * fNear) * plane_diff_rec), 0.0f
+	};*/
+
+	//fovX
+	const f32 tangent = tanf((fov * 0.5f) * rad_adjust);
+	const f32 right = fNear * tangent, top = right / aspectRatio;
+	const f32 plane_diff_rec = 1.0f / (fFar - fNear);
+
+	f32 dat[16] = {
+		fNear / right, 0.0f, 0.0f, 0.0f,
+		0.0f, fNear / top, 0.0f, 0.0f,
+		0.0f, 0.0f, -(fFar + fNear) * plane_diff_rec, -1.0f,
+		0.0f, 0.0f, (-(2.0f * fFar * fNear) * plane_diff_rec), 0.0f
 	};
 
 	return mat4(dat);
@@ -189,7 +215,7 @@ mat4 mat4::LookAt(vec3 right, vec3 up, vec3 dir) {
 	vec3 s = vec3::Normalize(vec3::CrossProd(f, dir));
 	vec3 u = vec3::CrossProd(s,f);
 
-	float dat[16] = {
+	f32 dat[16] = {
 		s.x, u.x, -f.x, 0.0f,
 		s.y, u.y, -f.y, 0.0f,
 		s.z, u.z, -f.z, 0.0f,

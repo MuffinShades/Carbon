@@ -3,7 +3,7 @@
 void Camera::computeDirections() {
     const vec3 globalUp = {0.0f, 1.0f, 0.0f};
 
-    this->lookDir = vec3::Normalize(this->pos - this->target);
+    this->lookDir = vec3::Normalize(this->target - this->pos);
     this->right = vec3::CrossProd(globalUp, this->lookDir);
     this->up = vec3::CrossProd(this->lookDir, this->right);
     this->lookMatrix = mat4::LookAt(this->right, this->up, this->lookDir);

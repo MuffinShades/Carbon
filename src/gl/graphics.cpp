@@ -25,7 +25,7 @@ void graphics::Load() {
     glEnable(GL_DEPTH_TEST);
 	glEnable(GL_ALPHA_TEST);
 	glDepthMask(GL_TRUE);
-	glDepthFunc(GL_LEQUAL); //maybe change to LESS idk
+	glDepthFunc(GL_LEQUAL);
 
     //vertex array
     GLuint* vptr = &this->vao;
@@ -46,13 +46,13 @@ void graphics::Load() {
     //
 }
 
-#define PROJ_ZMIN -1.0f
-#define PROJ_ZMAX  1.0f
+#define PROJ_ZMIN  0.1f
+#define PROJ_ZMAX  100.0f
 
 //when le window resizes
 void graphics::WinResize(const size_t w, const size_t h) {
-    this->winW = (float) w;
-    this->winH = (float) h;
+    this->winW = (f32) w;
+    this->winH = (f32) h;
 
     glViewport(0.0f, 0.0f, this->winW, this->winH);
 
@@ -69,10 +69,12 @@ void graphics::WinResize(const size_t w, const size_t h) {
     );*/
 
     this->proj_matrix = mat4::CreatePersepctiveProjectionMatrix(
-        80.0f,
+        90.0f,
         this->winW / this->winH,
-        PROJ_ZMIN, PROJ_ZMAX
+        0.1f, 100.0f
     );
+
+    forrange(16) std::cout << this->proj_matrix.m[i] << std::endl;
 }
 
 void graphics::push_verts(Vertex *v, size_t n) {
@@ -106,15 +108,17 @@ void graphics::vmem_clear() {
 
 void graphics::render_flush() {
     if (!this->s) return;
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     //copy over buffer data to gpu memory
     vbo_bind(this->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
 
-    glClear(GL_COLOR_BUFFER_BIT);
-
     //set program variables
     this->s->use();
     this->s->SetMat4("proj_mat", &this->proj_matrix);
+
     this->bind_vao();
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
     this->vmem_clear();
