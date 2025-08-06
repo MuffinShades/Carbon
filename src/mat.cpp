@@ -16,7 +16,10 @@ mat4::mat4(f32 *dat, bool free) {
 }
 
 mat4::mat4(f32 dat[MAT4_MEMALLOC]) {
-	in_memcpy(this->m, dat, sizeof(f32) * MAT4_MEMALLOC);
+	//in_memcpy(this->m, dat, sizeof(f32) * MAT4_MEMALLOC);
+
+	forrange(MAT4_MEMALLOC)
+		this->m[i] = dat[i];
 }
 
 mat4::mat4(f32 value) {
@@ -39,7 +42,7 @@ mat4 mat4::operator*(mat4 m2) {
 
 	for (i = 0; i < 4; i++)
 		for (j = 0; j < 4; j++)
-			r.m[MAT4_POINT(j,i)] = m1[j][0] * m2[0][i] + m1[j][1] * m2[1][i] + m1[j][2] * m2[2][i] + m1[j][3] * m2[3][i];
+			r.m[MAT4_POINT(j,i)] = m1[0][j] * m2[i][0] + m1[1][j] * m2[i][1] + m1[2][j] * m2[i][2] + m1[3][j] * m2[i][3];
 
 	return r;
 }
@@ -98,10 +101,10 @@ mat4 mat4::CreatePersepctiveProjectionMatrix(float fov, float aspectRatio, float
 	const f32 plane_diff_rec = 1.0f / (fFar - fNear);
 
 	f32 dat[16] = {
-		fNear / right, 0.0f, 0.0f, 0.0f,
+		fNear / right * (1 / aspectRatio), 0.0f, 0.0f, 0.0f,
 		0.0f, fNear / top, 0.0f, 0.0f,
-		0.0f, 0.0f, -(fFar + fNear) * plane_diff_rec, -1.0f,
-		0.0f, 0.0f, (-(2.0f * fFar * fNear) * plane_diff_rec), 0.0f
+		0.0f, 0.0f, (fFar + fNear) * -plane_diff_rec, -1.0f,
+		0.0f, 0.0f, ((2.0f * fFar * fNear) * -plane_diff_rec), 0.0f
 	};
 
 	return mat4(dat);
@@ -148,11 +151,15 @@ mat4 mat4::CreateRotationMatrixZ(float theta, vec3 origin) {
 
 mat4 mat4::CreateTranslationMatrix(vec3 pos) {
 	float dat[16] = {
-		1.0f, 0.0f, 0.0f, pos.x,
-		0.0f, 1.0f, 0.0f, pos.y,
-		0.0f, 0.0f, 1.0f, pos.z,
-		0.0f, 0.0f, 0.0f, 1.0f
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		pos.x, pos.y, pos.z, 1.0f
 	};
+
+	std::cout << "Translation dat:" << std::endl;
+	forrange(16) std::cout << dat[i] << " ";
+	std::cout << std::endl;
 
 	return mat4(dat);
 }
@@ -199,9 +206,9 @@ mat4 mat4::Rotate(mat4 m, float theta, vec3 axis) {
 		tmp.y * a.z + Sin * a.x,
 		0.0f,
 
-		tmp.z * axis.x + Sin * axis.y,
-		tmp.z * axis.y - Sin * axis.x,
-		Cos + tmp.z * axis.z,
+		tmp.z * a.x + Sin * a.y,
+		tmp.z * a.y - Sin * a.x,
+		Cos + tmp.z * a.z,
 		0.0f,
 
 		0.0f, 0.0f, 0.0f, 1.0f

@@ -392,3 +392,15 @@ static i64 mu_sign(i64 val) {
     return ((val >> 63) & 1) ? -1 : 1;
     //return (val == 0) ? -1 : 1;
 }
+
+constexpr f64 mu_pi = 3.1415926;
+constexpr f64 mu_rtd_const = mu_pi / 180.0;
+constexpr f64 mu_dtr_const = 180.0 / mu_pi;
+
+static inline f64 mu_rad(f64 theta) {
+    return theta * mu_rtd_const;
+}
+
+static inline f64 mu_deg(f64 theta) {
+    return theta * mu_dtr_const;
+}

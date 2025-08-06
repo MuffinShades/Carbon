@@ -35,11 +35,25 @@ public:
 class ControllableCamera : Camera {
 protected:
     f32 yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+
+    void vUpdate();
 public:
+    using Camera::getLookMatrix;
+    using Camera::getPos;
+
     vec3 getRotation() const;
+
     f32 getYaw() const;
     f32 getPitch() const;
     f32 getRoll() const;
+
+    void setYaw(f32 yaw);
+    void setPitch(f32 pitch);
+    void setRoll(f32 roll);
+
+    void changeYaw(f32 dyaw);
+    void changePitch(f32 pitch);
+    void changeRoll(f32 roll);
 
     ControllableCamera(){}
 };

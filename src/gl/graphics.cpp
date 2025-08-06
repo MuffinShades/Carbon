@@ -22,10 +22,10 @@
 
 void graphics::Load() {
     //opengl settings
-    glEnable(GL_DEPTH_TEST);
-	glEnable(GL_ALPHA_TEST);
-	glDepthMask(GL_TRUE);
-	glDepthFunc(GL_LEQUAL);
+    //glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_ALPHA_TEST);
+	//glDepthMask(GL_TRUE);
+	//glDepthFunc(GL_LEQUAL);
 
     //vertex array
     GLuint* vptr = &this->vao;
@@ -106,20 +106,29 @@ void graphics::vmem_clear() {
     this->_c_vert = 0;
 }
 
-void graphics::render_flush() {
-    if (!this->s) return;
-
+void graphics::render_begin() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+	glEnable(GL_ALPHA_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LEQUAL);
 
+    if (!this->s) return;
+    this->s->use();
+}
+
+void graphics::render_flush() {
     //copy over buffer data to gpu memory
     vbo_bind(this->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
 
     //set program variables
-    this->s->use();
     this->s->SetMat4("proj_mat", &this->proj_matrix);
 
     this->bind_vao();
+    
+
+    vbo_bind(0);
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
     this->vmem_clear();
 }

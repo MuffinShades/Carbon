@@ -36,10 +36,10 @@ class Window {
 private:
     std::vector<_evContainer> _listeners[_eventTypeLen] = {};
     static EventHandle _cHandle;
-    GLFWwindow *wHandle;
     void  intCreate();
     bool running = false;
 public:
+    GLFWwindow *wHandle;
     static bool winIni();
     i32 w, h;
     const char *title;

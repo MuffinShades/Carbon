@@ -4,8 +4,8 @@
 #include "Shader.hpp"
 
 struct Vertex {
-    float posf[3];
-    float tex[2];
+    f32 posf[3];
+    f32 tex[2];
 };
 
 class graphics {
@@ -37,6 +37,7 @@ public:
     }
     void Load();
     void WinResize(const size_t w, const size_t h);
+    void render_begin();
     void render_flush();
     void push_verts(Vertex *v, size_t n);
     void setCurrentShader(Shader *s);

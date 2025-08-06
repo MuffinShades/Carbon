@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <cmath>
+#include "msutil.hpp"
 
 class vec2 {
 public:
@@ -124,10 +125,13 @@ public:
     }
 
     static vec3 Normalize(vec3 v) {
-        const float length = v.len();
+        const f32 length = v.len();
+
         v.x /= length;
         v.y /= length;
         v.z /= length;
+
+        return v;
     }
 
     vec3 GetNormal() {

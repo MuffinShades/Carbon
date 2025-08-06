@@ -489,7 +489,7 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
 }
 
 Glyph read_unicode_glyph(ttfStream* stream, ttfFile *f, u32 code) {
-
+    return {};
 }
 
 ttfFile create_err_file(int code) {

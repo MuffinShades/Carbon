@@ -12,7 +12,8 @@ i32 AssetManager::compileDat(std::string map, std::string dat_out) {
         return 1;
 
     //read map file
-    file map_fDat = FileWrite::readFromBin(map);
+    std::cout << "LOCATION: " << Path::GetOSPath(map) << std::endl;
+    file map_fDat = FileWrite::readFromBin(Path::GetOSPath(map));
 
     if (map_fDat.len <= 0 || !map_fDat.dat) {
         if (map_fDat.dat)

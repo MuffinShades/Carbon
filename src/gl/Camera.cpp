@@ -73,3 +73,50 @@ f32 ControllableCamera::getPitch() const {
 f32 ControllableCamera::getRoll() const {
     return this->roll;
 }
+
+void ControllableCamera::setYaw(f32 yaw) {
+    this->yaw = yaw;
+    this->vUpdate();
+}
+
+void ControllableCamera::setPitch(f32 pitch) {
+    this->pitch = pitch;
+    this->vUpdate();
+}
+
+void ControllableCamera::setRoll(f32 roll) {
+    this->roll = roll;
+    this->vUpdate();
+}
+
+void ControllableCamera::changeYaw(f32 dyaw) {
+    this->yaw += dyaw;
+    this->vUpdate();
+}
+
+void ControllableCamera::changePitch(f32 pitch) {
+    this->pitch += pitch;
+
+    if (this->pitch > mu_pi)
+        this->pitch = mu_pi;
+
+    if (this->pitch < -mu_pi)
+        this->pitch = -mu_pi;
+
+    this->vUpdate();
+}
+
+void ControllableCamera::changeRoll(f32 roll) {
+    this->roll += roll;
+    this->vUpdate();
+}
+
+void ControllableCamera::vUpdate() {
+    const f32 pc = cosf(this->pitch);
+    this->target = this->pos + vec3(
+        cosf(this->yaw) * pc,
+        sin(this->pitch),
+        sinf(this->yaw) * pc
+    );
+    this->computeDirections();
+}

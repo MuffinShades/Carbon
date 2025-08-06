@@ -6,7 +6,7 @@
 #ifdef VS
 #define PROJECT_DIR ""
 #else
-#define PROJECT_DIR ""
+#define PROJECT_DIR "../../"
 #endif
 #else
 #define PROJECT_DIR "../"
