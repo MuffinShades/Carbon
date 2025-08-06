@@ -72,7 +72,7 @@ vec3 mat4::operator*(vec3 v) {
 }
 
 mat4 mat4::CreatePersepctiveProjectionMatrix(float fov, float aspectRatio, float fNear, float fFar) {
-	constexpr f64 rad_adjust = 3.1415926 / 180.0;
+	//constexpr f64 rad_adjust = 3.1415926 / 180.0;
 
 	/*f32 fovRad = 1.0f / tanf((fov * 0.5f) * rad_adjust);
 
@@ -96,16 +96,17 @@ mat4 mat4::CreatePersepctiveProjectionMatrix(float fov, float aspectRatio, float
 	};*/
 
 	//fovX
-	const f32 tangent = tanf((fov * 0.5f) * rad_adjust);
-	const f32 right = fNear * tangent, top = right / aspectRatio;
-	const f32 plane_diff_rec = 1.0f / (fFar - fNear);
+	const f32 cotan = 1.0f / tanf(mu_rad(fov * 0.5f));
+	const f32 right = fNear * (1.0f / cotan), top = right / aspectRatio;
+	const f32 plane_diff_rec = 1.0f / (fNear - fFar);
 
 	f32 dat[16] = {
-		fNear / right * (1 / aspectRatio), 0.0f, 0.0f, 0.0f,
-		0.0f, fNear / top, 0.0f, 0.0f,
-		0.0f, 0.0f, (fFar + fNear) * -plane_diff_rec, -1.0f,
-		0.0f, 0.0f, ((2.0f * fFar * fNear) * -plane_diff_rec), 0.0f
+		cotan / aspectRatio, 0.0f, 0.0f, 0.0f,
+		0.0f, cotan, 0.0f, 0.0f,
+		0.0f, 0.0f, (fFar + fNear) * plane_diff_rec, -1.0f,
+		0.0f, 0.0f, ((2.0f * fFar * fNear) * plane_diff_rec), 0.0f
 	};
+
 
 	return mat4(dat);
 };
@@ -217,21 +218,43 @@ mat4 mat4::Rotate(mat4 m, float theta, vec3 axis) {
 	return m * mat4(rMat);
 }
 
-mat4 mat4::LookAt(vec3 right, vec3 up, vec3 dir) {
-	vec3 f = vec3::Normalize(up - right);
-	vec3 s = vec3::Normalize(vec3::CrossProd(f, dir));
-	vec3 u = vec3::CrossProd(s,f);
+mat4 mat4::LookAt(/*vec3 right, vec3 up, vec3 dir*/ vec3 pos, vec3 tar, vec3 up) {
+	const vec3 f = vec3::Normalize(tar - pos);
+	const vec3 r = vec3::Normalize(vec3::CrossProd(f, up));
+	const vec3 u = vec3::CrossProd(r, f);
 
 	f32 dat[16] = {
-		s.x, u.x, -f.x, 0.0f,
-		s.y, u.y, -f.y, 0.0f,
-		s.z, u.z, -f.z, 0.0f,
-
-		-vec3::DotProd(s, right),
-		-vec3::DotProd(u, right),
-		 vec3::DotProd(f, right),
+		r.x, u.x, -f.x, 0.0f,
+		r.y, u.y, -f.y, 0.0f,
+		r.z, u.z, -f.z, 0.0f,
+		//--------------------------//
+		-vec3::DotProd(r, pos),
+		-vec3::DotProd(u, pos),
+		 vec3::DotProd(f, pos),
 		1.0f
 	};
+
+	/*up = vec3::Normalize(up);
+	vec3 f = vec3::Normalize(tar - pos);
+	vec3 r = vec3::CrossProd(f, up);
+	vec3 u = vec3::CrossProd(f, r);
+
+	u = vec3::Normalize(u);
+	r = vec3::Normalize(r);
+	r.y = -r.y;
+
+	vec3 t = {
+		vec3::DotProd(pos, r),
+		vec3::DotProd(pos, u),
+		vec3::DotProd(pos, f)
+	};
+
+	f32 dat[16] = {
+		r.x, u.x, -f.x, 0.0f,
+		r.y, u.y, -f.y, 0.0f,
+		r.z, u.z, -f.z, 0.0f,
+		-t.x, -t.y, -t.z, 1.0f
+	};*/
 
 	return mat4(dat);
 }

@@ -8,62 +8,6 @@
 #include "../gl/mesh.hpp"
 #include "../gl/Camera.hpp"
 
-constexpr Vertex testFace[] = {
-        //NORTH
-0, 0, 1,  0.0f, 1.0f,
-1, 1, 1,  1.0f, 0.0f,
-1, 0, 1,  1.0f, 1.0f,
-
-1, 1, 1,  1.0f, 0.0f,
-0, 0, 1,  0.0f, 1.0f,
-0, 1, 1,  0.0f, 0.0f,
-
-//SOUTH
-0, 0, 0,  1.0f, 1.0f,
-1, 0, 0,  0.0f, 1.0f,
-1, 1, 0,  0.0f, 0.0f,
-
-1, 1, 0,  0.0f, 0.0f,
-0, 1, 0,  1.0f, 0.0f,
-0, 0, 0,  1.0f, 1.0f,
-
-//EAST
-0, 1, 1,  1.0f, 0.0f,
-0, 0, 0,  0.0f, 1.0f,
-0, 1, 0,  0.0f, 0.0f,
-
-0, 0, 0,  0.0f, 1.0f,
-0, 1, 1,  1.0f, 0.0f,
-0, 0, 1,  1.0f, 1.0f,
-
-//WEST
-1, 1, 1,  1.0f, 0.0f,
-1, 1, 0,  0.0f, 0.0f,
-1, 0, 0,  0.0f, 1.0f,
-
-1, 0, 0,  0.0f, 1.0f,
-1, 0, 1,  1.0f, 1.0f,
-1, 1, 1,  1.0f, 0.0f,
-
- //TOP
-0, 1, 0,  0.0f, 1.0f,
-1, 1, 0,  1.0f, 1.0f,
-1, 1, 1,  1.0f, 0.0f,
-
-1, 1, 1,  1.0f, 0.0f,
-0, 1, 1,  0.0f, 0.0f,
-0, 1, 0,  0.0f, 1.0f,
-
-//BOTTOM
-0, 0, 0,  0.0f, 1.0f,
-1, 0, 1,  1.0f, 0.0f,
-1, 0, 0,  1.0f, 1.0f,
-
-1, 0, 1,  1.0f, 0.0f,
-0, 0, 0,  0.0f, 1.0f,
-0, 0, 1,  0.0f, 0.0f
-    };
-
 f64 mxp = 0.0, myp = 0.0;
 
 constexpr f32 sense = 0.5f;
@@ -75,14 +19,16 @@ void mouse_callback(GLFWwindow* win, f64 xp, f64 yp) {
 
     f64 dx = xp - mxp, dy = yp - myp;
 
-    cam.changePitch(mu_rad(dy * sense));
-    cam.changeYaw(mu_rad(dx * sense));
+    cam.changePitch(-dy * sense);
+    cam.changeYaw(dx * sense);
 
     mxp = xp;
     myp = yp;
 }
 
 //Camera cam = Camera({0.0f, 1.0f, -1.0f});
+
+constexpr size_t WIN_W = 900, WIN_H = 750;
 
 extern i32 game_main() {
     Path::SetProjectDir(PROJECT_DIR);
@@ -91,7 +37,7 @@ extern i32 game_main() {
     std::cout << "Asset Compliation exited with code: " << code << std::endl;
 
     Window::winIni();
-    Window win = Window("your momcraft", 500, 500);
+    Window win = Window(":D", WIN_W, WIN_H);
 
     glfwSetCursorPosCallback(win.wHandle, mouse_callback);
 
@@ -106,11 +52,11 @@ extern i32 game_main() {
     //cam.setTarget({0.0f, 0.0f, 10.0f});
 
     Shader s = Shader::LoadShaderFromResource(
-            "moop.pak", 
-            "Globe.Map", 
-            "Global.Graphics.Shaders.Core.Vert", 
-            "Global.Graphics.Shaders.Core.Frag"
-        );
+        "moop.pak", 
+        "Globe.Map", 
+        "Global.Graphics.Shaders.Core.Vert", 
+        "Global.Graphics.Shaders.Core.Frag"
+    );
 
     mat4 lookMat = cam.getLookMatrix();
 
@@ -119,20 +65,22 @@ extern i32 game_main() {
     g.setCurrentShader(&s);
 
     mat4 mm = mat4(1.0f);
-    mm = mat4::Translate(mm, {0.0f, 0.0f, -3.0f});
-    mm = mat4::Rotate(mm, 1.0f, {1.0f, 2.0f, 3.0f});
 
-    std::cout << "Matt:" << std::endl;
+    /*std::cout << "Matt:" << std::endl;
     forrange(16) std::cout << mm.m[i] << " ";
-    std::cout << std::endl;
+    std::cout << std::endl;*/
 
-    g.WinResize(500,500);
+    mm = mat4::CreateTranslationMatrix({0.0f, 0.0f, -3.0f});
+
+    g.WinResize(WIN_W,WIN_H);
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);
         g.render_begin();
 
         //cam.move({0.0f,0.01f,0.0f}, true);
+
+        mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
         
         //mm = mat4::CreateTranslationMatrix({0.0f, 0.0f, 2.0f});
         //mm = mm * mat4::CreateRotationMatrixY(T, {0.0f, 0.0f, 2.0f});

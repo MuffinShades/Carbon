@@ -34,7 +34,7 @@ public:
 
 class ControllableCamera : Camera {
 protected:
-    f32 yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+    f32 yaw = -mu_pi, pitch = 0.0f, roll = 0.0f;
 
     void vUpdate();
 public:

@@ -4,9 +4,15 @@ void Camera::computeDirections() {
     const vec3 globalUp = {0.0f, 1.0f, 0.0f};
 
     this->lookDir = vec3::Normalize(this->target - this->pos);
-    this->right = vec3::CrossProd(globalUp, this->lookDir);
-    this->up = vec3::CrossProd(this->lookDir, this->right);
-    this->lookMatrix = mat4::LookAt(this->right, this->up, this->lookDir);
+
+    this->right = vec3::Normalize(vec3::CrossProd(this->lookDir, globalUp));
+    this->up = vec3::Normalize(vec3::CrossProd(this->right, this->lookDir));
+
+    this->lookMatrix = mat4::LookAt(
+        this->pos, 
+        this->pos + this->lookDir, 
+        this->up
+    );
 }
 
 void Camera::setPos(vec3 p, bool changeTarget) {
@@ -97,11 +103,11 @@ void ControllableCamera::changeYaw(f32 dyaw) {
 void ControllableCamera::changePitch(f32 pitch) {
     this->pitch += pitch;
 
-    if (this->pitch > mu_pi)
-        this->pitch = mu_pi;
+    if (this->pitch > 89.9f)
+        this->pitch = 89.9f;
 
-    if (this->pitch < -mu_pi)
-        this->pitch = -mu_pi;
+    if (this->pitch < -89.9f)
+        this->pitch = -89.9f;
 
     this->vUpdate();
 }
@@ -112,11 +118,16 @@ void ControllableCamera::changeRoll(f32 roll) {
 }
 
 void ControllableCamera::vUpdate() {
-    const f32 pc = cosf(this->pitch);
-    this->target = this->pos + vec3(
-        cosf(this->yaw) * pc,
-        sin(this->pitch),
-        sinf(this->yaw) * pc
-    );
+    f64 yr = mu_rad(this->yaw);
+    f64 pr = mu_rad(this->pitch);
+
+    const f32 pc = cosf(pr);
+
+    this->target = this->pos + vec3::Normalize({
+        cosf(yr) * pc,
+        sinf(pr),
+        sinf(yr) * pc
+    });
+
     this->computeDirections();
 }
