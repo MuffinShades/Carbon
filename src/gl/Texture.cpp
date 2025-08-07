@@ -45,6 +45,9 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
     //free image memory now
     _safe_free_a(img.data);
 
+    self->w = img.width;
+    self->h = img.height;
+
     return 0;
 }
 
@@ -103,4 +106,12 @@ void BindableTexture::bind(u32 slot) {
 
 u32 BindableTexture::getHandle() const {
     return this->t_handle;
+}
+
+u32 BindableTexture::width() const {
+    return this->w;
+}
+
+u32 BindableTexture::height() const {
+    return this->h;
 }

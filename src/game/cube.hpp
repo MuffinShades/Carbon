@@ -72,7 +72,7 @@ public:
     }
 
     static Vertex* GenFace(CubeFace f, vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f}) {
-        Vertex *fs = new Vertex[6];
+        Vertex fs[6]; //WARNING: may need to dynamically allocate le memeory here
         constexpr size_t fsz = 6 * sizeof(Vertex);
         ZeroMem(fs, 6);
 

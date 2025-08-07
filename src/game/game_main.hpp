@@ -10,6 +10,8 @@
 #include "cube.hpp"
 #include "../gl/Texture.hpp"
 #include "player.hpp"
+#include "game.hpp"
+#include "../gl/atlas.hpp"
 
 f64 mxp = 0.0, myp = 0.0;
 
@@ -38,6 +40,30 @@ constexpr size_t WIN_W = 900, WIN_H = 750;
 
 mat4 lookMat;
 
+graphics g;
+BindableTexture tex = BindableTexture("assets/vox/alphaTextureMC.png");
+TexAtlas atlas = TexAtlas(tex.width(), tex.height(), 16, 16);
+Shader s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
+
+Mesh m;
+mat4 mm = mat4(1.0f);
+
+void render() {
+    g.render_begin();
+
+    tex.bind();
+
+    mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
+
+    lookMat = p.getCam()->getLookMatrix();
+
+    s.SetMat4("cam_mat", &lookMat);
+    s.SetMat4("model_mat", &mm);
+
+    g.push_verts((Vertex*)m.data(), m.size());
+    g.render_flush();
+}
+
 extern i32 game_main() {
     Path::SetProjectDir(PROJECT_DIR);
 
@@ -51,15 +77,11 @@ extern i32 game_main() {
     glfwSetCursorPosCallback(win.wHandle, mouse_callback);
     glfwSetKeyCallback(win.wHandle, kb_callback);
 
-    graphics g = graphics(&win);
+    g = graphics(&win);
 
     g.Load();
 
-    Mesh m;
-
     //BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");
-    BindableTexture tex = BindableTexture("assets/vox/alphaTextureMC.png");
-    Shader s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
 
     m.setMeshData((Vertex*) Cube::GetFace(CubeFace::North), 6);
 
@@ -70,42 +92,20 @@ extern i32 game_main() {
         "Global.Graphics.Shaders.Core.Frag"
     );*/
 
-    f32 T = 0.0f;
-
     g.setCurrentShader(&s);
-
-    mat4 mm = mat4(1.0f);
-
-    /*std::cout << "Matt:" << std::endl;
-    forrange(16) std::cout << mm.m[i] << " ";
-    std::cout << std::endl;*/
 
     mm = mat4::CreateTranslationMatrix({0.0f, 0.0f, -3.0f});
 
     g.WinResize(WIN_W,WIN_H);
 
     while (win.isRunning()) {
+        glClearColor(0.2, 0.7, 1.0, 1.0);
+
+        //tick
         p.tick(&win);
 
-        glClearColor(0.2, 0.7, 1.0, 1.0);
-        g.render_begin();
-
-        tex.bind();
-
-        mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
-
-        //mm = mat4C
-        T += 0.01f;
-
-        lookMat = p.getCam()->getLookMatrix();
-
-        s.SetMat4("cam_mat", &lookMat);
-        s.SetMat4("model_mat", &mm);
-
-        g.push_verts((Vertex*)m.data(), m.size());
-        g.render_flush();
-
-        //mm = mat4();
+        //render
+        render();
 
         win.Update();
     }
