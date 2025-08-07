@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include "../bytestream.hpp"
 #include "mesh.hpp"

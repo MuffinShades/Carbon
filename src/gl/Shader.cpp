@@ -219,3 +219,40 @@ Shader Shader::LoadShaderFromResource(std::string asset_path, std::string map_lo
 
     return s;
 }
+
+Shader Shader::LoadShaderFromFile(std::string vert_path, std::string frag_path) {
+    if (vert_path.length() == 0 || frag_path.length() == 0) {
+        std::cout << "Invalid shader path!" << std::endl;
+        return {};
+    }
+
+    file v_file = FileWrite::readFromBin(Path::GetOSPath(vert_path)),
+         f_file = FileWrite::readFromBin(Path::GetOSPath(frag_path));
+
+    if (v_file.len == 0 || f_file.len == 0 || !v_file.dat || !f_file.dat) {
+        std::cout << "Failed to read shader file! Likely invalid path!" << std::endl;
+        if (v_file.dat) _safe_free_a(v_file.dat);
+        if (f_file.dat) _safe_free_a(f_file.dat);
+        return {};
+    }
+
+    const char *vertCode = CovertBytesToString(v_file.dat, v_file.len, true),
+               *fragCode = CovertBytesToString(f_file.dat, f_file.len, true);
+
+    if (!vertCode || !fragCode) {
+        std::cout << "Failed to convert vertex or fragment data!" << std::endl;
+        if (vertCode) _safe_free_a(vertCode);
+        if (fragCode) _safe_free_a(fragCode);
+        return {};
+    }
+
+    Shader s = Shader(
+        vertCode,
+        fragCode
+    );
+
+    _safe_free_a(vertCode);
+    _safe_free_a(fragCode);
+
+    return s;
+}

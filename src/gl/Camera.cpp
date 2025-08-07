@@ -50,6 +50,10 @@ vec3 Camera::getLookDirection() const {
     return this->lookDir;
 }
 
+vec3 Camera::getUp() const {
+    return this->up;
+}
+
 void Camera::setTarget(vec3 target) {
     this->target = target;
     this->computeDirections();

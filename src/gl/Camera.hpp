@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include "../vec.hpp"
 #include "../msutil.hpp"
@@ -17,6 +18,7 @@ public:
     vec3 getPos() const;
     vec3 getTarget() const;
     vec3 getLookDirection() const;
+    vec3 getUp() const;
     /*
     
     changeTarget -> if true target will update to be in front of the camera the same way it was before
@@ -40,6 +42,10 @@ protected:
 public:
     using Camera::getLookMatrix;
     using Camera::getPos;
+    using Camera::move;
+    using Camera::getLookDirection;
+    using Camera::setPos;
+    using Camera::getUp;
 
     vec3 getRotation() const;
 

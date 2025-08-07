@@ -267,6 +267,7 @@ bool ByteStream::block_adv(bool pos_adv, bool write) {
 void ByteStream::pos_adv() {
 	if (++this->pos >= this->len) {
 		this->pos = this->len - 1;
+		this->blockPos = this->pos - this->cur_block->pos;
 		return;
 	}
 	if (++this->blockPos >= this->cur_block->sz)
@@ -283,6 +284,7 @@ void ByteStream::len_inc() {
 
 void ByteStream::len_inc(const size_t sz) {
 	this->len += sz;
+
 	while (this->len >= this->allocSz) {
 		this->add_new_block(this->blockAllocSz);
 	}
@@ -347,7 +349,6 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 
 	if (rCopy > 0) {
 		in_memcpy(this->cur, dat, rCopy);
-		this->pos_adv(rCopy);
 	}
 
 	//std::cout << this->pos << " | " << rCopy << std::endl;
@@ -368,22 +369,22 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 
 	while (sz >= this->blockAllocSz) {
 		this->block_adv(0, 1);
+		this->blockPos = 0;
 		in_memcpy(this->cur, dp, this->blockAllocSz);
 		sz -= this->blockAllocSz;
 		dp += this->blockAllocSz;
 		//this->pos_adv(this->blockAllocSz);
-		this->pos += this->blockAllocSz;
 	}
-
-	this->blockPos = 0;
 
 	if (sz > 0) {
 		this->block_adv(0, 1);
 		in_memcpy(this->cur, dp, sz);
 		this->cur += sz;
 		this->blockPos = sz;
-		this->pos += sz;
 	}
+
+	this->pos += sz;
+	this->blockPos = this->pos - this->cur_block->pos;
 }
 
 //possible fix: if this function doesn't write to end of block then well whoops :3
@@ -401,8 +402,8 @@ void ByteStream::writeByte(byte b) {
 	}
 
 	//increase length then block since len allocates and block just advances the current block
-	this->pos = this->len;
 	this->len_inc();
+	this->seek(this->len - 1);
 
 	while (++this->blockPos > this->cur_block->sz)
 		this->block_adv(0,1);
@@ -439,8 +440,8 @@ void ByteStream::writeInt(i64 val, size_t nBytes) {
 
 		//adjust int yk
 		val >>= (left << 3);
-		this->blockPos = (nBytes -= left);
-		this->blockPos = nBytes;
+		//this->blockPos = (nBytes -= left);
+		//this->blockPos = nBytes;
 	}
 
 	//right hand copy / base copy
@@ -448,6 +449,7 @@ void ByteStream::writeInt(i64 val, size_t nBytes) {
 
 	this->cur += nBytes;
 	this->pos += nBytes;
+	this->blockPos = this->pos - this->cur_block->pos;
 }
 
 void ByteStream::writeUInt(u64 val, size_t nBytes) {
@@ -470,8 +472,8 @@ void ByteStream::writeUInt(u64 val, size_t nBytes) {
 
 		//adjust int yk
 		val >>= (left << 3);
-		this->blockPos = (nBytes -= left);
-		this->blockPos = nBytes;
+		//this->blockPos = (nBytes -= left);
+		//this->blockPos = nBytes;
 	}
 
 	//right hand copy / base copy
@@ -479,6 +481,7 @@ void ByteStream::writeUInt(u64 val, size_t nBytes) {
 
 	this->cur += nBytes;
 	this->pos += nBytes;
+	this->blockPos = this->pos - this->cur_block->pos;
 }
 
 //int writes
@@ -858,9 +861,8 @@ size_t ByteStream::home() {
 
 size_t ByteStream::end() {
 	size_t sPos = this->pos;
-	this->cur_block = this->tail_block;
-	this->blockPos = this->tail_block->sz - 1;
-	this->pos = this->len - 1;
+	if (this->len > 0)
+		this->seek(this->len - 1);
 	return sPos;
 }
 

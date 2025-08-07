@@ -8,6 +8,8 @@
  *
  * This is the encoder, decoder, and utility functions for
  * the Asset / AssetPack format.
+ * 
+ * FUCK THIS SHIT code im just gonna rewrite this from scratch
  *
  */
 
@@ -304,6 +306,15 @@ enum _ChunkType {
     _cty_max
 };
 
+/*
+
+Writes le header
+
+4 bytes -> "MSAP"
+4 bytes -> file sig
+8 bytes -> msap format version
+
+*/
 void write_header(_AssetHeader header, ByteStream* stream) {
     if (stream == nullptr)
         return;
@@ -329,15 +340,33 @@ const std::string chunkTypeStrs[2] = {
 };
 
 //writes chunks yk
+/*
+
+Chunk FMT
+
+1 byte -> len of id
+n bytes -> id
+4 bytes -> chunk data size
+4 bytes -> checksum (not used right now)
+n bytes -> chunk data
+
+
+*/
 void write_chunk(enum _ChunkType chunkType, ByteStream* chunkStream, ByteStream* outStream) {
-    if (chunkType >= _cty_max || chunkType < 0)
+    if (chunkType >= _cty_max || chunkType < 0 || !outStream || !chunkStream)
         return;
+
+    std::cout << "Writing Chunk @" << outStream->size() << " | " << outStream->tell() << std::endl;
+
+    outStream->writeByte(0);
+    outStream->end();
 
     //write chunk label / identifier
     const std::string chunkLabel = chunkTypeStrs[chunkType];
     const size_t len = chunkLabel.length() & 0xff;
 
     //outStream->writeUInt32(0xaabbccdd);
+
     outStream->writeByte(len);
     outStream->writeBytes(
         reinterpret_cast<byte*>(
@@ -521,6 +550,9 @@ fPos write_container(AssetContainer* container, ByteStream* stream) {
 
     //-------Write Container Header------------
     cStream.writeUInt16(nAssets); //write number of assets
+
+    std::cout << "N Assets for " << container->GetId() << ": " << nAssets << std::endl;
+
     const std::string cId = container->GetId();
     const size_t idLen = cId.length();
 
@@ -532,12 +564,14 @@ fPos write_container(AssetContainer* container, ByteStream* stream) {
     cStream.writeBytes(
         reinterpret_cast<byte*>(
             const_cast<char*>(cId.c_str())
-            ), idLen
+        ), idLen
     );
+
+    size_t exp_sz = 2 + idLen + 1;
 
     //write the child items
     for (auto* a : container->assets) {
-        if (a == nullptr)
+        if (!a)
             continue;
 
         switch (a->getType()) {
@@ -569,8 +603,10 @@ fPos write_container(AssetContainer* container, ByteStream* stream) {
             );
             break;
         }
-        default:
+        default: {
+            std::cout << "Found invalid container type!" << std::endl;
             return _createFPosErr(2); //ERROR 2: invalid container type
+        }
         }
     }
 
@@ -1060,7 +1096,7 @@ std::vector<_cLabel> read_container_pos(ByteStream* stream) {
             .lblLen = labelLen,
             .label = iLabel,
             .pos = off
-            });
+        });
     }
 
     return pos;

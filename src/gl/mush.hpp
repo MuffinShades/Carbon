@@ -1,3 +1,4 @@
+#pragma once
 /**
  * 
  * Mush file format

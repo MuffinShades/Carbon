@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <fstream>
 #include <glad.h>
@@ -25,6 +26,7 @@ public:
 	void use();
 
 	static Shader LoadShaderFromResource(std::string asset_path, std::string map_loc, std::string vert_id, std::string frag_id);
+	static Shader LoadShaderFromFile(std::string vert_path, std::string frag_path);
 private:
 	enum class ShaderType {
 		program,
