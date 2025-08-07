@@ -21,6 +21,11 @@
             }
         }
     },
+    "Vox": {
+        "Tex": {
+            "atlas": "vox/alphaTextureMC.png"
+        }
+    },
     "Scripts": {
 
     },

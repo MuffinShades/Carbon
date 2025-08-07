@@ -7,6 +7,8 @@
 #include "../gl/graphics.hpp"
 #include "../gl/mesh.hpp"
 #include "../gl/Camera.hpp"
+#include "cube.hpp"
+#include "../gl/Texture.hpp"
 
 f64 mxp = 0.0, myp = 0.0;
 
@@ -47,13 +49,15 @@ extern i32 game_main() {
 
     Mesh m;
 
-    m.setMeshData((Vertex*) testFace, 36);
+    BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");
+
+    m.setMeshData((Vertex*) Cube::GetFace(CubeFace::North), 6);
 
     //cam.setTarget({0.0f, 0.0f, 10.0f});
 
     Shader s = Shader::LoadShaderFromResource(
         "moop.pak", 
-        "Globe.Map", 
+        "Global.Globe.Map", 
         "Global.Graphics.Shaders.Core.Vert", 
         "Global.Graphics.Shaders.Core.Frag"
     );
@@ -79,6 +83,8 @@ extern i32 game_main() {
         g.render_begin();
 
         //cam.move({0.0f,0.01f,0.0f}, true);
+
+        tex.bind();
 
         mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
         

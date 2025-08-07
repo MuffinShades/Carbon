@@ -92,7 +92,9 @@ Asset* _create_asset_copy(Asset* a) {
 
 Asset *AssetManager::ReqAsset(std::string id, std::string core_map_path, std::string core_map_id, bool store) {
     if (!_map) {
-        std::cout << "Core Loc: " << Path::GetOSPath(core_map_path) << std::endl;
+        std::cout << "Core Loc: " << Path::GetOSPath(core_map_path) << " | " << Path::GetOSPath(core_map_path) << std::endl;
+        std::cout << "Id: " << core_map_id << std::endl;
+
         Asset e = AssetParse::ExtractAssetFromFile(
             Path::GetOSPath(core_map_path),
             core_map_id

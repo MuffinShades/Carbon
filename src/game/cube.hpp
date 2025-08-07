@@ -1,4 +1,4 @@
-#include "graphics.hpp"
+#include "../gl/graphics.hpp"
 
 constexpr struct Vertex cubeVerticies[] = {
     //NORTH
