@@ -17,10 +17,10 @@ vec2 TexAtlas::getIndexCoords(u32 idxX, u32 idxY) {
 }
 
 vec2 TexAtlas::getNormalCoords(i32 x, i32 y) {
-    return {
-        .x = x * this->invW,
-        .y = y * this->invH
-    };
+    return vec2(
+        x * this->invW,
+        y * this->invH
+    );
 }
 
 TexPart TexAtlas::getImageIndexPart(u32 idxX, u32 idxY) {
@@ -28,8 +28,8 @@ TexPart TexAtlas::getImageIndexPart(u32 idxX, u32 idxY) {
 
     return {
         .tl = tl,
-        .tr = tl + {ncw, 0.0f},
-        .br = tl + {ncw, nch},
-        .bl = tl + {0.0f, nch}
+        .tr = tl + vec2(ncw, 0.0f),
+        .br = tl + vec2(ncw, nch),
+        .bl = tl + vec2(0.0f, nch)
     };
 }

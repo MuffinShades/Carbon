@@ -40,18 +40,18 @@ constexpr size_t WIN_W = 900, WIN_H = 750;
 
 mat4 lookMat;
 
-graphics g;
-BindableTexture tex = BindableTexture("assets/vox/alphaTextureMC.png");
-TexAtlas atlas = TexAtlas(tex.width(), tex.height(), 16, 16);
+graphics *g = nullptr;
+BindableTexture *tex = nullptr;
+TexAtlas atlas;
 Shader s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
 
 Mesh m;
 mat4 mm = mat4(1.0f);
 
 void render() {
-    g.render_begin();
+    g->render_begin();
 
-    tex.bind();
+    tex->bind();
 
     mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
 
@@ -60,8 +60,8 @@ void render() {
     s.SetMat4("cam_mat", &lookMat);
     s.SetMat4("model_mat", &mm);
 
-    g.push_verts((Vertex*)m.data(), m.size());
-    g.render_flush();
+    g->push_verts((Vertex*)m.data(), m.size());
+    g->render_flush();
 }
 
 extern i32 game_main() {
@@ -77,9 +77,12 @@ extern i32 game_main() {
     glfwSetCursorPosCallback(win.wHandle, mouse_callback);
     glfwSetKeyCallback(win.wHandle, kb_callback);
 
-    g = graphics(&win);
+    g = new graphics(&win);
 
-    g.Load();
+    g->Load();
+
+    tex = new BindableTexture("assets/vox/alphaTextureMC.png");
+    atlas = TexAtlas(tex->width(), tex->height(), 16, 16);
 
     //BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");
 
@@ -92,11 +95,11 @@ extern i32 game_main() {
         "Global.Graphics.Shaders.Core.Frag"
     );*/
 
-    g.setCurrentShader(&s);
+    g->setCurrentShader(&s);
 
     mm = mat4::CreateTranslationMatrix({0.0f, 0.0f, -3.0f});
 
-    g.WinResize(WIN_W,WIN_H);
+    g->WinResize(WIN_W,WIN_H);
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);
@@ -111,7 +114,9 @@ extern i32 game_main() {
     }
 
     m.free();
-    g.free();
+    g->free();
+    _safe_free_b(g);
+    _safe_free_b(tex);
     return 0;
 }
 #endif //CARBON_GAME_MAIN_CPP

@@ -11,6 +11,13 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
         return 1;
     }
 
+    if (!self) {
+        std::cout << "invalid self ;-;" << std::endl;
+        return 4;
+    }
+
+    std::cout << "handle address: " << (uintptr_t) (&self->t_handle) << std::endl;
+
     //now generate the texture
     glGenTextures(1, &self->t_handle);
 
