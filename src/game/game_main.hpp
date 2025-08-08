@@ -43,7 +43,7 @@ mat4 lookMat;
 graphics *g = nullptr;
 BindableTexture *tex = nullptr;
 TexAtlas atlas;
-Shader s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
+Shader s;
 
 Mesh m;
 mat4 mm = mat4(1.0f);
@@ -53,7 +53,7 @@ void render() {
 
     tex->bind();
 
-    mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
+    //mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
 
     lookMat = p.getCam()->getLookMatrix();
 
@@ -81,12 +81,15 @@ extern i32 game_main() {
 
     g->Load();
 
+    s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
+
     tex = new BindableTexture("assets/vox/alphaTextureMC.png");
     atlas = TexAtlas(tex->width(), tex->height(), 16, 16);
 
     //BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");
 
-    m.setMeshData((Vertex*) Cube::GetFace(CubeFace::North), 6);
+    TexPart clip = atlas.getImageIndexPart(8, 11); //command block
+    m.setMeshData((Vertex*) Cube::GenFace(CubeFace::North, vec4(clip.tl.x, clip.tl.y, clip.br.x - clip.tl.x, clip.br.y - clip.tl.y)), 6, true);
 
     /*Shader s = Shader::LoadShaderFromResource(
         "moop.pak", 

@@ -29,7 +29,7 @@ TexPart TexAtlas::getImageIndexPart(u32 idxX, u32 idxY) {
     return {
         .tl = tl,
         .tr = tl + vec2(ncw, 0.0f),
-        .br = tl + vec2(ncw, nch),
-        .bl = tl + vec2(0.0f, nch)
+        .bl = tl + vec2(0.0f, nch),
+        .br = tl + vec2(ncw, nch)
     };
 }
