@@ -30,16 +30,29 @@ void Mesh::free() {
     this->nVerts = 0;
 }
 
+void DynamicMesh::free() {
+    MeshChunk *c = this->rootChunk, *toFree;
+
+    while (c) {
+        _safe_free_a(c->vData);
+        toFree = c;
+        c = c->next;
+        _safe_free_b(toFree);
+    }
+
+    this->rootChunk = (this->lastChunk = nullptr);
+}
+
 DynamicMesh::MeshChunk *DynamicMesh::add_chunk() {
     MeshChunk *c = new MeshChunk;
 
-    c->nVerts = this->vertsPerChunk;
-    c->vData = new Vertex[c->nVerts];
+    c->nAllocVerts = this->vertsPerChunk;
+    c->vData = new Vertex[c->nAllocVerts];
 
-    ZeroMem(c->vData, c->nVerts);
+    ZeroMem(c->vData, c->nAllocVerts);
 
     if (this->lastChunk) {
-        c->pos = this->lastChunk->pos + this->lastChunk->nVerts;
+        c->pos = this->lastChunk->pos + this->lastChunk->nAllocVerts;
         c->prev = this->lastChunk;
         this->lastChunk->next = c;
         this->lastChunk = c;
@@ -60,7 +73,7 @@ DynamicMesh::DynamicMesh() {
 void DynamicMesh::set_cur_chunk(DynamicMesh::MeshChunk *chunk, bool adjustPos) {
     if (!chunk) return;
 
-    this->curChunk = chunk;
+    this->lastChunk = chunk;
     this->cur = chunk->vData;
 
     if (adjustPos) {
@@ -68,7 +81,7 @@ void DynamicMesh::set_cur_chunk(DynamicMesh::MeshChunk *chunk, bool adjustPos) {
     }
 }
 
-void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj = false) {
+void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj) {
     if (!v || nVerts == 0) {
         if (free_obj && v)
             _safe_free_a(v);
@@ -77,23 +90,32 @@ void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj = false) {
 
     //split between chunks needed (left copies)
     //TODO: add new chunks and copy data while we're above chunk boundary
-    while (this->chunkPos + nVerts >= this->curChunk->nVerts) {
+    while (this->chunkPos + nVerts >= this->lastChunk->nVerts) {
         //split between 2 chunks
-        if (!this->curChunk->next)
+        if (!this->lastChunk->next)
             this->add_chunk();
 
-        //TODO: le copy
+        size_t vtxLeft = this->lastChunk->nAllocVerts - this->chunkPos;
+
+        in_memcpy(this->cur, v, sizeof(Vertex) * vtxLeft);
+
+        this->lastChunk->nVerts = this->lastChunk->nAllocVerts;
+
+        v += vtxLeft;
+        nVerts -= vtxLeft;
+        this->set_cur_chunk(this->lastChunk);
     }
 
     //no split easy peasy (right copy)
     in_memcpy(this->cur, v, sizeof(Vertex) * nVerts);
+    this->lastChunk->nVerts += nVerts;
     this->pos_inc(nVerts);
 
     if (free_obj)
         _safe_free_a(v);
 }
 
-void DynamicMesh::mergeMesh(Mesh m, bool free_obj = false) {
+void DynamicMesh::mergeMesh(Mesh m, bool free_obj) {
     const Vertex *m_dat = m.data();
     const size_t nv = m.size();
 
@@ -101,34 +123,86 @@ void DynamicMesh::mergeMesh(Mesh m, bool free_obj = false) {
         return;
 }
 
-void DynamicMesh::mergeMesh(DynamicMesh dym, bool free_obj = false) {
+void DynamicMesh::mergeMesh(DynamicMesh dym, bool free_obj) {
     if (dym.nVerts == 0 || !dym.rootChunk)
         return;
 
     //copy over other mesh as just more chunks
+    const size_t nv = this->lastChunk->nVerts;
+
+    if (nv > 0) {
+        Vertex *clip = new Vertex[nv];
+        in_memcpy(clip, this->lastChunk->vData, sizeof(Vertex) * nv);
+        _safe_free_a(this->lastChunk->vData);
+        this->lastChunk->vData = clip;
+        this->lastChunk->nAllocVerts = nv;
+    }
+
+    this->lastChunk->next = dym.rootChunk;
+    this->add_chunk();
+    this->set_cur_chunk(this->lastChunk); //adjust the pointers
 }
 
-Mesh DynamicMesh::compress() {
+Mesh DynamicMesh::genBasicMesh() {
+    this->nVerts = 0;
+    this->nAllocVerts = 0;
 
+    MeshChunk *c = this->rootChunk;
+
+    while (c) {
+        this->nVerts += c->nVerts;
+        this->nAllocVerts += c->nAllocVerts;
+        c = c->next;
+    }
+
+    //
+    Vertex *v = new Vertex[this->nVerts];
+
+    ZeroMem(v, sizeof(Vertex) * this->nVerts);
+
+    c = this->rootChunk;
+    
+    Vertex *vi = v, *fv;
+
+    while (c) {
+        in_memcpy(vi, c->vData, c->nVerts * sizeof(Vertex));
+        vi += c->nVerts;
+        fv = vi;
+        c = c->next;
+    }
+
+    this->rootChunk = nullptr;
+
+    Mesh m;
+
+    m.verts = v;
+    m.nVerts = this->nVerts;
+
+    return m;
 }
 
-void DynamicMesh::pos_inc(size_t sz) {
+void DynamicMesh::pos_inc(size_t sz, bool changeChunkPos) {
     if (sz == 0) return;
 
     this->cur += sz;
-    this->chunkPos += sz;
 
-    while (this->chunkPos > this->curChunk->nVerts) {
-        this->chunkPos -= this->curChunk->nVerts;
-        this->curChunk = this->curChunk->next;
+    if (changeChunkPos) {
+        this->chunkPos += sz;
 
-        if (!this->curChunk) {
-            this->add_chunk();
-            this->set_cur_chunk(this->lastChunk, false); //update internal pointers
-        } else
-            this->set_cur_chunk(this->curChunk, false); //update internal pointers
+        while (this->chunkPos >= this->lastChunk->nAllocVerts) {
+            this->chunkPos -= this->lastChunk->nAllocVerts;
+            this->lastChunk = this->lastChunk->next;
 
-        this->cur += this->chunkPos;
+            if (!this->lastChunk) {
+                this->add_chunk();
+                this->set_cur_chunk(this->lastChunk, false); //update internal pointers
+            } else
+                this->set_cur_chunk(this->lastChunk, false); //update internal pointers
+
+            this->cur += this->chunkPos;
+        }
+
+        this->lastChunk->nVerts = this->chunkPos+1;
     }
 
     this->pos += sz;
