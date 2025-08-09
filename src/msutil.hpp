@@ -404,3 +404,6 @@ static inline f64 mu_rad(f64 theta) {
 static inline f64 mu_deg(f64 theta) {
     return theta * mu_dtr_const;
 }
+
+const u64 mu_i_infinity_64 = 0xffffffffffffffffULL;
+const u32 mu_i_infinity_32 = 0xffffffff;
