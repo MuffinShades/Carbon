@@ -90,7 +90,7 @@ void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj) {
 
     //split between chunks needed (left copies)
     //TODO: add new chunks and copy data while we're above chunk boundary
-    while (this->chunkPos + nVerts >= this->lastChunk->nVerts) {
+    while (this->chunkPos + nVerts >= this->lastChunk->nAllocVerts) {
         //split between 2 chunks
         if (!this->lastChunk->next)
             this->add_chunk();
@@ -103,6 +103,7 @@ void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj) {
 
         v += vtxLeft;
         nVerts -= vtxLeft;
+        this->cur += vtxLeft;
         this->set_cur_chunk(this->lastChunk);
     }
 
@@ -158,7 +159,7 @@ Mesh DynamicMesh::genBasicMesh() {
     //
     Vertex *v = new Vertex[this->nVerts];
 
-    ZeroMem(v, sizeof(Vertex) * this->nVerts);
+    ZeroMem(v, this->nVerts);
 
     c = this->rootChunk;
     

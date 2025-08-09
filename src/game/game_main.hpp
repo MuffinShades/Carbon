@@ -12,6 +12,7 @@
 #include "player.hpp"
 #include "game.hpp"
 #include "../gl/atlas.hpp"
+#include "world.hpp"
 
 f64 mxp = 0.0, myp = 0.0;
 
@@ -48,6 +49,9 @@ Shader s;
 Mesh m;
 mat4 mm = mat4(1.0f);
 
+World w = World(69);
+Chunk testChunk;
+
 void render() {
     g->render_begin();
 
@@ -58,9 +62,9 @@ void render() {
     lookMat = p.getCam()->getLookMatrix();
 
     s.SetMat4("cam_mat", &lookMat);
-    s.SetMat4("model_mat", &mm);
+    s.SetMat4("model_mat", &testChunk.modelMat);
 
-    g->push_verts((Vertex*)m.data(), m.size());
+    g->push_verts((Vertex*)testChunk.mesh.data(), testChunk.mesh.size());
     g->render_flush();
 }
 
@@ -85,6 +89,9 @@ extern i32 game_main() {
 
     tex = new BindableTexture("assets/vox/alphaTextureMC.png");
     atlas = TexAtlas(tex->width(), tex->height(), 16, 16);
+
+    w = World(69);
+    testChunk = w.genChunk(vec3(3, 0, 3));
 
     //BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");
 

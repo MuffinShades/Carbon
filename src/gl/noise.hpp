@@ -38,3 +38,10 @@ public:
     f32 noise4d(vec4 pos);
     f32 advNoise4d(vec4 pos, NoiseSettings ns);
 };
+
+class Simplex {
+private:
+    u32 seed;
+public:
+    f32 noise2d(vec2 pos);
+};
