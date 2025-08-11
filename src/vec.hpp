@@ -78,67 +78,20 @@ public:
     vec4(float x = 0.0f, float y = 0.0f, float z = 0.0f, float w = 0.0f) : x(x), y(y), z(z), w(w) {}
 
     //operators
-    vec4 operator+(vec4 b) {
-        return vec4(this->x + b.x, this->y + b.y, this->z + b.z, this->w + b.w);
-    }
+    vec4 operator+(vec4 b);
+    vec4 operator-(vec4 b);
+    vec4 operator*(vec4 b);
+    vec4 operator*(float s);
+    vec4 operator/(float s);
+    vec4 operator/(vec4 b);
 
-    vec4 operator-(vec4 b) {
-        return vec4(this->x - b.x, this->y - b.y, this->z - b.z, this->w - b.w);
-    }
+    static float DotProd(vec4 a, vec4 b);
 
-    vec4 operator*(vec4 b) {
-        return vec4(this->x * b.x, this->y * b.y, this->z * b.z, this->w * b.w);
-    }
+    float lenSqr();
+    float len();
 
-    vec4 operator*(float s) {
-        return vec4(this->x * s, this->y * s, this->z * s, this->w * s);
-    }
-
-    vec4 operator/(float s) {
-        if (s == 0.0f)
-            return *this;
-
-        return vec4(this->x / s, this->y / s, this->z / s, this->w / s);
-    }
-
-    vec4 operator/(vec4 b) {
-        if (b.x == 0.0f || b.y == 0.0f || b.z == 0.0f)
-            b = vec4(1.0f, 1.0, 1.0f, 1.0f);
-
-        return vec4(this->x / b.x, this->y / b.y, this->z / b.z, this->w / b.w);
-    }
-
-    static float DotProd(vec4 a, vec4 b) {
-        return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-    }
-
-    float lenSqr() {
-        return this->x * this->x + this->y * this->y + this->z * this->z + this->w * this->w;
-    }
-
-    float len() {
-        return sqrt(this->lenSqr());
-    }
-
-    static vec4 Normalize(vec4 v) {
-        const float length = v.len();
-
-        if (length != 0.0f) {
-            v.x /= length;
-            v.y /= length;
-            v.z /= length;
-            v.w /= length;
-        }
-    }
-
-    vec4 GetNormal() {
-        const float length = this->len();
-
-        if (length != 0.0f)
-            return vec4(this->x / length, this->y / length, this->z / length, this->w / length);
-        else
-            return *this;
-    }
+    static vec4 Normalize(vec4 v);
+    vec4 GetNormal();
 };
 
 class ivec2 {
