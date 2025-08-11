@@ -12,7 +12,7 @@ f64 Perlin::rand2(vec2 p, const u64 seed) {
 }
 
 //TODO: this function
-static vec2 rand3(vec3 p, const u64 seed) {
+vec2 Perlin::rand3(vec3 p, const u64 seed) {
     return 0.0f;
 }
 
@@ -26,7 +26,7 @@ vec2 Perlin::GenVec2(vec2 pos) {
 }
 
 vec3 Perlin::GenVec3(vec3 pos) {
-    const vec2 ang = rand3(pos, this->seed) * mu_pi * 2.0f;
+    const vec2 ang = Perlin::rand3(pos, this->seed) * mu_pi * 2.0f;
 
     return {
         cosf(ang.y) * cosf(ang.x),
@@ -36,7 +36,7 @@ vec3 Perlin::GenVec3(vec3 pos) {
 }
 
 f32 Perlin::fade(f32 t) {
-    return t * t * t * (t * (t * 6 - 15) + 10);
+    return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
 }
 
 f32 Perlin::noise2d(vec2 pos) {

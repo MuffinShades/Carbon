@@ -6,7 +6,7 @@
 #define gpu_dynamic_alloc(sz) glBufferData(GL_ARRAY_BUFFER, sz, nullptr, GL_DYNAMIC_DRAW)
 
 #define BATCH_NQUADS 0xffff
-#define BATCH_SIZE BATCH_NQUADS * 6
+#define BATCH_SIZE 0x4ffffff
 
 #define vertex_float_attrib(i, s, sz, off) glVertexAttribPointer(i, s, GL_FLOAT, GL_FALSE, sz, (void *)off); \
     glEnableVertexAttribArray(i)

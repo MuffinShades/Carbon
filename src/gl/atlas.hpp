@@ -16,5 +16,6 @@ public:
     TexAtlas(size_t imgW, size_t imgH, size_t cellW, size_t cellH);
     vec2 getIndexCoords(u32 idxX, u32 idxY);
     vec2 getNormalCoords(i32 x, i32 y);
+    static vec4 partToClip(TexPart p);
     TexPart getImageIndexPart(u32 idxX, u32 idxY);
 };

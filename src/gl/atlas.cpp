@@ -33,3 +33,7 @@ TexPart TexAtlas::getImageIndexPart(u32 idxX, u32 idxY) {
         .br = tl + vec2(ncw, nch)
     };
 }
+
+vec4 TexAtlas::partToClip(TexPart p) {
+    vec4(p.tl.x, p.tl.y, p.br.x - p.tl.x, p.br.y - p.tl.y);
+}

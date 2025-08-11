@@ -30,6 +30,44 @@ vec2 vec2::operator/(vec2 b) {
     return vec2(this->x / b.x, this->y / b.y);
 }
 
+vec2 vec2::operator+(ivec2 b) {
+    return vec2(this->x + b.x, this->y + b.y);
+}
+
+vec2 vec2::operator-(ivec2 b) {
+    return vec2(this->x - b.x, this->y - b.y);
+}
+
+vec2 vec2::operator*(ivec2 b) {
+    return vec2(this->x * b.x, this->y * b.y);
+}
+
+vec2 vec2::operator/(ivec2 b) {
+    if (b.x == 0.0f || b.y == 0.0f)
+        return *this;
+
+    return vec2(this->x / b.x, this->y / b.y);
+}
+
+vec2 vec2::operator+(uvec2 b) {
+    return vec2(this->x + b.x, this->y + b.y);
+}
+
+vec2 vec2::operator-(uvec2 b) {
+    return vec2(this->x - b.x, this->y - b.y);
+}
+
+vec2 vec2::operator*(uvec2 b) {
+    return vec2(this->x * b.x, this->y * b.y);
+}
+
+vec2 vec2::operator/(uvec2 b) {
+    if (b.x == 0.0f || b.y == 0.0f)
+        return *this;
+
+    return vec2(this->x / b.x, this->y / b.y);
+}
+
 float vec2::DotProd(vec2 a, vec2 b) {
     return a.x * b.x + a.y * b.y;
 }
@@ -93,6 +131,45 @@ vec3 vec3::operator/(vec3 b) {
 
     return vec3(this->x / b.x, this->y / b.y, this->z / b.z);
 }
+
+vec3 vec3::operator+(ivec3 b) {
+    return vec3(this->x + b.x, this->y + b.y, this->z + b.z);
+}
+
+vec3 vec3::operator-(ivec3 b) {
+    return vec3(this->x - b.x, this->y - b.y, this->z - b.z);
+}
+
+vec3 vec3::operator*(ivec3 b) {
+    return vec3(this->x * b.x, this->y * b.y, this->z * b.z);
+}
+
+vec3 vec3::operator/(ivec3 b) {
+    if (b.x == 0.0f || b.y == 0.0f || b.z == 0.0f)
+        b = ivec3(1, 1, 1);
+
+    return vec3(this->x / b.x, this->y / b.y, this->z / b.z);
+}
+
+vec3 vec3::operator+(uvec3 b) {
+    return vec3(this->x + b.x, this->y + b.y, this->z + b.z);
+}
+
+vec3 vec3::operator-(uvec3 b) {
+    return vec3(this->x - b.x, this->y - b.y, this->z - b.z);
+}
+
+vec3 vec3::operator*(uvec3 b) {
+    return vec3(this->x * b.x, this->y * b.y, this->z * b.z);
+}
+
+vec3 vec3::operator/(uvec3 b) {
+    if (b.x == 0.0f || b.y == 0.0f || b.z == 0.0f)
+        b = uvec3(1, 1, 1);
+
+    return vec3(this->x / b.x, this->y / b.y, this->z / b.z);
+}
+
 
 float vec3::DotProd(vec3 a, vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;

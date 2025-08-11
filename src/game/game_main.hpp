@@ -91,6 +91,7 @@ extern i32 game_main() {
     atlas = TexAtlas(tex->width(), tex->height(), 16, 16);
 
     w = World(69);
+    w.SetAtlas(&atlas);
     testChunk = w.genChunk(vec3(3, 0, 3));
 
     //BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");

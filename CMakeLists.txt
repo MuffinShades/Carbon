@@ -16,11 +16,10 @@ file(GLOB_RECURSE SOURCES
 
 add_executable(carbon ${SOURCES})
 
-#add_compile_options(-fsanitize=address)
-#add_link_options(-fsanitize=address)
-
-#set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
-#set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+add_compile_options(-fsanitize=address)
+add_link_options(-fsanitize=address)
+set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
 
 #libs
 target_include_directories(carbon PUBLIC 

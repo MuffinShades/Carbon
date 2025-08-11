@@ -112,7 +112,7 @@ void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj) {
     this->lastChunk->nVerts += nVerts;
     this->pos_inc(nVerts);
 
-    if (free_obj)
+    if (free_obj && v)
         _safe_free_a(v);
 }
 
