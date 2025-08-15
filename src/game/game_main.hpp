@@ -29,10 +29,27 @@ void mouse_callback(GLFWwindow* win, f64 xp, f64 yp) {
     myp = yp;
 }
 
+bool mouseEnabled = false;
+
+void mouseEnableUpdate(GLFWwindow* win) {
+    if (!win) return;
+    if (mouseEnabled)
+        glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);  
+    else
+        glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  
+}
 
 void kb_callback(GLFWwindow* win, i32 key, i32 scancode, i32 action, i32 mods) {
     if (!win) return;
 
+    switch (key) {
+    case GLFW_KEY_ESCAPE:
+        if (action == GLFW_PRESS) {
+            mouseEnabled = !mouseEnabled;
+            mouseEnableUpdate(win);
+        }
+        break;
+    }
 }
 
 //Camera cam = Camera({0.0f, 1.0f, -1.0f});
@@ -77,6 +94,7 @@ extern i32 game_main() {
 
     glfwSetCursorPosCallback(win.wHandle, mouse_callback);
     glfwSetKeyCallback(win.wHandle, kb_callback);
+    mouseEnableUpdate(win.wHandle);
 
     g = new graphics(&win);
 

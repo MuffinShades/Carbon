@@ -78,6 +78,7 @@ void DynamicMesh::set_cur_chunk(DynamicMesh::MeshChunk *chunk, bool adjustPos) {
 
     if (adjustPos) {
         this->pos = chunk->pos;
+        this->chunkPos = 0;
     }
 }
 
@@ -88,16 +89,11 @@ void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj) {
         return;
     }
 
-    std::cout << "Posf: " << this->chunkPos << " | " << nVerts << std::endl;
-
     //split between chunks needed (left copies)
     //TODO: add new chunks and copy data while we're above chunk boundary
     while (this->chunkPos + nVerts >= this->lastChunk->nAllocVerts) {
         //split between 2 chunks
-        if (!this->lastChunk->next)
-            this->add_chunk();
-
-        size_t vtxLeft = this->lastChunk->nAllocVerts - this->chunkPos;
+        size_t vtxLeft = this->lastChunk->nAllocVerts - (this->chunkPos);
 
         in_memcpy(this->cur, v, sizeof(Vertex) * vtxLeft);
 
@@ -105,8 +101,10 @@ void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj) {
 
         v += vtxLeft;
         nVerts -= vtxLeft;
-        this->cur += vtxLeft;
-        this->set_cur_chunk(this->lastChunk);
+
+        if (!this->lastChunk->next)
+            this->add_chunk();
+        this->set_cur_chunk(this->lastChunk, true);
     }
 
     //no split easy peasy (right copy)

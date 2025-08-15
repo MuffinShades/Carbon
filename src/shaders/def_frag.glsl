@@ -3,11 +3,13 @@
 out vec4 fragColor;
 
 in vec2 coords;
-in vec3 posf;
+in vec4 posf;
 
 uniform sampler2D tex;
 
 void main() {
-    fragColor = texture(tex, coords);
-    //fragColor = vec4(1.0,0.0,0.0,1.0);
+    const float fogZ = 95.0;
+
+    //mix adds fog
+    fragColor = mix(texture(tex, coords), vec4(0.2, 0.7, 1.0, 1.0), min(max(posf.z / fogZ, 0.0), 1.0));
 }

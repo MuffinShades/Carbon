@@ -44,11 +44,11 @@ static void gen_chunk_mesh(Chunk* c, World* w) {
 
     if (!atlas) return;
 
-    for (y = 1; y < chunkSizeY-1; y++) {
+    for (y = 0; y < chunkSizeY; y++) {
         p.y = y;
-        for (z = 1; z < chunkSizeZ-1; z++) {
+        for (z = 0; z < chunkSizeZ; z++) {
             p.z = z;
-            for (x = 1; x < chunkSizeX-1; x++) {
+            for (x = 0; x < chunkSizeX; x++) {
                 p.x = x;
 
                 if (!(data = c->b_data[chunkBlock_select_3s(x, y, z)])) continue;
@@ -60,33 +60,33 @@ static void gen_chunk_mesh(Chunk* c, World* w) {
 
                 bInf = mc_blockData[blockId];
 
-                //top +y
-                if (c->b_data[chunkBlock_select_3s(x, y-1, z)] == 0) {
+                //bottom -y
+                if (y > 0 && c->b_data[chunkBlock_select_3s(x, y-1, z)] == 0) {
                     GenChunkFace(CubeFace::Bottom)
                 }
 
-                //bottom -y
-                if (c->b_data[chunkBlock_select_3s(x, y+1, z)] == 0) {
+                //top +y
+                if (y < chunkSizeY - 1 && c->b_data[chunkBlock_select_3s(x, y+1, z)] == 0) {
                     GenChunkFace(CubeFace::Top)
                 }
 
-                //north -x
-                if (c->b_data[chunkBlock_select_3s(x-1, y, z)] == 0) {
+                //east -x
+                if (x > 0 && c->b_data[chunkBlock_select_3s(x-1, y, z)] == 0) {
                     GenChunkFace(CubeFace::East)
                 }
 
-                //south +x
-                if (c->b_data[chunkBlock_select_3s(x+1, y, z)] == 0) {
+                //west +x
+                if (x < chunkSizeX - 1 && c->b_data[chunkBlock_select_3s(x+1, y, z)] == 0) {
                     GenChunkFace(CubeFace::West)
                 }
 
-                //east -z
-                if (c->b_data[chunkBlock_select_3s(x, y, z-1)] == 0) {
+                //south -z
+                if (z > 0 && c->b_data[chunkBlock_select_3s(x, y, z-1)] == 0) {
                     GenChunkFace(CubeFace::South)
                 }
 
-                //west +z
-                if (c->b_data[chunkBlock_select_3s(x, y, z+1)] == 0) {
+                //north +z
+                if (z < chunkSizeZ - 1 && c->b_data[chunkBlock_select_3s(x, y, z+1)] == 0) {
                     GenChunkFace(CubeFace::North)
                 }
             }
@@ -118,7 +118,11 @@ Chunk World::genChunk(vec3 pos) {
     
     Perlin::NoiseSettings ns;
 
-    ns.freq = 0.1f;
+    ns.freq = 0.05f;
+    ns.freqScale = 1.2f;
+    ns.amp = 1.0f;
+    ns.ampScale = 0.9f;
+    ns.nLayers = 4;
 
     Chunk c;
 

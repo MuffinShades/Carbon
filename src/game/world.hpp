@@ -5,7 +5,7 @@
 #include "../mat.hpp"
 #include "../vec.hpp"
 
-constexpr u32 chunkSizeX = 16, chunkSizeY = 16, chunkSizeZ = 16;
+constexpr u32 chunkSizeX = 128, chunkSizeY = 128, chunkSizeZ = 128;
 constexpr size_t nBlocksPerChunk = chunkSizeX * chunkSizeY * chunkSizeZ;
 
 struct Block {
