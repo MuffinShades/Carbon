@@ -7,9 +7,13 @@ in vec4 posf;
 
 uniform sampler2D tex;
 
+float fade(float t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
 void main() {
     const float fogZ = 95.0;
 
     //mix adds fog
-    fragColor = mix(texture(tex, coords), vec4(0.2, 0.7, 1.0, 1.0), min(max(posf.z / fogZ, 0.0), 1.0));
+    fragColor = mix(texture(tex, coords), vec4(0.2, 0.7, 1.0, 1.0), min(max(fade(posf.z / fogZ), 0.0), 1.0));
 }
