@@ -78,6 +78,10 @@ void graphics::WinResize(const size_t w, const size_t h) {
 }
 
 void graphics::push_verts(Vertex *v, size_t n) {
+    if (this->mesh_bound) {
+        std::cout << "Error, cannot render when mesh is bound!" << std::endl;
+        return;
+    }
     if (!v || n == 0)
         return;
     if (!this->vmem) {
@@ -86,8 +90,10 @@ void graphics::push_verts(Vertex *v, size_t n) {
         return;
     }
 
-    if ((this->_c_vert + n) * sizeof(Vertex) > BATCH_SIZE) {
-        std::cout << "Warning reached end of allocated gpu memory!" << std::endl;
+    size_t bsz;
+
+    if ((bsz = (this->_c_vert + n) * sizeof(Vertex)) > BATCH_SIZE) {
+        std::cout << "Warning reached end of allocated gpu memory! " << bsz << " / " << BATCH_SIZE << " | Adding: " << n << " verts!" << std::endl;
         return;
     }
 
@@ -118,6 +124,11 @@ void graphics::render_begin() {
 }
 
 void graphics::render_flush() {
+    this->render_noflush();
+    this->flush();
+}
+
+void graphics::render_noflush() {
     //copy over buffer data to gpu memory
     vbo_bind(this->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
@@ -130,6 +141,9 @@ void graphics::render_flush() {
 
     vbo_bind(0);
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+}
+
+void graphics::flush() {
     this->vmem_clear();
 }
 
@@ -169,4 +183,29 @@ void graphics::setCurrentShader(Shader *s) {
 
 Shader* graphics::getCurrentShader() {
     return this->s;
+}
+
+void graphics::mesh_bind(Mesh *m) {
+    const Vertex* dat;
+    size_t nv;
+    if (!m || !(dat = m->data()) || (nv = m->size()) == 0) return;
+
+    //store and swap
+    this->vstore = this->vmem;
+    this->nv_store = this->_c_vert;
+    this->vmem = const_cast<Vertex*>(dat);
+    this->_c_vert = nv;
+
+    this->mesh_bound = true;
+}
+
+void graphics::mesh_unbind() {
+    //swap
+    if (this->vstore) {
+        this->vmem = this->vstore;
+        this->_c_vert = this->nv_store;
+        this->vstore = nullptr;
+    }
+
+    this->mesh_bound = false;
 }

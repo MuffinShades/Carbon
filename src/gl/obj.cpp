@@ -1,5 +1,7 @@
 #include "obj.hpp"
 #include "../filewrite.hpp"
+#include "../vec.hpp"
+#include "../mat.hpp"
 
 Mesh ObjParse::LoadMeshFromObjFile(std::string src) {
     if (src.length() == 0)

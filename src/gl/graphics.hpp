@@ -2,18 +2,16 @@
 #include <iostream>
 #include "window.hpp"
 #include "Shader.hpp"
-
-struct Vertex {
-    f32 posf[3];
-    f32 tex[2];
-};
+#include "mesh.hpp"
+#include "vertex.hpp"
 
 class graphics {
 private:
     Window *win = nullptr;
     mat4 proj_matrix;
-    size_t _c_vert = 0;
-    Vertex *vmem = nullptr;
+    size_t _c_vert = 0, nv_store = 0;
+    Vertex *vmem = nullptr, *vstore = nullptr;
+    bool mesh_bound = false;
     void vmem_alloc();
     void vmem_clear();
     void bind_vao() {
@@ -24,7 +22,7 @@ private:
     }
     Shader *s = nullptr;
 public:
-    float winW, winH;
+    f32 winW, winH;
     u32 vao = 0, vbo = 0;
     graphics(Window *w) {
         if (w != nullptr)
@@ -39,7 +37,11 @@ public:
     void WinResize(const size_t w, const size_t h);
     void render_begin();
     void render_flush();
+    void render_noflush();
+    void flush();
     void push_verts(Vertex *v, size_t n);
+    void mesh_bind(Mesh* m);
+    void mesh_unbind();
     void setCurrentShader(Shader *s);
     Shader* getCurrentShader();
     //void DrawImage();

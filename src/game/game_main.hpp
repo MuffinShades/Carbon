@@ -55,8 +55,6 @@ Chunk testChunk;
 void render() {
     g->render_begin();
 
-    tex->bind();
-
     //mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
 
     lookMat = p.getCam()->getLookMatrix();
@@ -64,8 +62,7 @@ void render() {
     s.SetMat4("cam_mat", &lookMat);
     s.SetMat4("model_mat", &testChunk.modelMat);
 
-    g->push_verts((Vertex*)testChunk.mesh.data(), testChunk.mesh.size());
-    g->render_flush();
+    g->render_noflush();
 }
 
 extern i32 game_main() {
@@ -111,6 +108,11 @@ extern i32 game_main() {
     mm = mat4::CreateTranslationMatrix({0.0f, 0.0f, -3.0f});
 
     g->WinResize(WIN_W,WIN_H);
+
+    tex->bind();
+
+    g->push_verts((Vertex*)testChunk.mesh.data(), testChunk.mesh.size());
+    //g->render_flush();
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);

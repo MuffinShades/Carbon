@@ -88,6 +88,8 @@ void DynamicMesh::addMeshData(Vertex *v, size_t nVerts, bool free_obj) {
         return;
     }
 
+    std::cout << "Posf: " << this->chunkPos << " | " << nVerts << std::endl;
+
     //split between chunks needed (left copies)
     //TODO: add new chunks and copy data while we're above chunk boundary
     while (this->chunkPos + nVerts >= this->lastChunk->nAllocVerts) {
@@ -155,6 +157,8 @@ Mesh DynamicMesh::genBasicMesh() {
         this->nAllocVerts += c->nAllocVerts;
         c = c->next;
     }
+
+    std::cout << "Number of Mesh Verticies: " << this->nVerts << " | Alloc Verts: " << this->nAllocVerts << std::endl;
 
     //
     Vertex *v = new Vertex[this->nVerts];

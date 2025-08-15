@@ -1,6 +1,6 @@
 #pragma once
 #include <iostream>
-#include "graphics.hpp"
+#include "vertex.hpp"
 
 class Mesh {
 private:
@@ -27,7 +27,7 @@ private:
     struct MeshChunk {
         MeshChunk* next = nullptr, *prev = nullptr;
         Vertex* vData = nullptr;
-        size_t nVerts, nAllocVerts, pos = 0;
+        size_t nVerts = 0, nAllocVerts = 0, pos = 0;
     } *rootChunk = nullptr,
       *lastChunk = nullptr;
     Vertex *cur = nullptr;

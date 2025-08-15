@@ -264,6 +264,8 @@ vec4 vec4::Normalize(vec4 v) {
         v.z /= length;
         v.w /= length;
     }
+
+    return v;
 }
 
 vec4 vec4::GetNormal() {

@@ -17,15 +17,15 @@ public:
     vec2 operator*(float s);
     vec2 operator/(float s);
 
-    vec2 operator+(ivec2 b);
-    vec2 operator-(ivec2 b);
-    vec2 operator*(ivec2 b);
-    vec2 operator/(ivec2 b);
+    vec2 operator+(class ivec2 b);
+    vec2 operator-(class ivec2 b);
+    vec2 operator*(class ivec2 b);
+    vec2 operator/(class ivec2 b);
 
-    vec2 operator+(uvec2 b);
-    vec2 operator-(uvec2 b);
-    vec2 operator*(uvec2 b);
-    vec2 operator/(uvec2 b);
+    vec2 operator+(class uvec2 b);
+    vec2 operator-(class uvec2 b);
+    vec2 operator*(class uvec2 b);
+    vec2 operator/(class uvec2 b);
 
     static float DotProd(vec2 a, vec2 b);
     static float CrossProd(vec2 a, vec2 b);
@@ -51,15 +51,15 @@ public:
     vec3 operator*(float s);
     vec3 operator/(float s);
 
-    vec3 operator+(ivec3 b);
-    vec3 operator-(ivec3 b);
-    vec3 operator*(ivec3 b);
-    vec3 operator/(ivec3 b);
+    vec3 operator+(class ivec3 b);
+    vec3 operator-(class ivec3 b);
+    vec3 operator*(class ivec3 b);
+    vec3 operator/(class ivec3 b);
 
-    vec3 operator+(uvec3 b);
-    vec3 operator-(uvec3 b);
-    vec3 operator*(uvec3 b);
-    vec3 operator/(uvec3 b);
+    vec3 operator+(class uvec3 b);
+    vec3 operator-(class uvec3 b);
+    vec3 operator*(class uvec3 b);
+    vec3 operator/(class uvec3 b);
 
     static float DotProd(vec3 a, vec3 b);
     static vec3 CrossProd(vec3 a, vec3 b);
@@ -109,10 +109,10 @@ public:
     ivec2 operator*(vec2 b);
     ivec2 operator/(vec2 b);
 
-    ivec2 operator+(uvec2 b);
-    ivec2 operator-(uvec2 b);
-    ivec2 operator*(uvec2 b);
-    ivec2 operator/(uvec2 b);
+    ivec2 operator+(class uvec2 b);
+    ivec2 operator-(class uvec2 b);
+    ivec2 operator*(class uvec2 b);
+    ivec2 operator/(class uvec2 b);
 };
 
 class uvec2 {
@@ -151,10 +151,10 @@ public:
     ivec3 operator*(vec3 b);
     ivec3 operator/(vec3 b);
 
-    ivec3 operator+(uvec3 b);
-    ivec3 operator-(uvec3 b);
-    ivec3 operator*(uvec3 b);
-    ivec3 operator/(uvec3 b);
+    ivec3 operator+(class uvec3 b);
+    ivec3 operator-(class uvec3 b);
+    ivec3 operator*(class uvec3 b);
+    ivec3 operator/(class uvec3 b);
 };
 
 class uvec3 {

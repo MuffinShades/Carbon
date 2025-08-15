@@ -1,6 +1,7 @@
 #include "noise.hpp"
 
-f64 Perlin::rand2(vec2 p, const u64 seed) {
+f64 Perlin::rand2(vec2 p, const u64 _seed) {
+    const u64 seed = (_seed % 0x223a25a4) ^ (u64)(p.x + p.y);
     constexpr f64 BIG = 1.0f / (f64)mu_i_infinity_32;
     const u64 x = p.x, y = p.y;
     const u64 a = ~((x * (y ^ seed)) ^ 0xd5b67268) % (seed + 1),
@@ -12,8 +13,21 @@ f64 Perlin::rand2(vec2 p, const u64 seed) {
 }
 
 //TODO: this function
-vec2 Perlin::rand3(vec3 p, const u64 seed) {
-    return 0.0f;
+vec2 Perlin::rand3(vec3 p, const u64 _seed) {
+    const u64 seed = (_seed % 0x223a25a4) ^ (u64)(p.x + p.y + p.z);
+    constexpr f64 BIG = 1.0f / (f64)mu_i_infinity_32;
+    const u64 x = p.x, y = p.y, z = p.z;
+    const u64 a = ~((x * (y ^ seed)) ^ 0xd5b67268) % (seed + 1),
+              b =  ((y * (z ^ seed)) ^ 0x6e51022c) % (seed * a),
+              c =  ((z * (x ^ seed)) ^ 0x5f3c0e64) % (seed ^ b);
+    const u64 g = a ^ b;
+    const u64 r0 = (((((g ^ a) * ~(seed) * c) % 0x880a3c0f) * seed) ^ a) & 0xffffffff,
+              r1 = (((((g ^ b) *  (seed) * c) % 0xfb65c8bf) * ~seed) ^ b) & 0xffffffff;
+                
+    return {
+        (f32) (((((f32)r0 * BIG) * 2.0f) + 1.0f) * 0.5f),
+        (f32) (((((f32)r1 * BIG) * 2.0f) + 1.0f) * 0.5f)
+    };
 }
 
 vec2 Perlin::GenVec2(vec2 pos) {
@@ -83,7 +97,7 @@ f32 Perlin::advNoise2d(vec2 pos, Perlin::NoiseSettings ns) {
 }
 
 f32 Perlin::noise3d(vec3 pos) {
-
+    return 0.0f;
 }
 
 f32 Perlin::advNoise3d(vec3 pos, Perlin::NoiseSettings ns) {
@@ -103,7 +117,7 @@ f32 Perlin::advNoise3d(vec3 pos, Perlin::NoiseSettings ns) {
 }
 
 f32 Perlin::noise4d(vec4 pos) {
-
+    return 0.0f;
 }
 
 f32 Perlin::advNoise4d(vec4 pos, Perlin::NoiseSettings ns) {

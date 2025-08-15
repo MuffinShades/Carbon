@@ -57,18 +57,18 @@ constexpr struct Vertex cubeVerticies[] = {
 };
 
 enum class CubeFace {
-    North = 0,
-    South = 6,
-    East = 12,
-    West = 18,
-    Top = 24,
-    Bottom = 30
+    North,
+    South,
+    East,
+    West,
+    Top,
+    Bottom
 };
 
 class Cube {
 public:
     static Vertex* GetFace(CubeFace f) {
-        return ((Vertex*)cubeVerticies + ((u32)f * 6));
+        return (Vertex*) &cubeVerticies[(u32)f * 6];
     }
 
     static Vertex* GenFace(CubeFace f, vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f}) {

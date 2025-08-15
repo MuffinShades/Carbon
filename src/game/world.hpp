@@ -1,6 +1,9 @@
 #include <iostream>
 #include "../gl/mesh.hpp"
 #include "../gl/atlas.hpp"
+#include "../gl/noise.hpp"
+#include "../mat.hpp"
+#include "../vec.hpp"
 
 constexpr u32 chunkSizeX = 16, chunkSizeY = 16, chunkSizeZ = 16;
 constexpr size_t nBlocksPerChunk = chunkSizeX * chunkSizeY * chunkSizeZ;
@@ -29,6 +32,7 @@ struct Chunk {
             more efficient, memory-wise, than storing a unique block struct for each individual
             block in a chunk. The dictionary would be stored in the world and when generating
             a chunk would require a pointer to a world object
+    
     */
     u64 *b_data = nullptr;
     Mesh mesh;
@@ -41,13 +45,15 @@ private:
     u32 seed = 0;
     TexAtlas *atlas = nullptr;
     Perlin p;
-    
 public:
     //TODO: this thing
     World(u32 seed){
         this->seed = seed;
-        p = Perlin(this->seed);
+        this->p = Perlin(this->seed);
     };
+    TexAtlas *GetAtlas() const {
+        return this->atlas;
+    }
     void SetAtlas(TexAtlas *atlas);
     Chunk genChunk(vec3 pos);
     void render();
