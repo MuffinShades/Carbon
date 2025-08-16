@@ -5,6 +5,23 @@
 #include "mesh.hpp"
 #include "vertex.hpp"
 
+class FrameBuffer {
+private:
+    u32 handle;
+    enum fb_type ty;
+    void bind();
+public:
+    static enum fb_type {
+        Texture,
+        Depth,
+        Stencil,
+        Render
+    };
+    FrameBuffer();
+    u32 getHandle();
+    friend class graphics;
+};
+
 class graphics {
 private:
     Window *win = nullptr;

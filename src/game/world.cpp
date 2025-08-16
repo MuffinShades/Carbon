@@ -118,10 +118,10 @@ Chunk World::genChunk(vec3 pos) {
     
     Perlin::NoiseSettings ns;
 
-    ns.freq = 0.05f;
-    ns.freqScale = 1.2f;
-    ns.amp = 1.0f;
-    ns.ampScale = 0.9f;
+    ns.freq = 0.005f;
+    ns.freqScale = 3.0f;
+    ns.amp = 2.5f;
+    ns.ampScale = 0.4f;
     ns.nLayers = 4;
 
     Chunk c;

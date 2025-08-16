@@ -39,7 +39,8 @@ void graphics::Load() {
     this->vmem_alloc();
 
     define_vattrib_struct(0, Vertex, posf);
-    define_vattrib_struct(1, Vertex, tex);
+    define_vattrib_struct(1, Vertex, n);
+    define_vattrib_struct(2, Vertex, tex);
     //define_vattrib_struct(2, Vertex, modColor);
     //define_vattrib_struct(3, Vertex, texId);
 
