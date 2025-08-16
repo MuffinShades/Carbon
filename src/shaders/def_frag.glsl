@@ -12,8 +12,9 @@ float fade(float t) {
 }
 
 void main() {
-    const float fogZ = 95.0;
+    const float fogZ = 100.0;
 
     //mix adds fog
-    fragColor = mix(texture(tex, coords), vec4(0.2, 0.7, 1.0, 1.0), min(max(fade(posf.z / fogZ), 0.0), 1.0));
+    float fogEf = fade(posf.z / fogZ);
+    fragColor = mix(texture(tex, coords) * (1.0 - fogEf), vec4(0.2, 0.7, 1.0, 1.0), min(max(fogEf, 0.0), 1.0));
 }
