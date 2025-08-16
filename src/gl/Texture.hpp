@@ -16,4 +16,6 @@ public:
 
     void bind(u32 slot = 0);
     u32 getHandle() const;
+
+    void free();
 };

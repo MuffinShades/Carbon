@@ -122,3 +122,10 @@ u32 BindableTexture::width() const {
 u32 BindableTexture::height() const {
     return this->h;
 }
+
+void BindableTexture::free() {
+    if (this->t_handle)
+        glDeleteTextures(1, &this->t_handle);
+
+    this->t_handle = 0;
+}

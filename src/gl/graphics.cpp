@@ -234,3 +234,102 @@ void graphics::mesh_unbind() {
 
     this->mesh_bound = false;
 }
+
+void FrameBuffer::bind() {
+    if (!this->handle)
+        std::cout << "Warning: binding to zero framebuffer! Framebuffer may have failed to generate!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, this->handle);
+}
+
+void FrameBuffer::delete_tex() {
+    if (this->texHandle)
+        glDeleteTextures(1, &this->texHandle);
+
+    this->texHandle = 0;
+}
+    
+void FrameBuffer::texAttach(u32 w, u32 h) {
+    this->delete_tex();
+            
+    glGenTextures(1, &this->texHandle);
+
+    if (!this->texHandle) {
+        std::cout << "Failed to generate framebuffer rgb texture!" << std::endl;
+        return;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, this->texHandle);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); 
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, this->handle);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->texHandle, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void FrameBuffer::depthStencilAttach(u32 w, u32 h) {
+    this->delete_tex();
+
+    glGenTextures(1, &this->texHandle);
+
+    if (!this->texHandle) {
+        std::cout << "Failed to generate framebuffer depth/stencil texture!" << std::endl;
+        return;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, this->texHandle);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, w, h, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, nullptr);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); 
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, this->handle);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH24_STENCIL8, GL_TEXTURE_2D, this->texHandle, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void FrameBuffer::depthAttach(u32 w, u32 h) {
+    this->delete_tex();
+
+    glGenTextures(1, &this->texHandle);
+
+    if (!this->texHandle) {
+        std::cout << "Failed to generate framebuffer depth/stencil texture!" << std::endl;
+        return;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, this->texHandle);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, w, h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); 
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, this->handle);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, this->texHandle, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}

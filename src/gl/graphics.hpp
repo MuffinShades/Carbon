@@ -6,19 +6,34 @@
 #include "vertex.hpp"
 
 class FrameBuffer {
-private:
-    u32 handle;
-    enum fb_type ty;
-    void bind();
 public:
-    static enum fb_type {
+    enum fb_type {
         Texture,
         Depth,
         Stencil,
         Render
     };
-    FrameBuffer();
-    u32 getHandle();
+private:
+    u32 handle = 0, texHandle = 0;
+    fb_type ty = FrameBuffer::Texture;
+    
+    void bind();
+    void delete_tex();
+    
+    void texAttach(u32 w, u32 h);
+    void depthStencilAttach(u32 w, u32 h);
+    void depthAttach(u32 w, u32 h);
+public:
+    FrameBuffer() {
+        glGenFramebuffers(1, &this->handle);
+    }
+    u32 getHandle() {
+        return this->handle;
+    }
+    void free() {
+        if (this->handle != 0)
+            glDeleteFramebuffers(1, &this->handle); 
+    }
     friend class graphics;
 };
 
