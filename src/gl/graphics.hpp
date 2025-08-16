@@ -38,6 +38,10 @@ private:
             std::cout << "Failed to bind to vao!" << std::endl;
     }
     Shader *s = nullptr;
+    bool shader_bound = false;
+
+    void shader_bind();
+    void shader_unbind();
 public:
     f32 winW, winH;
     u32 vao = 0, vbo = 0;
@@ -55,6 +59,8 @@ public:
     void render_begin();
     void render_flush();
     void render_noflush();
+    void render_no_geo_update();
+    void render_bind();
     void flush();
     void push_verts(Vertex *v, size_t n);
     void mesh_bind(Mesh* m);

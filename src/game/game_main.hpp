@@ -72,14 +72,14 @@ Chunk testChunk;
 void render() {
     g->render_begin();
 
-    //mm = mat4::Rotate(mm, 0.01f, {1.0f, 2.0f, 3.0f});
+    //mm = mat4::Rotate(mm, 0.001f, {1.0f, 2.0f, 3.0f});
 
     lookMat = p.getCam()->getLookMatrix();
 
     s.SetMat4("cam_mat", &lookMat);
     s.SetMat4("model_mat", &testChunk.modelMat);
 
-    g->render_noflush();
+    g->render_no_geo_update();
 }
 
 extern i32 game_main() {
@@ -131,6 +131,10 @@ extern i32 game_main() {
 
     g->push_verts((Vertex*)testChunk.mesh.data(), testChunk.mesh.size());
     //g->render_flush();
+
+    g->render_noflush();
+
+    glfwSwapInterval(0);
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);

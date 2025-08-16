@@ -69,6 +69,14 @@ void graphics::WinResize(const size_t w, const size_t h) {
         PROJ_ZMAX
     );*/
 
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glEnable(GL_DEPTH_TEST);
+	glEnable(GL_ALPHA_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LEQUAL);
+    glEnable(GL_CULL_FACE);  
+    glCullFace(GL_FRONT);
+
     this->proj_matrix = mat4::CreatePersepctiveProjectionMatrix(
         90.0f,
         this->winW / this->winH,
@@ -113,18 +121,21 @@ void graphics::vmem_clear() {
     this->_c_vert = 0;
 }
 
-void graphics::render_begin() {
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-	glEnable(GL_ALPHA_TEST);
-	glDepthMask(GL_TRUE);
-	glDepthFunc(GL_LEQUAL);
-    glEnable(GL_CULL_FACE);  
-    glCullFace(GL_FRONT);
-
-    if (!this->s) return;
+void graphics::shader_bind() {
+    this->shader_bound = true;
     this->s->use();
+}
+
+void graphics::shader_unbind() {
+    this->shader_bound = false;
+    glUseProgram(0);
+}
+
+void graphics::render_begin() {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (!this->s) return;
+    if (!this->shader_bound)
+        this->shader_bind();
 }
 
 void graphics::render_flush() {
@@ -144,6 +155,15 @@ void graphics::render_noflush() {
     
 
     vbo_bind(0);
+    glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+}
+
+void graphics::render_bind() {
+    this->bind_vao();
+}
+
+void graphics::render_no_geo_update() {
+    this->s->SetMat4("proj_mat", &this->proj_matrix);
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
 
@@ -183,6 +203,7 @@ void graphics::free() {
 
 void graphics::setCurrentShader(Shader *s) {
     if (s) this->s = s;
+    this->shader_bind();
 }
 
 Shader* graphics::getCurrentShader() {
