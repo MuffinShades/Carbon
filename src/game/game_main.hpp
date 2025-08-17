@@ -79,7 +79,11 @@ void render() {
     s.SetMat4("cam_mat", &lookMat);
     s.SetMat4("model_mat", &testChunk.modelMat);
 
-    g->render_no_geo_update();
+    //g->render_no_geo_update();
+
+    w.render(g);
+
+    g->mesh_unbind();
 }
 
 extern i32 game_main() {
@@ -105,9 +109,9 @@ extern i32 game_main() {
     tex = new BindableTexture("assets/vox/alphaTextureMC.png");
     atlas = TexAtlas(tex->width(), tex->height(), 16, 16);
 
-    w = World(69);
+    //w = World(69);
     w.SetAtlas(&atlas);
-    testChunk = w.genChunk(vec3(3, 0, 3));
+    //testChunk = w.genChunk(vec3(3, 0, 3));
 
     //BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");
 
@@ -135,6 +139,9 @@ extern i32 game_main() {
     g->render_noflush();
 
     glfwSwapInterval(0);
+
+    w.chunkBufIni();
+    w.genChunks();
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);

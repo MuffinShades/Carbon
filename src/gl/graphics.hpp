@@ -81,7 +81,7 @@ public:
     void render_bind();
     void flush();
     void push_verts(Vertex *v, size_t n);
-    void mesh_bind(Mesh* m);
+    void mesh_single_bind(Mesh* m);
     void mesh_unbind();
     void setCurrentShader(Shader *s);
     Shader* getCurrentShader();

@@ -15,7 +15,7 @@ float fade(float t) {
 vec3 globalLight = vec3(50.0, 20.0, 50.0);
 
 void main() {
-    const float fogZ = 100.0;
+    const float fogZ = 1000.0;
 
     float ambient = 0.4;
 

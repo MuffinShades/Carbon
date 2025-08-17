@@ -113,7 +113,9 @@ static void set_chunk_block_data(Chunk* c, uvec3 sb, u16 id) {
     c->b_data[p] = id & 0x3FFF;
 }
 
-Chunk World::genChunk(vec3 pos) {
+void World::genChunk(Chunk *c, vec3 pos) {
+    if (!c) return;
+
     i32 x, y, z, h;
     
     Perlin::NoiseSettings ns;
@@ -124,11 +126,7 @@ Chunk World::genChunk(vec3 pos) {
     ns.ampScale = 0.4f;
     ns.nLayers = 4;
 
-    Chunk c;
-
-    ini_chunk(&c);
-
-    std::cout << "Generating Chunk..." << std::endl;
+    ini_chunk(c);
 
     for (z = 0; z < chunkSizeZ; ++z) {
         for (x = 0; x < chunkSizeX; ++x) {
@@ -136,16 +134,78 @@ Chunk World::genChunk(vec3 pos) {
 
             for (;y >= 0; y--)
                 if (y < h)
-                    set_chunk_block_data(&c, uvec3(x,y,z), (u32) BlockID::Dirt);
+                    set_chunk_block_data(c, uvec3(x,y,z), (u32) BlockID::Dirt);
                 else
-                    set_chunk_block_data(&c, uvec3(x,y,z), (u32) BlockID::Grass);
+                    set_chunk_block_data(c, uvec3(x,y,z), (u32) BlockID::Grass);
         }
     }
 
-    gen_chunk_mesh(&c, this);
+    gen_chunk_mesh(c, this);
 
-    c.pos = pos;
-    c.modelMat = mat4(1.0f);
+    c->pos = pos;
+    c->modelMat = mat4(1.0f);
+}
 
-    return c;
+void World::render(graphics *g) {
+    if (!g) return;
+
+    Chunk c;
+
+    Shader *s = g->getCurrentShader();
+
+    forrange(this->nChunks) {
+        c = this->chunkBuffer[i];
+
+        if (!c.b_data || !c.mesh.data())
+            continue;
+
+        s->SetMat4("model_mat", &c.modelMat);
+
+        g->mesh_single_bind(&c.mesh);
+        g->render_noflush();
+    }
+}
+
+void World::genChunks() {
+    while (this->genStack.size() > 0) {
+        Chunk *tc = this->genStack.front();
+        this->genStack.pop();
+        auto process = [=](Chunk *chonk) {
+            genChunk(chonk, chonk->pos);
+
+            if (!chonk->b_data) {
+                std::cout << "Failed to generate chunk at: <" << chonk->pos.x << ", "  << chonk->pos.y << ", "  << chonk->pos.z << ">" << std::endl;
+            }
+        };
+        this->t_pool.Exe(process, tc);
+    } 
+}
+
+void World::chunkBufIni() {
+    if (this->chunkBuffer) {
+        Chunk c;
+        forrange(this->nChunks) {
+            c = this->chunkBuffer[i];
+            free_chunk(&c);
+        }
+
+        _safe_free_a(this->chunkBuffer);
+    }
+
+    this->nChunks = this->renderDistance.x * 
+                    this->renderDistance.z * 
+                    this->renderDistance.y ;
+    this->chunkBuffer = new Chunk[this->nChunks];
+
+    ZeroMem(this->chunkBuffer, this->nChunks);
+
+    this->genStack.empty();
+
+    Chunk *c = nullptr;
+
+    forrange(this->nChunks) {
+        c = this->chunkBuffer + i;
+        c->pos = vec3(0, 0, i * chunkSizeZ);
+        this->genStack.push(c);
+    }
 }

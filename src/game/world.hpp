@@ -4,8 +4,9 @@
 #include "../gl/noise.hpp"
 #include "../mat.hpp"
 #include "../vec.hpp"
+#include "../gl/graphics.hpp"
 
-constexpr u32 chunkSizeX = 128, chunkSizeY = 128, chunkSizeZ = 128;
+constexpr u32 chunkSizeX = 16, chunkSizeY = 16, chunkSizeZ = 16;
 constexpr size_t nBlocksPerChunk = chunkSizeX * chunkSizeY * chunkSizeZ;
 
 struct Block {
@@ -40,21 +41,38 @@ struct Chunk {
     mat4 modelMat;
 };
 
+static void free_chunk(Chunk *c) {
+    if (!c) return;
+    c->mesh.free();
+    _safe_free_a(c->b_data);
+    ZeroMem(c, 1);
+}
+
+#include "../silk.hpp"
+
 class World {
 private:
     u32 seed = 0;
     TexAtlas *atlas = nullptr;
     Perlin p;
+    uvec3 renderDistance = uvec3(8, 1, 8);
+    Chunk *chunkBuffer = nullptr;
+    size_t nChunks = 0;
+    std::queue<Chunk*> genStack;
+    Silk::TPool t_pool;
 public:
     //TODO: this thing
-    World(u32 seed){
+    World(u32 seed) : t_pool(4) {
         this->seed = seed;
         this->p = Perlin(this->seed);
     };
     TexAtlas *GetAtlas() const {
         return this->atlas;
     }
+    void chunkBufIni();
     void SetAtlas(TexAtlas *atlas);
-    Chunk genChunk(vec3 pos);
-    void render();
+    void genChunk(Chunk *c, vec3 pos);
+    void genChunks();
+    void tick(vec3 pPos);
+    void render(graphics *g);
 };

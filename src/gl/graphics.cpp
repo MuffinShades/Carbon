@@ -80,7 +80,7 @@ void graphics::WinResize(const size_t w, const size_t h) {
     this->proj_matrix = mat4::CreatePersepctiveProjectionMatrix(
         90.0f,
         this->winW / this->winH,
-        0.1f, 100.0f
+        0.1f, 1000.0f
     );
 
     forrange(16) std::cout << this->proj_matrix.m[i] << std::endl;
@@ -211,14 +211,16 @@ Shader* graphics::getCurrentShader() {
     return this->s;
 }
 
-void graphics::mesh_bind(Mesh *m) {
+void graphics::mesh_single_bind(Mesh *m) {
     const Vertex* dat;
     size_t nv;
     if (!m || !(dat = m->data()) || (nv = m->size()) == 0) return;
 
     //store and swap
-    this->vstore = this->vmem;
-    this->nv_store = this->_c_vert;
+    if (!this->mesh_bound) {
+        this->vstore = this->vmem;
+        this->nv_store = this->_c_vert;
+    }
     this->vmem = const_cast<Vertex*>(dat);
     this->_c_vert = nv;
 

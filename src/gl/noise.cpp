@@ -5,7 +5,7 @@ f64 Perlin::rand2(vec2 p, const u64 _seed) {
     constexpr f64 BIG = 1.0f / (f64)mu_i_infinity_32;
     const u64 x = p.x, y = p.y;
     const u64 a = ~((x * (y ^ seed)) ^ 0xd5b67268) % (seed + 1),
-              b =  ((y * (x ^ seed)) ^ 0x6e51022c) % (seed * a);
+              b =  ((y * (x ^ seed)) ^ 0x6e51022c) % (seed * a + 1);
     const u64 g = a ^ b;
     const u64 r =  (((((g) * ~(seed) * a) % 0x880a3c0f) * seed) ^ g) & 0xffffffff;
                 
@@ -18,7 +18,7 @@ vec2 Perlin::rand3(vec3 p, const u64 _seed) {
     constexpr f64 BIG = 1.0f / (f64)mu_i_infinity_32;
     const u64 x = p.x, y = p.y, z = p.z;
     const u64 a = ~((x * (y ^ seed)) ^ 0xd5b67268) % (seed + 1),
-              b =  ((y * (z ^ seed)) ^ 0x6e51022c) % (seed * a),
+              b =  ((y * (z ^ seed)) ^ 0x6e51022c) % (seed * a + 1),
               c =  ((z * (x ^ seed)) ^ 0x5f3c0e64) % (seed ^ b);
     const u64 g = a ^ b;
     const u64 r0 = (((((g ^ a) * ~(seed) * c) % 0x880a3c0f) * seed) ^ a) & 0xffffffff,
