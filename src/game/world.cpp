@@ -161,8 +161,7 @@ void World::render(graphics *g) {
 
         s->SetMat4("model_mat", &c.modelMat);
 
-        g->mesh_single_bind(&c.mesh);
-        g->render_noflush();
+        g->mush_render(&c.mesh);
     }
 }
 
@@ -192,20 +191,31 @@ void World::chunkBufIni() {
         _safe_free_a(this->chunkBuffer);
     }
 
-    this->nChunks = this->renderDistance.x * 
-                    this->renderDistance.z * 
-                    this->renderDistance.y ;
+    this->nChunks = this->renderDistance.x * 2 * 
+                    this->renderDistance.z * 2 * 
+                    this->renderDistance.y;
     this->chunkBuffer = new Chunk[this->nChunks];
 
     ZeroMem(this->chunkBuffer, this->nChunks);
 
-    this->genStack.empty();
+    bool stack_empty = this->genStack.empty();
 
     Chunk *c = nullptr;
 
+    ivec3 cGlobeIdx = ivec3(-this->renderDistance.x, -this->renderDistance.y, -this->renderDistance.z);
+
     forrange(this->nChunks) {
         c = this->chunkBuffer + i;
-        c->pos = vec3(0, 0, i * chunkSizeZ);
+        c->pos = vec3(chunkSizeX, chunkSizeY, chunkSizeZ) * cGlobeIdx;
+
+        if (++cGlobeIdx.x >= this->renderDistance.x) {
+            cGlobeIdx.x = -this->renderDistance.x;
+            if (++cGlobeIdx.z >= this->renderDistance.z) {
+                cGlobeIdx.z = -this->renderDistance.z;
+                cGlobeIdx.y++;
+            }
+        }
+
         this->genStack.push(c);
     }
 }

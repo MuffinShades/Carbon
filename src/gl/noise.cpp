@@ -4,8 +4,9 @@ f64 Perlin::rand2(vec2 p, const u64 _seed) {
     const u64 seed = (_seed % 0x223a25a4) ^ (u64)(p.x + p.y);
     constexpr f64 BIG = 1.0f / (f64)mu_i_infinity_32;
     const u64 x = p.x, y = p.y;
-    const u64 a = ~((x * (y ^ seed)) ^ 0xd5b67268) % (seed + 1),
-              b =  ((y * (x ^ seed)) ^ 0x6e51022c) % (seed * a + 1);
+    const u64 a = ~((x * (y ^ seed)) ^ 0xd5b67268) % ((seed == 0) ? 1 : seed),
+              d = seed * a,
+              b =  ((y * (x ^ seed)) ^ 0x6e51022c) % ((d == 0) ? 1 : d);
     const u64 g = a ^ b;
     const u64 r =  (((((g) * ~(seed) * a) % 0x880a3c0f) * seed) ^ g) & 0xffffffff;
                 

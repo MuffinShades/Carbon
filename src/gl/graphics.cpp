@@ -6,7 +6,7 @@
 #define gpu_dynamic_alloc(sz) glBufferData(GL_ARRAY_BUFFER, sz, nullptr, GL_DYNAMIC_DRAW)
 
 #define BATCH_NQUADS 0xffff
-#define BATCH_SIZE 0x4ffffff
+#define BATCH_SIZE 0x8fffff
 
 #define vertex_float_attrib(i, s, sz, off) glVertexAttribPointer(i, s, GL_FLOAT, GL_FALSE, sz, (void *)off); \
     glEnableVertexAttribArray(i)
@@ -87,6 +87,11 @@ void graphics::WinResize(const size_t w, const size_t h) {
 }
 
 void graphics::push_verts(Vertex *v, size_t n) {
+    if (this->mushing) {
+        std::cout << "Error, cannot render when mushing!" << std::endl;
+        return;
+    }
+
     if (this->mesh_bound) {
         std::cout << "Error, cannot render when mesh is bound!" << std::endl;
         return;
@@ -139,11 +144,21 @@ void graphics::render_begin() {
 }
 
 void graphics::render_flush() {
+    if (this->mushing) {
+        std::cout << "cannot render when mushing!" << std::endl;
+        return;
+    }
+
     this->render_noflush();
     this->flush();
 }
 
 void graphics::render_noflush() {
+    if (this->mushing) {
+        std::cout << "cannot non mush render when mushing!" << std::endl;
+        return;
+    }
+
     //copy over buffer data to gpu memory
     vbo_bind(this->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
@@ -163,6 +178,11 @@ void graphics::render_bind() {
 }
 
 void graphics::render_no_geo_update() {
+    if (this->mushing) {
+        std::cout << "cannot no geo render when mushing!" << std::endl;
+        return;
+    }
+
     this->s->SetMat4("proj_mat", &this->proj_matrix);
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
@@ -212,6 +232,11 @@ Shader* graphics::getCurrentShader() {
 }
 
 void graphics::mesh_single_bind(Mesh *m) {
+    if (this->mushing) {
+        std::cout << "cannot bind to mesh when mushing!" << std::endl;
+        return;
+    }
+
     const Vertex* dat;
     size_t nv;
     if (!m || !(dat = m->data()) || (nv = m->size()) == 0) return;
@@ -228,6 +253,11 @@ void graphics::mesh_single_bind(Mesh *m) {
 }
 
 void graphics::mesh_unbind() {
+    if (this->mushing) {
+        std::cout << "cannot mesh unbind when mushing!" << std::endl;
+        return;
+    }
+
     //swap
     if (this->vstore) {
         this->vmem = this->vstore;
@@ -236,6 +266,56 @@ void graphics::mesh_unbind() {
     }
 
     this->mesh_bound = false;
+}
+
+void graphics::mush_begin() {
+    this->mesh_unbind();
+    this->mushing = true;
+    this->mush_offset = 0;
+    vbo_bind(this->vbo);
+}
+
+void graphics::mush_render(Mesh *m) {
+    if (!m)
+        return;
+
+    if (!this->mushing) {
+        std::cout << "Cannot mush render since mushing has not began!" << std::endl;
+        return;
+    }
+
+    const size_t nv = m->size(), nv_bytes = nv * sizeof(Vertex);
+
+    if ((this->mush_offset + nv_bytes) > BATCH_SIZE) {
+        //set program variables
+        this->s->SetMat4("proj_mat", &this->proj_matrix);
+        this->bind_vao();
+
+        glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+
+        this->mush_offset = 0;
+        this->_c_vert = 0;
+    }
+
+    glBufferSubData(GL_ARRAY_BUFFER, this->mush_offset, nv_bytes, (void *) m->data());
+    this->_c_vert += nv;
+    this->mush_offset += nv_bytes;
+}
+
+void graphics::mush_end() {
+    if (!this->mushing) return;
+
+    //final render
+    this->s->SetMat4("proj_mat", &this->proj_matrix);
+    this->bind_vao();
+
+    glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+    //////////////
+
+
+    this->mushing = false;
+    vbo_bind(0);
+    this->flush();
 }
 
 void FrameBuffer::bind() {

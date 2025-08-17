@@ -6,7 +6,7 @@
 #include "../vec.hpp"
 #include "../gl/graphics.hpp"
 
-constexpr u32 chunkSizeX = 16, chunkSizeY = 16, chunkSizeZ = 16;
+constexpr u32 chunkSizeX = 32, chunkSizeY = 32, chunkSizeZ = 32;
 constexpr size_t nBlocksPerChunk = chunkSizeX * chunkSizeY * chunkSizeZ;
 
 struct Block {
@@ -55,7 +55,7 @@ private:
     u32 seed = 0;
     TexAtlas *atlas = nullptr;
     Perlin p;
-    uvec3 renderDistance = uvec3(8, 1, 8);
+    ivec3 renderDistance = ivec3(8, 1, 8);
     Chunk *chunkBuffer = nullptr;
     size_t nChunks = 0;
     std::queue<Chunk*> genStack;

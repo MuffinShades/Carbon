@@ -69,8 +69,24 @@ mat4 mm = mat4(1.0f);
 World w = World(69);
 Chunk testChunk;
 
+/*
+
+TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##
+
+Make mushing faster
+
+When generating the world combine the chunk meshes into bigger meshes that are less likely
+to be modified. Be smarter with memory and maybe use some sort of stack system when creating
+chunks to try and stitch as much as the world together within a single mesh opposed to one
+mesh per chunk which leads to HUGE performance dips. (2,000fps -> <70fps)
+
+TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##
+
+*/
+
 void render() {
     g->render_begin();
+    g->mush_begin();
 
     //mm = mat4::Rotate(mm, 0.001f, {1.0f, 2.0f, 3.0f});
 
@@ -83,7 +99,7 @@ void render() {
 
     w.render(g);
 
-    g->mesh_unbind();
+    g->mush_end();
 }
 
 extern i32 game_main() {

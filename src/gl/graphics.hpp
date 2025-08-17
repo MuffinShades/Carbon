@@ -44,7 +44,7 @@ class graphics {
 private:
     Window *win = nullptr;
     mat4 proj_matrix;
-    size_t _c_vert = 0, nv_store = 0;
+    size_t _c_vert = 0, nv_store = 0, mush_offset = 0;
     Vertex *vmem = nullptr, *vstore = nullptr;
     bool mesh_bound = false;
     void vmem_alloc();
@@ -56,7 +56,7 @@ private:
             std::cout << "Failed to bind to vao!" << std::endl;
     }
     Shader *s = nullptr;
-    bool shader_bound = false;
+    bool shader_bound = false, mushing = false;
 
     void shader_bind();
     void shader_unbind();
@@ -81,6 +81,9 @@ public:
     void render_bind();
     void flush();
     void push_verts(Vertex *v, size_t n);
+    void mush_begin();
+    void mush_render(Mesh *m);
+    void mush_end();
     void mesh_single_bind(Mesh* m);
     void mesh_unbind();
     void setCurrentShader(Shader *s);
