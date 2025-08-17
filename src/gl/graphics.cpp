@@ -180,6 +180,7 @@ void graphics::free() {
     this->_c_vert = 0;
 }
 
+//banana
 /*void graphics::FillRect(float x, float y, float w, float h) {
     vec2 p1 = vec2(x + w, y);
 	vec2 p2 = vec2(x, y);
@@ -332,4 +333,29 @@ void FrameBuffer::depthAttach(u32 w, u32 h) {
     glReadBuffer(GL_NONE);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+FrameBuffer::FrameBuffer(FrameBuffer::fb_type ty, u32 w, u32 h) {
+    this->ty = ty;
+    glGenFramebuffers(1, &this->handle);
+
+    switch (ty) {
+    case FrameBuffer::Texture:
+        this->texAttach(w, h);
+        break;
+    case FrameBuffer::Depth:
+        this->depthAttach(w, h);
+        break;
+    case FrameBuffer::DepthStencil:
+        this->depthStencilAttach(w, h);
+        break;
+    case FrameBuffer::Render:
+        std::cout << "TODO: rbo!" << std::endl;
+        break;
+    default:
+        std::cout << "Error: invalid frame buffer type: " << (u32)ty << std::endl;
+        this->ty = FrameBuffer::Unknown;
+        this->free();
+        break;
+    }
 }

@@ -5,28 +5,31 @@
 #include "mesh.hpp"
 #include "vertex.hpp"
 
+#define _CARBONGL_SHADOW_SPECIAL_VAL 0xfb01
+
 class FrameBuffer {
 public:
     enum fb_type {
         Texture,
         Depth,
-        Stencil,
-        Render
+        DepthStencil,
+        Render,
+        Unknown
     };
-private:
+protected:
     u32 handle = 0, texHandle = 0;
     fb_type ty = FrameBuffer::Texture;
-    
+
     void bind();
     void delete_tex();
     
     void texAttach(u32 w, u32 h);
     void depthStencilAttach(u32 w, u32 h);
     void depthAttach(u32 w, u32 h);
+
+    u32 specialVal = 0; //reserved for derived classes
 public:
-    FrameBuffer() {
-        glGenFramebuffers(1, &this->handle);
-    }
+    FrameBuffer(fb_type ty, u32 w, u32 h);
     u32 getHandle() {
         return this->handle;
     }
