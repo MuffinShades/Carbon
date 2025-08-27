@@ -60,6 +60,7 @@ private:
     size_t nChunks = 0;
     std::queue<Chunk*> genStack;
     Silk::TPool t_pool;
+     
 public:
     //TODO: this thing
     World(u32 seed) : t_pool(4) {

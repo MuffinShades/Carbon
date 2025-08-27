@@ -24,8 +24,10 @@ const size_t Mesh::size() const {
 }
 
 void Mesh::free() {
-    if (this->verts)
+    if (this->verts && this->dataOwn)
         _safe_free_a(this->verts);
+
+    this->verts = nullptr;
     
     this->nVerts = 0;
 }
@@ -156,8 +158,6 @@ Mesh DynamicMesh::genBasicMesh() {
         c = c->next;
     }
 
-    std::cout << "Number of Mesh Verticies: " << this->nVerts << " | Alloc Verts: " << this->nAllocVerts << std::endl;
-
     //
     Vertex *v = new Vertex[this->nVerts];
 
@@ -174,6 +174,7 @@ Mesh DynamicMesh::genBasicMesh() {
         c = c->next;
     }
 
+    this->free();
     this->rootChunk = nullptr;
 
     Mesh m;
@@ -182,6 +183,48 @@ Mesh DynamicMesh::genBasicMesh() {
     m.nVerts = this->nVerts;
 
     return m;
+}
+
+const Vertex *DynamicMesh::data() {
+    this->nVerts = 0;
+    this->nAllocVerts = 0;
+
+    MeshChunk *c = this->rootChunk, *fc;
+
+    while (c) {
+        this->nVerts += c->nVerts;
+        this->nAllocVerts += c->nAllocVerts;
+        c = c->next;
+    }
+
+    //
+    Vertex *v = new Vertex[this->nVerts];
+
+    ZeroMem(v, this->nVerts);
+
+    c = this->rootChunk;
+    
+    Vertex *vi = v;
+
+    while (c) {
+        in_memcpy(vi, c->vData, c->nVerts * sizeof(Vertex));
+        vi += c->nVerts;
+        fc = c;
+        c = c->next;
+    
+        //free the old chunk
+        _safe_free_a(fc->vData);
+        _safe_free_b(fc);
+    }
+
+    //create a new root chunk
+    this->rootChunk = new MeshChunk {
+        .vData = v,
+        .nVerts = this->nVerts,
+        .nAllocVerts = this->nVerts
+    };
+
+    this->nAllocVerts = this->nVerts;
 }
 
 void DynamicMesh::pos_inc(size_t sz, bool changeChunkPos) {
@@ -198,7 +241,6 @@ void DynamicMesh::pos_inc(size_t sz, bool changeChunkPos) {
 
             if (!this->lastChunk) {
                 this->add_chunk();
-                this->set_cur_chunk(this->lastChunk, false); //update internal pointers
             } else
                 this->set_cur_chunk(this->lastChunk, false); //update internal pointers
 
@@ -209,4 +251,103 @@ void DynamicMesh::pos_inc(size_t sz, bool changeChunkPos) {
     }
 
     this->pos += sz;
+}
+
+DynamicMesh::MeshChunk *DynamicMesh::add_chunk(size_t sz) {
+    if (sz == 0) return nullptr;
+
+    MeshChunk *c = new MeshChunk;
+
+    c->nAllocVerts = sz;
+    c->vData = new Vertex[c->nAllocVerts];
+
+    ZeroMem(c->vData, c->nAllocVerts);
+
+    if (this->lastChunk) {
+        c->pos = this->lastChunk->pos + this->lastChunk->nAllocVerts;
+        c->prev = this->lastChunk;
+        this->lastChunk->next = c;
+        this->lastChunk = c;
+    } else {
+        c->pos = 0;
+
+        this->rootChunk = (this->lastChunk = c);
+    }
+
+    return c;
+}
+
+bool CombinedMesh::fs_insert(FreeSpace *space, FreeSpace *at) {
+    if (!space) return false;
+
+    if (!at) {
+        if (this->spaceStack) return false;
+        this->spaceStack = space;
+    } else {
+        if (at->next) at->next->prev = space;
+        at->next = space;
+        space->prev = at;
+    }
+
+    return true;
+}
+
+FreeSpace* CombinedMesh::free_stack_insert_search(size_t sz) {
+    FreeSpace *sNode = this->spaceStack, *p = nullptr;
+
+    while (sNode && sNode->nFreeVerts < sz) {
+        p = sNode;
+        sNode = sNode->next;
+    }
+
+    return p;
+}
+
+void CombinedMesh::chunk_clip() {
+    FreeSpace *fs = new FreeSpace {
+        .nFreeVerts = this->lastChunk->nAllocVerts - this->lastChunk->nVerts,
+        .chunkOffset = this->lastChunk->nVerts,
+        .targetChunk = this->lastChunk
+    }, *at = this->free_stack_insert_search(fs->nFreeVerts);
+
+    if (!this->fs_insert(fs, at)) {
+        _safe_free_b(fs);
+        std::cout << "Mesh warning: failed to note chunk blank space!" << std::endl;
+    }
+}
+
+CombinedMesh::MeshCard CombinedMesh::AddStaticMeshPart(Mesh *m) {
+    if (!m) {
+        return {};
+    }
+
+    if (!this->lastChunk) {
+        this->add_chunk(mu_max(this->vertsPerChunk, m->size()));
+
+        in_memcpy(this->cur, m->verts, m->size() * sizeof(Vertex));
+        m->dataOwn = false;
+        _safe_free_a(m->verts);
+        m->verts = this->cur;
+
+        return {
+            .off = 0,
+            .buf = m->verts
+        };
+    }
+
+    //idk
+}
+
+CombinedMesh::MeshCard CombinedMesh::AddDynamicMeshPart(DynamicMesh *dy_m) {
+    if (!dy_m) {
+        return {};
+    }
+}
+
+void CombinedMesh::RemoveMesh(Mesh *m) {
+    if (!m || m->card.off < 0) return;
+}
+
+void CombinedMesh::RemoveMesh(DynamicMesh *dy_m) {
+    if (!dy_m || dy_m->card.off < 0) return;
 }

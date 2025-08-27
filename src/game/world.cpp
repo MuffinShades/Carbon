@@ -169,8 +169,8 @@ void World::genChunks() {
     while (this->genStack.size() > 0) {
         Chunk *tc = this->genStack.front();
         this->genStack.pop();
-        auto process = [=](Chunk *chonk) {
-            genChunk(chonk, chonk->pos);
+        auto process = [&](Chunk *chonk) {
+            this->genChunk(chonk, chonk->pos);
 
             if (!chonk->b_data) {
                 std::cout << "Failed to generate chunk at: <" << chonk->pos.x << ", "  << chonk->pos.y << ", "  << chonk->pos.z << ">" << std::endl;
