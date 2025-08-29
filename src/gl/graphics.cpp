@@ -28,14 +28,15 @@ void graphics::Load() {
 	//glDepthFunc(GL_LEQUAL);
 
     //vertex array
-    GLuint* vptr = &this->vao;
-    vao_create(this->vao);
-    glBindVertexArray(vao);
+    vao_create(this->core_vao);
+    glBindVertexArray(core_vao);
+    this->vao = this->core_vao;
 
     //buffer allocation
-    glGenBuffers(1, &this->vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
+    glGenBuffers(1, &this->core_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, this->core_vbo);
     gpu_dynamic_alloc(BATCH_SIZE * sizeof(Vertex));
+    this->vbo = this->core_vbo;
     this->vmem_alloc();
 
     define_vattrib_struct(0, Vertex, posf);
@@ -47,6 +48,18 @@ void graphics::Load() {
     //
 }
 
+void graphics::useGraphicsState(graphicsState gs) {
+    this->vao = gs.vao;
+    this->vbo = gs.vbo;
+    this->using_gs = true;
+}
+
+void graphics::useDefaultGraphicsState() {
+    this->vao = this->core_vao;
+    this->vbo = this->core_vbo;
+    this->using_gs = false;
+}
+
 #define PROJ_ZMIN  0.1f
 #define PROJ_ZMAX  100.0f
 
@@ -56,18 +69,6 @@ void graphics::WinResize(const size_t w, const size_t h) {
     this->winH = (f32) h;
 
     glViewport(0.0f, 0.0f, this->winW, this->winH);
-
-    //if (this->proj_matrix != nullptr && this->proj_matrix->m != nullptr)
-    //    this->proj_matrix->attemptFree();
-
-    /*this->proj_matrix = mat4::CreateOrthoProjectionMatrix(
-        this->winW, 
-        0.0f, 
-        this->winH, 
-        0.0f, 
-        PROJ_ZMIN, 
-        PROJ_ZMAX
-    );*/
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glEnable(GL_DEPTH_TEST);
@@ -82,8 +83,6 @@ void graphics::WinResize(const size_t w, const size_t h) {
         this->winW / this->winH,
         0.1f, 1000.0f
     );
-
-    forrange(16) std::cout << this->proj_matrix.m[i] << std::endl;
 }
 
 void graphics::push_verts(Vertex *v, size_t n) {
@@ -96,6 +95,7 @@ void graphics::push_verts(Vertex *v, size_t n) {
         std::cout << "Error, cannot render when mesh is bound!" << std::endl;
         return;
     }
+
     if (!v || n == 0)
         return;
     if (!this->vmem) {
@@ -223,7 +223,11 @@ void graphics::free() {
 }*/
 
 void graphics::setCurrentShader(Shader *s) {
-    if (s) this->s = s;
+    if (s) {
+        if (!this->using_gs)
+            this->def_shader = s;
+        this->s = s;
+    }
     this->shader_bind();
 }
 

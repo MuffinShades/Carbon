@@ -40,6 +40,11 @@ public:
     friend class graphics;
 };
 
+struct graphicsState {
+    u32 vao, vbo, ibo;
+    Shader *s = nullptr;
+};
+
 class graphics {
 private:
     Window *win = nullptr;
@@ -55,14 +60,20 @@ private:
         else
             std::cout << "Failed to bind to vao!" << std::endl;
     }
+    Shader *def_shader = nullptr;
     Shader *s = nullptr;
     bool shader_bound = false, mushing = false;
+    bool using_gs = false;
 
     void shader_bind();
     void shader_unbind();
-public:
-    f32 winW, winH;
+
+    u32 core_vao = 0, core_vbo = 0;
+    //active vao and vbo
     u32 vao = 0, vbo = 0;
+    f32 winW, winH;
+
+public:
     graphics(Window *w) {
         if (w != nullptr)
             this->win = w;
@@ -87,6 +98,8 @@ public:
     void mesh_single_bind(Mesh* m);
     void mesh_unbind();
     void setCurrentShader(Shader *s);
+    void useGraphicsState(graphicsState gs);
+    void useDefaultGraphicsState();
     Shader* getCurrentShader();
     //void DrawImage();
     //void FillRect(float x, float y, float w, float h);

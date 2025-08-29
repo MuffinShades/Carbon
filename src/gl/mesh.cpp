@@ -225,6 +225,8 @@ const Vertex *DynamicMesh::data() {
     };
 
     this->nAllocVerts = this->nVerts;
+
+    return this->rootChunk->vData;
 }
 
 void DynamicMesh::pos_inc(size_t sz, bool changeChunkPos) {
@@ -292,7 +294,7 @@ bool CombinedMesh::fs_insert(FreeSpace *space, FreeSpace *at) {
     return true;
 }
 
-FreeSpace* CombinedMesh::free_stack_insert_search(size_t sz) {
+CombinedMesh::FreeSpace* CombinedMesh::free_stack_insert_search(size_t sz) {
     FreeSpace *sNode = this->spaceStack, *p = nullptr;
 
     while (sNode && sNode->nFreeVerts < sz) {
@@ -316,7 +318,7 @@ void CombinedMesh::chunk_clip() {
     }
 }
 
-CombinedMesh::MeshCard CombinedMesh::AddStaticMeshPart(Mesh *m) {
+MeshCard CombinedMesh::AddStaticMeshPart(Mesh *m) {
     if (!m) {
         return {};
     }
@@ -338,7 +340,7 @@ CombinedMesh::MeshCard CombinedMesh::AddStaticMeshPart(Mesh *m) {
     //idk
 }
 
-CombinedMesh::MeshCard CombinedMesh::AddDynamicMeshPart(DynamicMesh *dy_m) {
+MeshCard CombinedMesh::AddDynamicMeshPart(DynamicMesh *dy_m) {
     if (!dy_m) {
         return {};
     }

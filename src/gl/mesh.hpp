@@ -2,11 +2,16 @@
 #include <iostream>
 #include "vertex.hpp"
 
+struct MeshCard {
+    i64 off = -1;
+    void *buf = nullptr;
+};
+
 class Mesh {
 private:
     Vertex *verts = nullptr;
     size_t nVerts = 0;
-    struct CombinedMesh::MeshCard card;
+    MeshCard card;
     bool dataOwn = true;
 public:
     Mesh();
@@ -43,7 +48,7 @@ protected:
     void pos_inc(size_t sz, bool changeChunkPos = true);
     void set_cur_chunk(MeshChunk *chunk, bool adjustPos = true);
 
-    struct CombinedMesh::MeshCard card;
+    MeshCard card;
 public:
     DynamicMesh();
     const Vertex *data();
@@ -69,21 +74,17 @@ private:
     using DynamicMesh::genBasicMesh;
     using DynamicMesh::mergeMesh;
 
-    void chunk_clip();
-    struct FreeSpace *free_stack_insert_search(size_t sz);
-    bool fs_insert(FreeSpace *space, FreeSpace *at);
-
     struct FreeSpace {
         size_t nFreeVerts = 0;
         size_t chunkOffset = 0;
         DynamicMesh::MeshChunk *targetChunk = nullptr;
         FreeSpace *prev = nullptr, *next = nullptr;
     } *spaceStack;
+
+    void chunk_clip();
+    FreeSpace *free_stack_insert_search(size_t sz);
+    bool fs_insert(FreeSpace *space, FreeSpace *at);
 public:
-    struct MeshCard {
-        i64 off = -1;
-        void *buf = nullptr;
-    };
     MeshCard AddStaticMeshPart(Mesh *m);
     MeshCard AddDynamicMeshPart(DynamicMesh *dy_m);
     void RemoveMesh(Mesh *m);
