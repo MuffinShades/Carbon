@@ -43,6 +43,7 @@ struct Chunk {
     struct {
         graphics *g;
         class World *w;
+        u32 gen_stage = 0;
     } async_gen_info;
 };
 
@@ -78,7 +79,7 @@ public:
     }
     void chunkBufIni();
     void SetAtlas(TexAtlas *atlas);
-    void genChunk(graphics *g, Chunk *c, vec3 pos);
+    void genChunk(Chunk *c, vec3 pos);
     void genChunks(graphics *g);
     void tick(vec3 pPos);
     void render(graphics *g);

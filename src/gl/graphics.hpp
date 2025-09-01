@@ -44,6 +44,11 @@ struct graphicsState {
     u32 vao, vbo, ibo;
     Shader *s = nullptr;
     size_t nv = 0;
+    enum class __gs_fmt {
+        _null,
+        _static,
+        _dynamic
+    } g_fmt = __gs_fmt::_null;
 };
 
 class graphics {
@@ -58,8 +63,8 @@ private:
     void bind_vao() {
         if (this->vao != 0)
             glBindVertexArray(this->vao);
-        else
-            std::cout << "Failed to bind to vao!" << std::endl;
+        //else
+           // std::cout << "Failed to bind to vao!" << std::endl;
     }
     Shader *def_shader = nullptr;
     Shader *s = nullptr;
@@ -104,8 +109,9 @@ public:
     void bindMeshToVbo(Mesh *m);
 
     //graphics states
-    void iniGraphicsState(size_t nAllocVerts);
-    void useGraphicsState(graphicsState *gs);
+    void iniStaticGraphicsState();
+    void iniDynamicGraphicsState(size_t nBufferVerts);
+    bool useGraphicsState(graphicsState *gs);
     void useDefaultGraphicsState();
 
     Shader* getCurrentShader();

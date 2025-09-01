@@ -49,22 +49,28 @@ void graphics::Load() {
     //
 }
 
-void graphics::iniGraphicsState(size_t nAllocVerts) {
+void graphics::iniStaticGraphicsState() {
+    if (!this->cgs || this->cgs->g_fmt != graphicsState::__gs_fmt::_null)
+        return;
     //vertex array
     vao_create(this->vao);
     glBindVertexArray(vao);
 
     //buffer allocation
     glGenBuffers(1, &this->vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
-    gpu_dynamic_alloc(nAllocVerts * sizeof(Vertex));
+    vbo_bind(this->vbo);
 
     define_vattrib_struct(0, Vertex, posf);
     define_vattrib_struct(1, Vertex, n);
     define_vattrib_struct(2, Vertex, tex);
+
+    this->cgs->vao = this->vao;
+    this->cgs->vbo = this->vbo;
+
+    this->cgs->g_fmt = graphicsState::__gs_fmt::_static;
 }
 
-void graphics::useGraphicsState(graphicsState *gs) {
+bool graphics::useGraphicsState(graphicsState *gs) {
     if (!this->using_gs)
         this->nv_store = this->_c_vert;
     else if (this->cgs) {
@@ -72,11 +78,17 @@ void graphics::useGraphicsState(graphicsState *gs) {
         this->cgs->vbo = this->vbo;
         this->cgs->nv = this->_c_vert;
     }
+
     this->vao = gs->vao;
     this->vbo = gs->vbo;
     this->_c_vert = gs->nv;
     this->cgs = gs;
     this->using_gs = true;
+
+    if (!this->vao || !this->vbo)
+        return false;
+
+    return true;
 }
 
 void graphics::useDefaultGraphicsState() {
@@ -85,6 +97,7 @@ void graphics::useDefaultGraphicsState() {
         this->cgs->vbo = this->vbo;
         this->cgs->nv = this->_c_vert;
     }
+
     this->vao = this->core_vao;
     this->vbo = this->core_vbo;
     this->_c_vert = this->nv_store;
@@ -186,13 +199,24 @@ void graphics::render_flush() {
 }
 
 void graphics::bindMeshToVbo(Mesh *m) {
+    if (!this->cgs)
+        return;
+
+    if (this->cgs->g_fmt != graphicsState::__gs_fmt::_static) {
+        std::cout << "Cannot bind mesh to non static graphics state!" << std::endl;
+        return;
+    }
+
     this->bind_vao();
 
-    std::cout << "binding " << m->size() << std::endl;
-
     vbo_bind(this->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * m->size(), (void *) m->data());
+
+    //glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * m->size(), (void *) m->data());
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * m->size(), (void *) m->data(), GL_STATIC_DRAW);
+
     this->_c_vert = m->size();
+
+    vbo_bind(0);
 }
 
 void graphics::render_noflush() {
@@ -203,7 +227,15 @@ void graphics::render_noflush() {
 
     //copy over buffer data to gpu memory
     vbo_bind(this->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
+
+    if (this->cgs) {
+        if (this->cgs->g_fmt == graphicsState::__gs_fmt::_static) {
+            this->s->use();
+            return;
+        }
+    } else {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
+    }
 
     //set program variables
     this->bind_vao();
@@ -220,18 +252,20 @@ void graphics::render_no_geo_update() {
     if (this->mushing) {
         std::cout << "cannot no geo render when mushing!" << std::endl;
         return;
-    }
+    };
 
-    //vbo_bind(this->vbo);
     this->s->use();
     this->bind_vao();
     this->s->SetMat4("proj_mat", &this->proj_matrix);
+
+    //std::cout << "Drawing " << this->_c_vert << std::endl;
 
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
 
 void graphics::flush() {
-    this->vmem_clear();
+    if (!this->using_gs)
+        this->vmem_clear();
 }
 
 const size_t graphics::getEstimatedMemoryUsage() {

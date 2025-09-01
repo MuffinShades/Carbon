@@ -113,7 +113,7 @@ static void set_chunk_block_data(Chunk* c, uvec3 sb, u16 id) {
     c->b_data[p] = id & 0x3FFF;
 }
 
-void World::genChunk(graphics *g, Chunk *c, vec3 pos) {
+void World::genChunk(Chunk *c, vec3 pos) {
     if (!c) return;
 
     i32 x, y, z, h;
@@ -149,36 +149,31 @@ void World::genChunk(graphics *g, Chunk *c, vec3 pos) {
 void World::render(graphics *g) {
     if (!g) return;
 
-    Chunk c;
+    Chunk *c;
 
     Shader *s = g->getCurrentShader();
 
-    sync_gen:
-
-    if (this->syncGenStack.size() > 0) {
-        Chunk *fc = this->syncGenStack.front();
-        this->syncGenStack.pop();
-
-        std::cout << "Finishing chunk gen..." << std::endl;
-
-        if (!fc)
-            goto sync_gen;
-
-        g->useGraphicsState(&fc->gs);
-        g->iniGraphicsState(fc->mesh.size());
-        g->bindMeshToVbo(&fc->mesh);
-        g->useDefaultGraphicsState();
-    }
-
     forrange(this->nChunks) {
-        c = this->chunkBuffer[i];
+        c = (this->chunkBuffer+i);
 
-        g->useGraphicsState(&c.gs);
+        if (c->async_gen_info.gen_stage == 1) {
+            g->useGraphicsState(&c->gs);
+            g->iniStaticGraphicsState();
+            g->bindMeshToVbo(&c->mesh);
+            g->useDefaultGraphicsState();
+            this->chunkBuffer[i].async_gen_info.gen_stage = 2;
 
-        if (!c.b_data || !c.mesh.data())
+            graphicsState gs = this->chunkBuffer[i].gs;
+
+            std::cout << "render info: " << gs.vao << " | " << gs.vbo << " | " << gs.nv << std::endl;
+        }
+
+        g->useGraphicsState(&c->gs);
+
+        if (!c->b_data || !c->mesh.data() || c->async_gen_info.gen_stage == 0)
             continue;
 
-        s->SetMat4("model_mat", &c.modelMat);
+        s->SetMat4("model_mat", &c->modelMat);
 
         g->render_no_geo_update();
     }
@@ -194,13 +189,13 @@ void World::genChunks(graphics *g) {
         tc->async_gen_info.w = this;
 
         auto process = [&](Chunk *chonk) {
-            this->genChunk(chonk->async_gen_info.g, chonk, chonk->pos);
+            this->genChunk(chonk, chonk->pos);
 
             if (!chonk->b_data) {
                 std::cout << "Failed to generate chunk at: <" << chonk->pos.x << ", "  << chonk->pos.y << ", "  << chonk->pos.z << ">" << std::endl;
             }
 
-            chonk->async_gen_info.w->syncGenStack.push(chonk);
+            chonk->async_gen_info.gen_stage = 1;
         };
 
         this->t_pool.Exe(process, tc);
