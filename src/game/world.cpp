@@ -142,10 +142,6 @@ void World::genChunk(graphics *g, Chunk *c, vec3 pos) {
 
     gen_chunk_mesh(c, this);
 
-    g->useGraphicsState(c->gs);
-    g->push_verts((Vertex*) c->mesh.data(), c->mesh.size());
-    g->useDefaultGraphicsState();
-
     c->pos = pos;
     c->modelMat = mat4(1.0f);
 }
@@ -157,33 +153,56 @@ void World::render(graphics *g) {
 
     Shader *s = g->getCurrentShader();
 
+    sync_gen:
+
+    if (this->syncGenStack.size() > 0) {
+        Chunk *fc = this->syncGenStack.front();
+        this->syncGenStack.pop();
+
+        std::cout << "Finishing chunk gen..." << std::endl;
+
+        if (!fc)
+            goto sync_gen;
+
+        g->useGraphicsState(&fc->gs);
+        g->iniGraphicsState(fc->mesh.size());
+        g->bindMeshToVbo(&fc->mesh);
+        g->useDefaultGraphicsState();
+    }
+
     forrange(this->nChunks) {
         c = this->chunkBuffer[i];
 
-        g->useGraphicsState(c.gs);
+        g->useGraphicsState(&c.gs);
 
         if (!c.b_data || !c.mesh.data())
             continue;
 
         s->SetMat4("model_mat", &c.modelMat);
 
-        g->render_noflush();
+        g->render_no_geo_update();
     }
 
     g->useDefaultGraphicsState();
 }
 
-void World::genChunks() {
+void World::genChunks(graphics *g) {
     while (this->genStack.size() > 0) {
         Chunk *tc = this->genStack.front();
         this->genStack.pop();
+        tc->async_gen_info.g = g;
+        tc->async_gen_info.w = this;
+
         auto process = [&](Chunk *chonk) {
-            this->genChunk(chonk, chonk->pos);
+            this->genChunk(chonk->async_gen_info.g, chonk, chonk->pos);
 
             if (!chonk->b_data) {
                 std::cout << "Failed to generate chunk at: <" << chonk->pos.x << ", "  << chonk->pos.y << ", "  << chonk->pos.z << ">" << std::endl;
             }
+
+            chonk->async_gen_info.w->syncGenStack.push(chonk);
         };
+
         this->t_pool.Exe(process, tc);
     } 
 }

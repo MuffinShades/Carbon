@@ -49,15 +49,46 @@ void graphics::Load() {
     //
 }
 
-void graphics::useGraphicsState(graphicsState gs) {
-    this->vao = gs.vao;
-    this->vbo = gs.vbo;
+void graphics::iniGraphicsState(size_t nAllocVerts) {
+    //vertex array
+    vao_create(this->vao);
+    glBindVertexArray(vao);
+
+    //buffer allocation
+    glGenBuffers(1, &this->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
+    gpu_dynamic_alloc(nAllocVerts * sizeof(Vertex));
+
+    define_vattrib_struct(0, Vertex, posf);
+    define_vattrib_struct(1, Vertex, n);
+    define_vattrib_struct(2, Vertex, tex);
+}
+
+void graphics::useGraphicsState(graphicsState *gs) {
+    if (!this->using_gs)
+        this->nv_store = this->_c_vert;
+    else if (this->cgs) {
+        this->cgs->vao = this->vao;
+        this->cgs->vbo = this->vbo;
+        this->cgs->nv = this->_c_vert;
+    }
+    this->vao = gs->vao;
+    this->vbo = gs->vbo;
+    this->_c_vert = gs->nv;
+    this->cgs = gs;
     this->using_gs = true;
 }
 
 void graphics::useDefaultGraphicsState() {
+    if (this->cgs) {
+        this->cgs->vao = this->vao;
+        this->cgs->vbo = this->vbo;
+        this->cgs->nv = this->_c_vert;
+    }
     this->vao = this->core_vao;
     this->vbo = this->core_vbo;
+    this->_c_vert = this->nv_store;
+    this->cgs = nullptr;
     this->using_gs = false;
 }
 
@@ -155,8 +186,13 @@ void graphics::render_flush() {
 }
 
 void graphics::bindMeshToVbo(Mesh *m) {
+    this->bind_vao();
+
+    std::cout << "binding " << m->size() << std::endl;
+
     vbo_bind(this->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * m->size(), (void *) m->data());
+    this->_c_vert = m->size();
 }
 
 void graphics::render_noflush() {
@@ -170,9 +206,8 @@ void graphics::render_noflush() {
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
 
     //set program variables
-    this->s->SetMat4("proj_mat", &this->proj_matrix);
-
     this->bind_vao();
+    this->s->SetMat4("proj_mat", &this->proj_matrix);
     
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
@@ -187,7 +222,11 @@ void graphics::render_no_geo_update() {
         return;
     }
 
+    //vbo_bind(this->vbo);
+    this->s->use();
+    this->bind_vao();
     this->s->SetMat4("proj_mat", &this->proj_matrix);
+
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
 

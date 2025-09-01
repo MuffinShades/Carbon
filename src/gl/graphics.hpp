@@ -66,6 +66,8 @@ private:
     bool shader_bound = false, mushing = false;
     bool using_gs = false;
 
+    graphicsState *cgs = nullptr;
+
     void shader_bind();
     void shader_unbind();
 
@@ -102,7 +104,8 @@ public:
     void bindMeshToVbo(Mesh *m);
 
     //graphics states
-    void useGraphicsState(graphicsState gs);
+    void iniGraphicsState(size_t nAllocVerts);
+    void useGraphicsState(graphicsState *gs);
     void useDefaultGraphicsState();
 
     Shader* getCurrentShader();

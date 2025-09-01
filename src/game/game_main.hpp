@@ -86,7 +86,7 @@ TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TODO##TO
 
 void render() {
     g->render_begin();
-    g->mush_begin();
+    //g->mush_begin();
 
     //mm = mat4::Rotate(mm, 0.001f, {1.0f, 2.0f, 3.0f});
 
@@ -99,7 +99,7 @@ void render() {
 
     w.render(g);
 
-    g->mush_end();
+    //g->mush_end();
 }
 
 extern i32 game_main() {
@@ -157,7 +157,8 @@ extern i32 game_main() {
     glfwSwapInterval(0);
 
     w.chunkBufIni();
-    w.genChunks();
+    std::cout << "GPTR: " << (uintptr_t)g << std::endl;
+    w.genChunks(g);
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);

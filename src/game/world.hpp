@@ -40,6 +40,10 @@ struct Chunk {
     vec3 pos;
     mat4 modelMat;
     graphicsState gs;
+    struct {
+        graphics *g;
+        class World *w;
+    } async_gen_info;
 };
 
 static void free_chunk(Chunk *c) {
@@ -60,6 +64,7 @@ private:
     Chunk *chunkBuffer = nullptr;
     size_t nChunks = 0;
     std::queue<Chunk*> genStack;
+    std::queue<Chunk*> syncGenStack;
     Silk::TPool t_pool;
      
 public:
@@ -73,8 +78,8 @@ public:
     }
     void chunkBufIni();
     void SetAtlas(TexAtlas *atlas);
-    void genChunk(Chunk *c, vec3 pos);
-    void genChunks();
+    void genChunk(graphics *g, Chunk *c, vec3 pos);
+    void genChunks(graphics *g);
     void tick(vec3 pPos);
     void render(graphics *g);
 };
