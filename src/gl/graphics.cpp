@@ -42,6 +42,7 @@ void graphics::Load() {
     define_vattrib_struct(0, Vertex, posf);
     define_vattrib_struct(1, Vertex, n);
     define_vattrib_struct(2, Vertex, tex);
+
     //define_vattrib_struct(2, Vertex, modColor);
     //define_vattrib_struct(3, Vertex, texId);
 
@@ -153,6 +154,11 @@ void graphics::render_flush() {
     this->flush();
 }
 
+void graphics::bindMeshToVbo(Mesh *m) {
+    vbo_bind(this->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * m->size(), (void *) m->data());
+}
+
 void graphics::render_noflush() {
     if (this->mushing) {
         std::cout << "cannot non mush render when mushing!" << std::endl;
@@ -168,8 +174,6 @@ void graphics::render_noflush() {
 
     this->bind_vao();
     
-
-    vbo_bind(0);
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
 

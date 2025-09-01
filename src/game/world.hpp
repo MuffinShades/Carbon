@@ -39,6 +39,7 @@ struct Chunk {
     Mesh mesh;
     vec3 pos;
     mat4 modelMat;
+    graphicsState gs;
 };
 
 static void free_chunk(Chunk *c) {

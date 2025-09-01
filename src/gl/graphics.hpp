@@ -43,6 +43,7 @@ public:
 struct graphicsState {
     u32 vao, vbo, ibo;
     Shader *s = nullptr;
+    size_t nv = 0;
 };
 
 class graphics {
@@ -98,8 +99,12 @@ public:
     void mesh_single_bind(Mesh* m);
     void mesh_unbind();
     void setCurrentShader(Shader *s);
+    void bindMeshToVbo(Mesh *m);
+
+    //graphics states
     void useGraphicsState(graphicsState gs);
     void useDefaultGraphicsState();
+
     Shader* getCurrentShader();
     //void DrawImage();
     //void FillRect(float x, float y, float w, float h);

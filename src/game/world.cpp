@@ -113,7 +113,7 @@ static void set_chunk_block_data(Chunk* c, uvec3 sb, u16 id) {
     c->b_data[p] = id & 0x3FFF;
 }
 
-void World::genChunk(Chunk *c, vec3 pos) {
+void World::genChunk(graphics *g, Chunk *c, vec3 pos) {
     if (!c) return;
 
     i32 x, y, z, h;
@@ -142,6 +142,10 @@ void World::genChunk(Chunk *c, vec3 pos) {
 
     gen_chunk_mesh(c, this);
 
+    g->useGraphicsState(c->gs);
+    g->push_verts((Vertex*) c->mesh.data(), c->mesh.size());
+    g->useDefaultGraphicsState();
+
     c->pos = pos;
     c->modelMat = mat4(1.0f);
 }
@@ -156,13 +160,17 @@ void World::render(graphics *g) {
     forrange(this->nChunks) {
         c = this->chunkBuffer[i];
 
+        g->useGraphicsState(c.gs);
+
         if (!c.b_data || !c.mesh.data())
             continue;
 
         s->SetMat4("model_mat", &c.modelMat);
 
-        g->mush_render(&c.mesh);
+        g->render_noflush();
     }
+
+    g->useDefaultGraphicsState();
 }
 
 void World::genChunks() {
