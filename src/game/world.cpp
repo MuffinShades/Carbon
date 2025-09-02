@@ -146,7 +146,7 @@ void World::genChunk(Chunk *c, vec3 pos) {
     c->modelMat = mat4(1.0f);
 }
 
-void World::render(graphics *g) {
+void World::render(graphics *g, ControllableCamera *cam) {
     if (!g) return;
 
     Chunk *c;
@@ -165,13 +165,26 @@ void World::render(graphics *g) {
 
             graphicsState gs = this->chunkBuffer[i].gs;
 
-            std::cout << "render info: " << gs.vao << " | " << gs.vbo << " | " << gs.nv << std::endl;
+            //std::cout << "render info: " << gs.vao << " | " << gs.vbo << " | " << gs.nv << std::endl;
         }
-
-        g->useGraphicsState(&c->gs);
 
         if (!c->b_data || !c->mesh.data() || c->async_gen_info.gen_stage == 0)
             continue;
+
+        //TODO: make 3d by testing both xz and yz instead of just xz
+        const f32 phi = mu_pi * 0.5f;
+
+        vec3 ld = cam->getLookDirection();
+
+        ld.y = 0;
+
+        const f32 dot = vec3::DotProd(ld, vec3::Normalize(cam->getPos() - c->pos));
+        const f32 alpha = acosf(dot);
+
+        if (alpha < phi || alpha > phi + mu_pi)
+            continue;
+
+        g->useGraphicsState(&c->gs);
 
         s->SetMat4("model_mat", &c->modelMat);
 

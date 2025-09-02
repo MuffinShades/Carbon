@@ -5,8 +5,9 @@
 #include "../mat.hpp"
 #include "../vec.hpp"
 #include "../gl/graphics.hpp"
+#include "../gl/Camera.hpp"
 
-constexpr u32 chunkSizeX = 32, chunkSizeY = 32, chunkSizeZ = 32;
+constexpr u32 chunkSizeX = 32, chunkSizeY = 64, chunkSizeZ = 32;
 constexpr size_t nBlocksPerChunk = chunkSizeX * chunkSizeY * chunkSizeZ;
 
 struct Block {
@@ -61,7 +62,7 @@ private:
     u32 seed = 0;
     TexAtlas *atlas = nullptr;
     Perlin p;
-    ivec3 renderDistance = ivec3(8, 1, 8);
+    ivec3 renderDistance = ivec3(16, 1, 16);
     Chunk *chunkBuffer = nullptr;
     size_t nChunks = 0;
     std::queue<Chunk*> genStack;
@@ -82,5 +83,5 @@ public:
     void genChunk(Chunk *c, vec3 pos);
     void genChunks(graphics *g);
     void tick(vec3 pPos);
-    void render(graphics *g);
+    void render(graphics *g, ControllableCamera *cam);
 };

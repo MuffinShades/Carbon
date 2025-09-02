@@ -97,7 +97,7 @@ void render() {
 
     //g->render_no_geo_update();
 
-    w.render(g);
+    w.render(g, p.getCam());
 
     //g->mush_end();
 }
