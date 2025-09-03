@@ -522,3 +522,11 @@ FrameBuffer::FrameBuffer(FrameBuffer::fb_type ty, u32 w, u32 h) {
         break;
     }
 }
+
+void graphics::setCurrentFrameBuffer(FrameBuffer *fb) {
+    if (!fb) return;
+
+    const u32 fbo = fb->getHandle();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+}
