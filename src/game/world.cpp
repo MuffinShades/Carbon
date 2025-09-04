@@ -178,7 +178,7 @@ void World::render(graphics *g, ControllableCamera *cam) {
 
         ld.y = 0;
 
-        const f32 dot = vec3::DotProd(ld, vec3::Normalize(cam->getPos() - c->pos));
+        const f32 dot = vec3::DotProd(ld, vec3::Normalize(cam->getPos() - (ld * 16) - c->pos));
         const f32 alpha = acosf(dot);
 
         //if (alpha < phi || alpha > phi + mu_pi)

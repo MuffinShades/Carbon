@@ -12,12 +12,11 @@ public:
     enum fb_type {
         Texture,
         Depth,
-        DepthStencil,
         Render,
         Unknown
     };
 protected:
-    u32 handle = 0, texHandle = 0;
+    u32 handle = 0, texHandle = 0, rbo = 0;
     fb_type ty = FrameBuffer::Texture;
 
     void bind();
@@ -27,7 +26,7 @@ protected:
     void depthStencilAttach(u32 w, u32 h);
     void depthAttach(u32 w, u32 h);
 
-    u32 specialVal = 0; //reserved for derived classes
+    u64 specialVal = 0; //reserved for derived classes
 public:
     FrameBuffer(fb_type ty, u32 w, u32 h);
     u32 getHandle() {
@@ -113,6 +112,10 @@ public:
     void iniDynamicGraphicsState(size_t nBufferVerts);
     bool useGraphicsState(graphicsState *gs);
     void useDefaultGraphicsState();
+
+    //frame buffers
+    void setCurrentFrameBuffer(FrameBuffer *fb);
+    void restoreDefFrameBuffer();
 
     Shader* getCurrentShader();
     //void DrawImage();
