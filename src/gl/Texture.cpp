@@ -33,7 +33,7 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     if (img.channels != 3 && img.channels != 4) {
         std::cout << "error: usupported number of channels: " << img.channels << std::endl;
@@ -44,7 +44,7 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
     auto gl_fmt = img.channels == 3 ? GL_RGB : GL_RGBA;
 
     //load texture data and mipmap
-    glTexImage2D(GL_TEXTURE_2D, 0, gl_fmt, img.width, img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img.data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width, img.height, 0, gl_fmt, GL_UNSIGNED_BYTE, img.data);
     glGenerateMipmap(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, 0); //unbind from le texture

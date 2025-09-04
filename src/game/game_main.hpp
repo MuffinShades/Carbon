@@ -92,8 +92,11 @@ void render() {
 
     lookMat = p.getCam()->getLookMatrix();
 
+    vec3 camPos = p.getCam()->getPos();
+
     s.SetMat4("cam_mat", &lookMat);
     s.SetMat4("model_mat", &testChunk.modelMat);
+    s.SetVec3("cam_pos", &camPos);
 
     //g->render_no_geo_update();
 
@@ -122,8 +125,8 @@ extern i32 game_main() {
 
     s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
 
-    tex = new BindableTexture("assets/vox/alphaTextureMC.png");
-    atlas = TexAtlas(tex->width(), tex->height(), 16, 16);
+    tex = new BindableTexture("assets/vox/rocc2.png");
+    atlas = TexAtlas(tex->width(), tex->height(), 225, 225);
 
     //w = World(69);
     w.SetAtlas(&atlas);

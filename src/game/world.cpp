@@ -134,7 +134,7 @@ void World::genChunk(Chunk *c, vec3 pos) {
 
             for (;y >= 0; y--)
                 if (y < h)
-                    set_chunk_block_data(c, uvec3(x,y,z), (u32) BlockID::Dirt);
+                    set_chunk_block_data(c, uvec3(x,y,z), (u32) BlockID::Grass);
                 else
                     set_chunk_block_data(c, uvec3(x,y,z), (u32) BlockID::Grass);
         }
@@ -181,8 +181,8 @@ void World::render(graphics *g, ControllableCamera *cam) {
         const f32 dot = vec3::DotProd(ld, vec3::Normalize(cam->getPos() - c->pos));
         const f32 alpha = acosf(dot);
 
-        if (alpha < phi || alpha > phi + mu_pi)
-            continue;
+        //if (alpha < phi || alpha > phi + mu_pi)
+         //   continue;
 
         g->useGraphicsState(&c->gs);
 

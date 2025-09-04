@@ -62,7 +62,7 @@ private:
     u32 seed = 0;
     TexAtlas *atlas = nullptr;
     Perlin p;
-    ivec3 renderDistance = ivec3(16, 1, 16);
+    ivec3 renderDistance = ivec3(4, 1, 4);
     Chunk *chunkBuffer = nullptr;
     size_t nChunks = 0;
     std::queue<Chunk*> genStack;

@@ -6,7 +6,7 @@
 
 class Player {
 private:
-    const f32 speed = 0.05f;
+    const f32 speed = 0.02f;
     const f32 sense = 0.5f;
     ControllableCamera cam = ControllableCamera();
 
