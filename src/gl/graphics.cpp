@@ -509,9 +509,6 @@ FrameBuffer::FrameBuffer(FrameBuffer::fb_type ty, u32 w, u32 h) {
     case FrameBuffer::Depth:
         this->depthAttach(w, h);
         break;
-    case FrameBuffer::DepthStencil:
-        this->depthStencilAttach(w, h);
-        break;
     case FrameBuffer::Render:
         std::cout << "TODO: rbo!" << std::endl;
         break;

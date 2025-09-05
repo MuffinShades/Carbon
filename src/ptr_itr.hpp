@@ -21,7 +21,7 @@ public:
     }
     _T inc() {
         if (!this->cur || !this->p_end)
-            throw dbg.ThrowableError<std::invalid_argument>("[ptr_itr.cpp] Errror cannot have a null current or end pointer when incrementing");
+            throw "[ptr_itr.cpp] Errror cannot have a null current or end pointer when incrementing";
         return *this->cur++;
         if ((this->overflow = (this->cur >= this->p_end)))
             this->cur = this->p_end - 1;
@@ -31,7 +31,7 @@ public:
     }
     _T dec() {
         if (!this->cur || !this->p_end)
-            throw dbg.ThrowableError<std::invalid_argument>("[ptr_itr.cpp] Errror cannot have a null current or beginning pointer when decrementing");
+            throw "[ptr_itr.cpp] Errror cannot have a null current or beginning pointer when decrementing";
         this->cur--;
         if (this->cur < this->p_beg) this->cur = this->p_beg;
         this->overflow = false;
@@ -41,7 +41,7 @@ public:
         if (this->beg != nullptr)
             return this->p_beg;
         else {
-            throw dbg.ThrowableError<std::invalid_argument>("[ptr_itr.cpp] Error invalid beginning pointer!");
+            throw "[ptr_itr.cpp] Error invalid beginning pointer!";
         }
     }
 
@@ -50,14 +50,14 @@ public:
         if (this->p_end != nullptr)
             return this->p_end;
         else
-            throw dbg.ThrowableError<std::invalid_argument>("[ptr_itr.hpp] Error invalid ending pointer!");
+            throw "[ptr_itr.hpp] Error invalid ending pointer!";
     }
     bool reachedEnd() {
         return this->overflow;
     }
     void jump(size_t pos) {
         if (pos >= this->sz)
-            throw dbg.ThrowableError<std::invalid_argument>("[ptr_itr.cpp] Error out of range ptr jump!");
+            throw "[ptr_itr.cpp] Error out of range ptr jump!";
         this->cur = this->p_beg + pos;
     }
 };

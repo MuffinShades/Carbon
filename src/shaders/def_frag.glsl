@@ -16,6 +16,28 @@ float fade(float t) {
 
 vec3 globalLight = vec3(50.0, 20.0, 50.0);
 
+//basically a matrix multiplcation
+vec3 transform(vec3 v, vec3 i, vec3 j, vec3 k) {
+    v.x = v.x*i.x + v.y*j.x + v.z*k.x;
+    v.y = v.x*i.y + v.y*j.y + v.z*k.y;
+    v.z = v.x*i.z + v.y*j.z + v.z*k.x;
+
+    return v;
+}
+
+float mag3(vec3 a) {
+    return sqrt(a.x * a.x + a.y*a.y + a.z * a.z);
+}
+
+vec3 proj(vec3 a, vec3 b) {
+    float m = mag3(a);
+    return (dot(a,b)/(m*m)) * b;
+}
+
+vec3 plane_proj(vec3 a, vec3 plane_normal) {
+    return a - proj(a, plane_normal);
+}
+
 void main() {
     const float fogZ = 1000.0;
 
@@ -31,10 +53,19 @@ void main() {
     vec2 huv = coords;
     float h = 1.0 - texture(tex, huv).r, ch = 0.0; //h and cur h
 
+    const vec3 up = vec3(0.0, 1.0, 0.0);
+
+    //compute new unit vectors
+    //vec3 i = normalize(cross(up, n)), j = normalize(n), k = normalize(cross(i, n));
+
+    //lookDir = normalSpace * lookDir;
+
+    //
     const float minLayers = 8.0, maxLayers = 64.0;
     float nLayers = mix(maxLayers, minLayers, abs(dot(n, lookDir)));
     float dh = 1.0 / nLayers;
-    vec2 S = lookDir.xz / lookDir.y * 0.05;
+    const float h_fac = 0.1;
+    vec3 S = plane_proj(lookDir, n) * h_fac;
     vec2 duv = S / nLayers;
 
     //our current height will be greater than the sample height when there is a hit

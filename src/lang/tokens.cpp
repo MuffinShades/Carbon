@@ -289,7 +289,7 @@ std::vector<Token> TokenGenerator::genProgramTokens(const char* source, size_t s
             computeTokenCheckSum(tok);
             tokens.push_back(tok);
             tok.src.lineNumber = pgrm_line;
-            tok.ty = tok_notype;
+            tok.ty = TokenType::tok_notype;
             tok.rawValue = "";
         }
     } while(++p.cur <= p.p_end);
