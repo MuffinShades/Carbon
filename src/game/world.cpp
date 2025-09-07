@@ -1,6 +1,6 @@
 #include "world.hpp"
 #include "../gl/noise.hpp"
-#include "cube.hpp"
+#include "../gl/geometry/cube.hpp"
 
 //constants needed for treating a 1d buffer as a 3d buffer
 constexpr size_t chunkPageSize1d = 1, 

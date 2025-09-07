@@ -35,16 +35,16 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    if (img.channels != 3 && img.channels != 4) {
-        std::cout << "error: usupported number of channels: " << img.channels << std::endl;
+    if (img.inf.channels != 3 && img.inf.channels != 4) {
+        std::cout << "error: usupported number of channels: " << img.inf.channels << std::endl;
          _safe_free_a(img.data);
         return 3;
     }
 
-    auto gl_fmt = img.channels == 3 ? GL_RGB : GL_RGBA;
+    auto gl_fmt = img.inf.channels == 3 ? GL_RGB : GL_RGBA;
 
     //load texture data and mipmap
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width, img.height, 0, gl_fmt, GL_UNSIGNED_BYTE, img.data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.inf.width, img.inf.height, 0, gl_fmt, GL_UNSIGNED_BYTE, img.data);
     glGenerateMipmap(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, 0); //unbind from le texture
@@ -52,8 +52,8 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
     //free image memory now
     _safe_free_a(img.data);
 
-    self->w = img.width;
-    self->h = img.height;
+    self->w = img.inf.width;
+    self->h = img.inf.height;
 
     return 0;
 }
@@ -61,7 +61,9 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
 BindableTexture::BindableTexture(std::string isrc) {
     if (isrc.length() == 0) return;
 
-    png_image img = PngParse::Decode(Path::GetOSPath(isrc));
+    auto i_src = ContentSrc::FromFile(Path::GetOSPath(isrc));
+    png_image img = PngParse::Decode(i_src);
+    i_src.free();
 
     u32 e_code;
 
@@ -83,7 +85,7 @@ BindableTexture::BindableTexture(std::string asset_path, std::string map_loc, st
 
     //extract the raw image data
     //TODO: support  other image formats besides .png
-    png_image img = PngParse::DecodeBytes(tex_dat->bytes, tex_dat->sz);
+    png_image img = PngParse::Decode(ContentSrc::FromBinary(tex_dat->bytes, tex_dat->sz));
 
     tex_dat->free();
     _safe_free_b(tex_dat);

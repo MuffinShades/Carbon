@@ -4,6 +4,7 @@
 #include <fstream>
 #include "balloon.hpp"
 #include "bytestream.hpp"
+#include "content.hpp"
 
 /**
  * 
@@ -25,19 +26,38 @@ enum Png_ColorSpace {
 	Png_Color_RGBA = 6
 };
 
-struct png_image {
-	byte* data = nullptr;
+struct _IHDR {
+	size_t w, h;
+	byte bitDepth;
+	Png_ColorSpace colorSpace;
+	byte compressionMethod = 0;
+	byte filterType = 0;
+	bool interlaced;
+	size_t bytesPerPixel, nChannels, bpp;
+	bool from_src = false;
+};
+
+struct png_header {
 	size_t sz = 0;
 	size_t width = 0;
 	size_t height = 0;
 	i32 channels = 0;
 	Png_ColorSpace colorMode;
 	i32 bitDepth;
+	_IHDR tech_header = {
+		.from_src = false
+	};
+};
+
+struct png_image {
+	byte* data = nullptr;
+	size_t sz = 0;
+	png_header inf;
 };
 
 class PngParse {
 public:
-	static png_image Decode(std::string src);
-	static png_image DecodeBytes(byte* bytes, size_t sz);
+	static png_image Decode(ContentSrc src);
+	static png_header ExtractHeader(ContentSrc src);
 	static bool Encode(std::string src, png_image p);
 };

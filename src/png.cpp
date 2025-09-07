@@ -33,16 +33,6 @@ struct _IDAT {
 	size_t sz;
 };
 
-struct _IHDR {
-	size_t w, h;
-	byte bitDepth;
-	Png_ColorSpace colorSpace;
-	byte compressionMethod = 0;
-	byte filterType = 0;
-	bool interlaced;
-	size_t bytesPerPixel, nChannels, bpp;
-};
-
 chunk_type int_to_cType(int ty) {
 	switch (ty) {
 	case IHDR:
@@ -356,7 +346,7 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 };
 
 //decode a file
-png_image PngParse::Decode(std::string src) {
+/*png_image PngParse::Decode(ContentSrc src) {
 	png_image rs;
 	if (src == "" || src.length() <= 0)
 		return rs;
@@ -370,7 +360,7 @@ png_image PngParse::Decode(std::string src) {
 	rs = PngParse::DecodeBytes(fDat.dat, fDat.len);
 	delete[] fDat.dat;
 	return rs;
-}
+}*/
 
 //to free png chunk
 void free_png_chunk(png_chunk* p) {
@@ -385,7 +375,10 @@ void free_png_chunk(png_chunk* p) {
 
 #define MSFL_PNG_DEBUG
 
-png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
+png_image PngParse::Decode(ContentSrc src) {
+
+	byte* bytes = src.data();
+	size_t sz = src.size();
 
 	ByteStream stream = ByteStream(bytes, sz);
 	stream.int_mode = IntFormat_BigEndian; //set stream mode to big endian since that's what pngs use
@@ -408,10 +401,10 @@ png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 	}
 
 	//parse header chunk
-	_IHDR png_header = ProcessIDHR(headChunk);
+	_IHDR p_header = ProcessIDHR(headChunk);
 
 #ifdef MSFL_PNG_DEBUG
-	std::cout << "Png Header: \n\tWidth: " << png_header.w << "\n\tHeight: " << png_header.h << "\n\tBit Depth: " << png_header.bitDepth << "\n\tColor Space" << png_header.colorSpace << "\n\tFilter Method: " << png_header.filterType << "\n\tInterlacing: " << png_header.interlaced << std::endl;
+	std::cout << "Png Header: \n\tWidth: " << p_header.w << "\n\tHeight: " << p_header.h << "\n\tBit Depth: " << p_header.bitDepth << "\n\tColor Space" << p_header.colorSpace << "\n\tFilter Method: " << p_header.filterType << "\n\tInterlacing: " << p_header.interlaced << std::endl;
 #endif
 
 	free_png_chunk(&headChunk);
@@ -464,7 +457,6 @@ png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 		case IDAT:
 			iData.push_back(curIdata);
 			totalIDATSz += curIdata.len;
-			std::cout << "I data sz: " << curIdata.len << std::endl;
 			break;
 		case IEND:
 			extraChunks = false;
@@ -488,7 +480,7 @@ png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 	for (const png_chunk& idatChunk : iData) {
 		size_t chunkLen;
 
-		memcpy(compressedIdata + curCopy, idatChunk.dat, chunkLen = idatChunk.len);
+		in_memcpy(compressedIdata + curCopy, idatChunk.dat, chunkLen = idatChunk.len);
 		compressedIdataSz += idatChunk.len;
 		free_png_chunk(const_cast<png_chunk*>(&idatChunk));
 
@@ -504,7 +496,7 @@ png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 	iData.clear();
 	
 	//decompress all the idata chunks
-	const size_t expectedDataSz = png_header.w * png_header.h * png_header.bytesPerPixel + png_header.h; // add png_header.h for the defilter addition stuff
+	const size_t expectedDataSz = p_header.w * p_header.h * p_header.bytesPerPixel + p_header.h; // add png_header.h for the defilter addition stuff
 	byte* imgDat;
 	size_t iDPos = 0;
 
@@ -527,6 +519,11 @@ png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 
 	std::cout << "Expected Size: " << expectedDataSz << " | Actual Size: " << decodeDatSz << std::endl;
 
+	//check calculatinos
+	if (decodeDatSz != expectedDataSz) {
+		std::cout << "Png Warning! Strange sizes... hmm" << std::endl;
+	}
+
 	//TODO: decode additional (non required) chunks
 	//these are not IDAT chunks btw
 	//just random ancillary chunks
@@ -535,32 +532,40 @@ png_image PngParse::DecodeBytes(byte* bytes, size_t sz) {
 	}
 
 	//defilter the data
-	imgDat = defilterDat(imgDat, decodeDatSz, &png_header);
+	imgDat = defilterDat(imgDat, decodeDatSz, &p_header);
 
-	const size_t defilterSize = png_header.w * png_header.h * png_header.bytesPerPixel;
+	const size_t defilterSize = p_header.w * p_header.h * p_header.bytesPerPixel;
 
 	//for testing just write data to a bitmap
 	Bitmap testOut;
-	testOut.header.w = png_header.w;
-	testOut.header.h = png_header.h;
-	testOut.header.fSz = decodeDatSz - png_header.h;
-	testOut.header.bitsPerPixel = png_header.bpp;
+	testOut.header.w = p_header.w;
+	testOut.header.h = p_header.h;
+	testOut.header.fSz = decodeDatSz - p_header.h;
+	testOut.header.bitsPerPixel = p_header.bpp;
 	testOut.data = imgDat;
 
-	l.Log("bpp: "+std::to_string(png_header.bpp));
+	l.Log("bpp: "+std::to_string(p_header.bpp));
 
 	l.DrawBitMapClip(70,70,testOut);
 
 	BitmapParse::WriteToFile("testpngread.bmp", &testOut);
 
+	p_header.from_src = true;
+
+	png_header h = {
+		.sz = decodeDatSz,
+		.width = p_header.w,
+		.height = p_header.h,
+		.channels = (i32) p_header.nChannels,
+		.colorMode = p_header.colorSpace,
+		.bitDepth = p_header.bitDepth,
+		.tech_header = p_header
+	};
+
 	return {
 		.data = imgDat,
 		.sz = decodeDatSz,
-		.width = png_header.w,
-		.height = png_header.h,
-		.channels = (i32) png_header.nChannels,
-		.colorMode = png_header.colorSpace,
-		.bitDepth = png_header.bitDepth
+		.inf = h
 	};
 }
 
@@ -568,7 +573,7 @@ bool PngParse::Encode(std::string src, png_image p) {
 	if (src.length() <= 0 || src == "" || p.sz <= 0 || !p.data)
 		return false;
 
-	if (p.colorMode == Png_Color_Indexed) {
+	if (p.inf.colorMode == Png_Color_Indexed) {
 		std::cout << "Error! Png color indexing not supported yet!" << std::endl;
 		return false;
 	}
@@ -576,10 +581,10 @@ bool PngParse::Encode(std::string src, png_image p) {
 	ByteStream pStream = ByteStream(p.data, p.sz);
 
 	_IHDR hdr = {
-		.w = p.width,
-		.h = p.height,
-		.bitDepth = (byte) p.bitDepth,
-		.colorSpace = p.colorMode,
+		.w = p.inf.width,
+		.h = p.inf.height,
+		.bitDepth = (byte) p.inf.bitDepth,
+		.colorSpace = p.inf.colorMode,
 		.interlaced = false
 	};
 

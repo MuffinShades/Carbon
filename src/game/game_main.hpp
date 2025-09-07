@@ -7,7 +7,7 @@
 #include "../gl/graphics.hpp"
 #include "../gl/mesh.hpp"
 #include "../gl/Camera.hpp"
-#include "cube.hpp"
+#include "../gl/geometry/cube.hpp"
 #include "../gl/Texture.hpp"
 #include "player.hpp"
 #include "game.hpp"
