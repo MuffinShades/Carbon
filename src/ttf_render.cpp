@@ -615,10 +615,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
 
                 newEdge.curves = edgeData;
                 newEdge.nCurves = nEdgeCurves;
-
-                //WARNING: vector may not copy the struct as a new struct and, 
-                //as a result, copies of the same edge will exists instead of 
-                // a collection of uniquie edges
+                
                 glyphEdges.push_back(newEdge);
 
                 workingCurve = curveBuffer;
@@ -646,9 +643,6 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     newEdge.curves = edgeData;
     newEdge.nCurves = nEdgeCurves;
 
-    //WARNING: vector may not copy the struct as a new struct and, 
-    //as a result, copies of the same edge will exists instead of 
-    // a collection of uniquie edges
     glyphEdges.push_back(newEdge);
 
     //generate single channel sdf
@@ -664,22 +658,6 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
         ihc = glyphH / h,
         maxPossibleDist = sqrtf(w*w + h*h);
 
-    i32 eColors[][3] = {
-        {255,0,0},
-        {0,255,0},
-        {0,0,255},
-        {255,255,0},
-        {255,0,255},
-        {0, 255,255},
-        {255,128,0},
-        {255,0,128},
-        {0,128,255},
-        {128,0,255},
-        {128,255,0},
-        {255,255,255},
-        {0,0,0}
-    };
-
     for (y = 0; y < glyphH; ++y) {
         for (x = 0; x < glyphW; ++x) {
             p.x = (((f32)x) + 0.5f) * wc;
@@ -688,66 +666,17 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
             EdgeDistInfo fieldDist = MinEdgeDist(p, glyphEdges);
 
             byte color = mu_min(mu_max((fieldDist.signedDist.d / maxPossibleDist) * 128.0f + 127, 0),255);
-                 // color = 255.0f - (mu_min((abs(fieldDist.signedDist.d) / maxPossibleDist) * 600.0f, 255));
-            //const byte color = (mu_sign(fieldDist.signedDist) + 1.0f) * 0.5f * 128;
             const size_t mp = (x+y*glyphW) << 2;
 
             if (mp + 3 >= map->header.fSz)
                 continue;
 
-            //map->data[mp+0] = eColors[fieldDist.edgeIdx][0] * (color / 255.0f);
-            //map->data[mp+1] = eColors[fieldDist.edgeIdx][1] * (color / 255.0f);
-            //map->data[mp+2] = eColors[fieldDist.edgeIdx][2] * (color / 255.0f);
-
             map->data[mp+0] = color;
             map->data[mp+1] = color;
             map->data[mp+2] = color;
             map->data[mp+3] = 255;
-
-            /*if (fieldDist.dbgVal > 0) {
-                map->data[mp+0] = 0;
-                map->data[mp+1] = 0;
-                map->data[mp+2] = 255;
-            }*/
-
-            /*Point cpnt = bezier3(fieldDist.signedDist.curve.p[0],fieldDist.signedDist.curve.p[1],fieldDist.signedDist.curve.p[2],fieldDist.signedDist.t);
-            cpnt.x *= iwc;
-            cpnt.y *= ihc;
-            const i64 cp = ((i32)cpnt.x + (i32)cpnt.y * glyphW) << 2;
-
-            map->data[cp+0] = eColors[fieldDist.edgeIdx][0];
-            map->data[cp+1] = eColors[fieldDist.edgeIdx][1];
-            map->data[cp+2] = eColors[fieldDist.edgeIdx][2];
-            map->data[cp+3] = 255;*/
         }
     }
-
-    /*i32 eIdx = 0, c;
-    BCurve curve;
-
-    for (Edge e : glyphEdges) {
-        for (c = 0; c < e.nCurves; c++) {
-            curve = e.curves[c];
-            for (f32 t = 0.0f; t < 1.0f; t += 0.01f) {
-
-                Point cpnt = bezier3(curve.p[0],curve.p[1],curve.p[2],t);
-                cpnt.x *= iwc;
-                cpnt.y *= ihc;
-                const i64 cp = ((i32)cpnt.x + (i32)cpnt.y * glyphW) << 2;
-
-                map->data[cp+0] = eColors[eIdx][0];
-                map->data[cp+1] = eColors[eIdx][1];
-                map->data[cp+2] = eColors[eIdx][2];
-                map->data[cp+3] = 255;
-            }
-        }
-
-        eIdx ++;
-    }*/
-
-    Logger l;
-
-    //l.DrawBitMapClip(32, 32, *map);
 
     //oh look were managing memory :O
     for (Edge e : glyphEdges) {

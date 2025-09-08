@@ -48,10 +48,16 @@ struct graphicsState {
         _static,
         _dynamic
     } g_fmt = __gs_fmt::_null;
+
+    struct {
+        size_t v_obj_sz = 0;
+    } __int_prop;
 };
 
 class graphics {
 private:
+    graphicsState interalState;
+    graphicsState *cur_state = nullptr;
     Window *win = nullptr;
     mat4 proj_matrix;
     size_t _c_vert = 0, nv_store = 0, mush_offset = 0;
@@ -68,14 +74,11 @@ private:
     Shader *def_shader = nullptr;
     Shader *s = nullptr;
     bool shader_bound = false, mushing = false;
-    bool using_gs = false;
-
-    graphicsState *cgs = nullptr;
+    bool using_foreign_gs = false;
 
     void shader_bind();
     void shader_unbind();
 
-    u32 core_vao = 0, core_vbo = 0;
     //active vao and vbo
     u32 vao = 0, vbo = 0;
     f32 winW, winH;
@@ -106,6 +109,9 @@ public:
     void mesh_unbind();
     void setCurrentShader(Shader *s);
     void bindMeshToVbo(Mesh *m);
+
+    void vertexStructureDefineBegin(size_t vObjSz);
+    void vertexStructureDefineEnd();
 
     //graphics states
     void iniStaticGraphicsState();

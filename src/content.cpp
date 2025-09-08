@@ -3,8 +3,13 @@
 #include <fstream>
 
 ContentSrc ContentSrc::FromFile(std::string path) {
+    ContentSrc src;
 
-}
+    src.f_src = path;
+    src.fmt = ContentSrc::SourceFormat::File;
+
+    return src;
+};
 
 ContentSrc ContentSrc::FromBinary(byte *dat, size_t sz, bool make_copy, bool free_src) {
     if (!dat || sz == 0)
@@ -98,6 +103,7 @@ byte *ContentSrc::data() {
         //failed to compute size
         else {
         dat_compute_fail:
+            std::cout << "Failed to load data from source!" << std::endl;
             this->f_dat = nullptr;
             return nullptr;
         }

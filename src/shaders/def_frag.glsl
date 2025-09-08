@@ -46,7 +46,7 @@ void main() {
     vec4 tx_col;
 
     //get look direction
-    if (posf.z < 20.0) {
+    /*if (posf.z < 20.0) {
     
     vec3 lookDir = normalize(camPos - posf.xyz);
 
@@ -88,7 +88,9 @@ void main() {
 
     } else {
         tx_col = texture(tex, coords);
-    }
+    }*/
+
+    tx_col = texture(tex, coords);
 
     //mix adds fog
     float fogEf = fade(posf.z / fogZ);

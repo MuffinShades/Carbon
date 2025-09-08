@@ -527,3 +527,11 @@ void graphics::setCurrentFrameBuffer(FrameBuffer *fb) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 }
+
+void vertexStructureDefineBegin(size_t vObjSz) {
+
+}
+
+void vertexStructureDefineEnd() {
+
+}
