@@ -60,17 +60,23 @@ private:
     graphicsState *cur_state = nullptr;
     Window *win = nullptr;
     mat4 proj_matrix;
-    size_t _c_vert = 0, nv_store = 0, mush_offset = 0;
+    size_t _c_vert = 0, mush_offset = 0;
     Vertex *vmem = nullptr, *vstore = nullptr;
+
     bool mesh_bound = false;
     void vmem_alloc();
     void vmem_clear();
+
     void bind_vao() {
-        if (this->vao != 0)
-            glBindVertexArray(this->vao);
-        //else
-           // std::cout << "Failed to bind to vao!" << std::endl;
+        if (!this->cur_state)
+            return;
+
+        if (this->cur_state->vao != 0)
+            glBindVertexArray(this->cur_state->vao);
+        else
+           std::cout << "Failed to bind to vao!" << std::endl;
     }
+
     Shader *def_shader = nullptr;
     Shader *s = nullptr;
     bool shader_bound = false, mushing = false;
@@ -79,8 +85,6 @@ private:
     void shader_bind();
     void shader_unbind();
 
-    //active vao and vbo
-    u32 vao = 0, vbo = 0;
     f32 winW, winH;
 
 public:
@@ -101,7 +105,7 @@ public:
     void render_no_geo_update();
     void render_bind();
     void flush();
-    void push_verts(Vertex *v, size_t n);
+    void push_verts(void *v, size_t n);
     void mush_begin();
     void mush_render(Mesh *m);
     void mush_end();

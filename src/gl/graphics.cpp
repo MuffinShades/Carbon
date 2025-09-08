@@ -27,16 +27,20 @@ void graphics::Load() {
 	//glDepthMask(GL_TRUE);
 	//glDepthFunc(GL_LEQUAL);
 
+    this->interalState = {
+        .g_fmt = graphicsState::__gs_fmt::_dynamic
+    };
+
+    this->cur_state = &this->interalState;
+
     //vertex array
-    vao_create(this->core_vao);
-    glBindVertexArray(core_vao);
-    this->vao = this->core_vao;
+    vao_create(this->cur_state->vao);
+    glBindVertexArray(this->cur_state->vao);
 
     //buffer allocation
-    glGenBuffers(1, &this->core_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, this->core_vbo);
+    glGenBuffers(1, &this->cur_state->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
     gpu_dynamic_alloc(BATCH_SIZE * sizeof(Vertex));
-    this->vbo = this->core_vbo;
     this->vmem_alloc();
 
     define_vattrib_struct(0, Vertex, posf);
@@ -50,59 +54,48 @@ void graphics::Load() {
 }
 
 void graphics::iniStaticGraphicsState() {
-    if (!this->cgs || this->cgs->g_fmt != graphicsState::__gs_fmt::_null)
+    if (!this->cur_state || this->cur_state->g_fmt != graphicsState::__gs_fmt::_null)
         return;
     //vertex array
-    vao_create(this->vao);
-    glBindVertexArray(vao);
+    vao_create(this->cur_state->vao);
+    glBindVertexArray(this->cur_state->vao);
 
     //buffer allocation
-    glGenBuffers(1, &this->vbo);
-    vbo_bind(this->vbo);
+    glGenBuffers(1, &this->cur_state->vbo);
+    vbo_bind(this->cur_state->vbo);
 
     define_vattrib_struct(0, Vertex, posf);
     define_vattrib_struct(1, Vertex, n);
     define_vattrib_struct(2, Vertex, tex);
 
-    this->cgs->vao = this->vao;
-    this->cgs->vbo = this->vbo;
-
-    this->cgs->g_fmt = graphicsState::__gs_fmt::_static;
+    this->cur_state->g_fmt = graphicsState::__gs_fmt::_static;
 }
 
 bool graphics::useGraphicsState(graphicsState *gs) {
-    if (!this->using_gs)
-        this->nv_store = this->_c_vert;
-    else if (this->cgs) {
-        this->cgs->vao = this->vao;
-        this->cgs->vbo = this->vbo;
-        this->cgs->nv = this->_c_vert;
+    if (!this->using_foreign_gs)
+        this->interalState.nv = this->_c_vert;
+    else if (this->cur_state) {
+        this->cur_state->nv = this->_c_vert;
     }
 
-    this->vao = gs->vao;
-    this->vbo = gs->vbo;
     this->_c_vert = gs->nv;
-    this->cgs = gs;
-    this->using_gs = true;
+    this->cur_state = gs;
+    this->using_foreign_gs = true;
 
-    if (!this->vao || !this->vbo)
+    if (!this->cur_state->vao || !this->cur_state->vbo)
         return false;
 
     return true;
 }
 
 void graphics::useDefaultGraphicsState() {
-    if (this->cgs) {
-        this->cgs->vao = this->vao;
-        this->cgs->vbo = this->vbo;
-        this->cgs->nv = this->_c_vert;
+    if (this->cur_state) {
+        this->cur_state->nv = this->_c_vert;
     }
 
-    this->vao = this->core_vao;
-    this->vbo = this->core_vbo;
-    this->_c_vert = this->nv_store;
-    this->cgs = nullptr;
-    this->using_gs = false;
+    this->_c_vert = this->interalState.nv;
+    this->cur_state = &this->interalState;
+    this->using_foreign_gs = false;
 }
 
 #define PROJ_ZMIN  0.1f
@@ -130,7 +123,12 @@ void graphics::WinResize(const size_t w, const size_t h) {
     );
 }
 
-void graphics::push_verts(Vertex *v, size_t n) {
+void graphics::push_verts(void *v, size_t n) {
+    if (!this->cur_state) {
+        std::cout << "Error, no state bound!" << std::endl;
+        return;
+    }
+
     if (this->mushing) {
         std::cout << "Error, cannot render when mushing!" << std::endl;
         return;
@@ -150,13 +148,14 @@ void graphics::push_verts(Vertex *v, size_t n) {
     }
 
     size_t bsz;
+    const size_t vos = this->cur_state->__int_prop.v_obj_sz;
 
-    if ((bsz = (this->_c_vert + n) * sizeof(Vertex)) > BATCH_SIZE) {
+    if ((bsz = (this->_c_vert + n) * vos) > BATCH_SIZE) {
         std::cout << "Warning reached end of allocated gpu memory! " << bsz << " / " << BATCH_SIZE << " | Adding: " << n << " verts!" << std::endl;
         return;
     }
 
-    in_memcpy(this->vmem + this->_c_vert * sizeof(Vertex), v, n * sizeof(Vertex));
+    in_memcpy(this->vmem + this->_c_vert * vos, v, n * vos);
     this->_c_vert += n;
 }
 
@@ -199,17 +198,17 @@ void graphics::render_flush() {
 }
 
 void graphics::bindMeshToVbo(Mesh *m) {
-    if (!this->cgs)
+    if (!this->cur_state)
         return;
 
-    if (this->cgs->g_fmt != graphicsState::__gs_fmt::_static) {
+    if (this->cur_state->g_fmt != graphicsState::__gs_fmt::_static) {
         std::cout << "Cannot bind mesh to non static graphics state!" << std::endl;
         return;
     }
 
     this->bind_vao();
 
-    vbo_bind(this->vbo);
+    vbo_bind(this->cur_state->vbo);
 
     //glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * m->size(), (void *) m->data());
     glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * m->size(), (void *) m->data(), GL_STATIC_DRAW);
@@ -220,19 +219,20 @@ void graphics::bindMeshToVbo(Mesh *m) {
 }
 
 void graphics::render_noflush() {
+    if (!this->cur_state)
+        return;
+
     if (this->mushing) {
         std::cout << "cannot non mush render when mushing!" << std::endl;
         return;
     }
 
     //copy over buffer data to gpu memory
-    vbo_bind(this->vbo);
+    vbo_bind(this->cur_state->vbo);
 
-    if (this->cgs) {
-        if (this->cgs->g_fmt == graphicsState::__gs_fmt::_static) {
-            this->s->use();
-            return;
-        }
+    if (this->cur_state->g_fmt == graphicsState::__gs_fmt::_static) {
+        this->s->use();
+        return;
     } else {
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
     }
@@ -264,7 +264,7 @@ void graphics::render_no_geo_update() {
 }
 
 void graphics::flush() {
-    if (!this->using_gs)
+    if (!this->using_foreign_gs)
         this->vmem_clear();
 }
 
@@ -301,7 +301,7 @@ void graphics::free() {
 
 void graphics::setCurrentShader(Shader *s) {
     if (s) {
-        if (!this->using_gs)
+        if (!this->using_foreign_gs)
             this->def_shader = s;
         this->s = s;
     }
@@ -325,7 +325,7 @@ void graphics::mesh_single_bind(Mesh *m) {
     //store and swap
     if (!this->mesh_bound) {
         this->vstore = this->vmem;
-        this->nv_store = this->_c_vert;
+        this->interalState.nv = this->_c_vert;
     }
     this->vmem = const_cast<Vertex*>(dat);
     this->_c_vert = nv;
@@ -342,7 +342,7 @@ void graphics::mesh_unbind() {
     //swap
     if (this->vstore) {
         this->vmem = this->vstore;
-        this->_c_vert = this->nv_store;
+        this->_c_vert = this->interalState.nv;
         this->vstore = nullptr;
     }
 
@@ -350,10 +350,13 @@ void graphics::mesh_unbind() {
 }
 
 void graphics::mush_begin() {
+    if (!this->cur_state)
+        return;
+
     this->mesh_unbind();
     this->mushing = true;
     this->mush_offset = 0;
-    vbo_bind(this->vbo);
+    vbo_bind(this->cur_state->vbo);
 }
 
 void graphics::mush_render(Mesh *m) {
@@ -528,10 +531,16 @@ void graphics::setCurrentFrameBuffer(FrameBuffer *fb) {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 }
 
-void vertexStructureDefineBegin(size_t vObjSz) {
+void graphics::vertexStructureDefineBegin(size_t vObjSz) {
+    if (!this->cur_state) {
+        std::cout << "Failed to start vertex struct definitions!" << std::endl;
+        return;
+    }
 
+
+    this->cur_state->__int_prop.v_obj_sz = vObjSz;
 }
 
-void vertexStructureDefineEnd() {
+void graphics::vertexStructureDefineEnd() {
 
 }
