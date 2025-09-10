@@ -7,6 +7,10 @@
 #define BATCH_NQUADS 0xffff
 #define BATCH_SIZE 0x8fffff
 
+#define define_vattrib_struct(i, type, target) \
+    glEnableVertexAttribArray(i); \
+    glVertexAttribPointer(i, sizeof(type::target) / FL_SZ, GL_FLOAT, GL_FALSE, sizeof(type), (void *)offsetof(type, target))
+
 #define vertex_float_attrib(i, s, sz, off) glVertexAttribPointer(i, s, GL_FLOAT, GL_FALSE, sz, (void *)off); \
     glEnableVertexAttribArray(i)
 
@@ -41,10 +45,6 @@ void graphics::Load() {
     glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
     gpu_dynamic_alloc(BATCH_SIZE * sizeof(Vertex));
     this->vmem_alloc();
-
-    define_vattrib_struct(0, Vertex, posf);
-    define_vattrib_struct(1, Vertex, n);
-    define_vattrib_struct(2, Vertex, tex);
 
     //define_vattrib_struct(2, Vertex, modColor);
     //define_vattrib_struct(3, Vertex, texId);
@@ -352,8 +352,13 @@ void graphics::mush_begin() {
     if (!this->cur_state)
         return;
 
+    if (this->rs_state != ReserveState::None) {
+        //todo: say something about this
+        return;
+    }
+
     this->mesh_unbind();
-    this->mushing = true;
+    this->rs_state = ReserveState::Mush;
     this->mush_offset = 0;
     vbo_bind(this->cur_state->vbo);
 }
@@ -362,7 +367,7 @@ void graphics::mush_render(Mesh *m) {
     if (!m)
         return;
 
-    if (!this->mushing) {
+    if (!this->rs_state != ReserveState::Mush) {
         std::cout << "Cannot mush render since mushing has not began!" << std::endl;
         return;
     }
@@ -386,7 +391,7 @@ void graphics::mush_render(Mesh *m) {
 }
 
 void graphics::mush_end() {
-    if (!this->mushing) return;
+    if (this->rs_state != ReserveState::Mush) return;
 
     //final render
     this->s->SetMat4("proj_mat", &this->proj_matrix);
@@ -396,7 +401,7 @@ void graphics::mush_end() {
     //////////////
 
 
-    this->mushing = false;
+    this->rs_state = ReserveState::None;
     vbo_bind(0);
     this->flush();
 }
@@ -536,10 +541,17 @@ void graphics::vertexStructureDefineBegin(size_t vObjSz) {
         return;
     }
 
+    glBindVertexArray(this->cur_state->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
 
     this->cur_state->__int_prop.v_obj_sz = vObjSz;
 }
 
 void graphics::vertexStructureDefineEnd() {
+    //ok
+}
 
+void graphics::defineVertexPart(i32 n, __mu_glVInf inf) {
+    glEnableVertexAttribArray(n); 
+    glVertexAttribPointer(n, inf.p_sz >> 2, 0x1406, 0, inf.sz, (void*)inf.off);
 }

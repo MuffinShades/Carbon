@@ -7,6 +7,21 @@
 
 #define _CARBONGL_SHADOW_SPECIAL_VAL 0xfb01
 
+struct __mu_glVInf {
+    size_t off = 0, sz = 0, p_sz = 0;
+};
+
+extern inline __mu_glVInf __gen_glvinf(size_t sz, size_t off, size_t p_sz) {
+    return {
+        .off = off,
+        .sz = sz,
+        .p_sz = p_sz
+    };
+}
+
+#define vertexClassPart(v, part) \
+    __gen_glvinf(sizeof(v), offsetof(v, part), sizeof(v::part))
+
 class FrameBuffer {
 public:
     enum fb_type {
@@ -63,7 +78,6 @@ private:
     size_t _c_vert = 0, mush_offset = 0;
     Vertex *vmem = nullptr, *vstore = nullptr;
 
-    bool mesh_bound = false;
     void vmem_alloc();
     void vmem_clear();
 
@@ -79,7 +93,13 @@ private:
 
     Shader *def_shader = nullptr;
     Shader *s = nullptr;
-    bool shader_bound = false, mushing = false;
+
+    enum ReserveState {
+        None,
+        Mush,
+        MeshBind,
+        VertexDef
+    } rs_state = ReserveState::None;
     bool using_foreign_gs = false;
 
     void shader_bind();
@@ -115,6 +135,7 @@ public:
     void bindMeshToVbo(Mesh *m);
 
     void vertexStructureDefineBegin(size_t vObjSz);
+    void defineVertexPart(i32 n, __mu_glVInf inf);
     void vertexStructureDefineEnd();
 
     //graphics states

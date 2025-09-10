@@ -123,6 +123,12 @@ extern i32 game_main() {
 
     g->Load();
 
+    g->vertexStructureDefineBegin(sizeof(Vertex));
+    g->defineVertexPart(0, vertexClassPart(Vertex, posf));
+    g->defineVertexPart(1, vertexClassPart(Vertex, n));
+    g->defineVertexPart(2, vertexClassPart(Vertex, tex));
+    g->vertexStructureDefineEnd();
+
     s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
 
     tex = new BindableTexture("assets/vox/rocc2.png");
