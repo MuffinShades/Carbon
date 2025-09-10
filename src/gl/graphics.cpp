@@ -1,5 +1,4 @@
 #include "graphics.hpp"
-#include "../game/assetManager.hpp"
 #include <glad.h>
 
 #define BYTE_TO_CONST_CHAR(b) const_cast<const char*>(reinterpret_cast<char*>((b)))
