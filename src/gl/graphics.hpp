@@ -102,6 +102,7 @@ private:
     } rs_state = ReserveState::None;
     bool using_foreign_gs = false;
 
+    bool shader_bound = false;
     void shader_bind();
     void shader_unbind();
 

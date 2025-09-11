@@ -128,13 +128,7 @@ void graphics::push_verts(void *v, size_t n) {
         return;
     }
 
-    if (this->mushing) {
-        std::cout << "Error, cannot render when mushing!" << std::endl;
-        return;
-    }
-
-    if (this->mesh_bound) {
-        std::cout << "Error, cannot render when mesh is bound!" << std::endl;
+    if (this->rs_state != ReserveState::None) {
         return;
     }
 
@@ -187,7 +181,7 @@ void graphics::render_begin() {
 }
 
 void graphics::render_flush() {
-    if (this->mushing) {
+    if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot render when mushing!" << std::endl;
         return;
     }
@@ -221,7 +215,7 @@ void graphics::render_noflush() {
     if (!this->cur_state)
         return;
 
-    if (this->mushing) {
+    if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot non mush render when mushing!" << std::endl;
         return;
     }
@@ -248,7 +242,7 @@ void graphics::render_bind() {
 }
 
 void graphics::render_no_geo_update() {
-    if (this->mushing) {
+    if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot no geo render when mushing!" << std::endl;
         return;
     };
@@ -312,7 +306,11 @@ Shader* graphics::getCurrentShader() {
 }
 
 void graphics::mesh_single_bind(Mesh *m) {
-    if (this->mushing) {
+    if (this->rs_state == ReserveState::MeshBind) {
+        return;
+    }
+
+    if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot bind to mesh when mushing!" << std::endl;
         return;
     }
@@ -322,21 +320,24 @@ void graphics::mesh_single_bind(Mesh *m) {
     if (!m || !(dat = m->data()) || (nv = m->size()) == 0) return;
 
     //store and swap
-    if (!this->mesh_bound) {
+    if (!this->rs_state != ReserveState::MeshBind) {
         this->vstore = this->vmem;
         this->interalState.nv = this->_c_vert;
     }
     this->vmem = const_cast<Vertex*>(dat);
     this->_c_vert = nv;
 
-    this->mesh_bound = true;
+    this->rs_state = ReserveState::MeshBind;
 }
 
 void graphics::mesh_unbind() {
-    if (this->mushing) {
+    if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot mesh unbind when mushing!" << std::endl;
         return;
     }
+
+    if (this->rs_state != ReserveState::MeshBind)
+        return;
 
     //swap
     if (this->vstore) {
@@ -345,7 +346,7 @@ void graphics::mesh_unbind() {
         this->vstore = nullptr;
     }
 
-    this->mesh_bound = false;
+    this->rs_state = ReserveState::None;
 }
 
 void graphics::mush_begin() {
