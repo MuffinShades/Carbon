@@ -1,3 +1,4 @@
+/* Fragment template for all ui shaders */
 #version 330
 
 out vec4 fragColor;
