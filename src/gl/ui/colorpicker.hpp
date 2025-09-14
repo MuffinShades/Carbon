@@ -6,9 +6,9 @@ class _ColorPicker_Stock : _UIStock {
 
 };
 
-class ColorPicker {
+class ColorPicker : UIElement {
 private:
     static _UIStock c_stock;
 public:
-    void render(f32 x, f32 y);
+    void render(graphics *g) override;
 };

@@ -21,6 +21,10 @@ struct UIDimension {
     USpec x, y, w, h;
 };
 
+struct UIScalarDimension {
+    f32 x, y, w, h;
+};
+
 /**
  * 
  * UIStock
@@ -84,10 +88,16 @@ public:
  * 
  */
 class UIElement {
-private:
-    UIDimension s;
+protected:
+    UIDimension size; 
+    UIScalarDimension bounds;
     f32 zIndex = 0;
     graphicsState gs;
+    mat4 u_model;
+
+    bool computedGraphics = false;
+
+    virtual void dimUpdate(UIScalarDimension parentBounds);
 public:
-    void render(graphics *g);
+    virtual void render(graphics *g);
 };
