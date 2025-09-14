@@ -1,5 +1,7 @@
 #include "cube.hpp"
 
+using namespace Geo;
+
 Vertex* Cube::GetFace(CubeFace f) {
     return (Vertex*) &cubeVerticies[(u32)f * 6];
 }

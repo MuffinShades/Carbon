@@ -22,6 +22,9 @@ extern inline __mu_glVInf __gen_glvinf(size_t sz, size_t off, size_t p_sz) {
 #define vertexClassPart(v, part) \
     __gen_glvinf(sizeof(v), offsetof(v, part), sizeof(v::part))
 
+#define vertexFloatBufSelect(v_buf, i, part) \
+    v_buf[((sizeof(v_buf) / sizeof(f32)) * (i))]
+
 class FrameBuffer {
 public:
     enum fb_type {
@@ -58,12 +61,12 @@ struct graphicsState {
     u32 vao, vbo, ibo;
     Shader *s = nullptr;
     size_t nv = 0;
+    void *vmem = nullptr, *vstore = nullptr;
     enum class __gs_fmt {
         _null,
         _static,
         _dynamic
     } g_fmt = __gs_fmt::_null;
-
     struct {
         size_t v_obj_sz = 0;
     } __int_prop;
@@ -76,7 +79,6 @@ private:
     Window *win = nullptr;
     mat4 proj_matrix;
     size_t _c_vert = 0, mush_offset = 0;
-    Vertex *vmem = nullptr, *vstore = nullptr;
 
     void vmem_alloc();
     void vmem_clear();
@@ -91,7 +93,6 @@ private:
            std::cout << "Failed to bind to vao!" << std::endl;
     }
 
-    Shader *def_shader = nullptr;
     Shader *s = nullptr;
 
     enum ReserveState {
@@ -100,9 +101,12 @@ private:
         MeshBind,
         VertexDef
     } rs_state = ReserveState::None;
-    bool using_foreign_gs = false;
 
+    //flags
+    bool using_foreign_gs = false;
+    bool using_indicies = false;
     bool shader_bound = false;
+
     void shader_bind();
     void shader_unbind();
 
@@ -126,7 +130,6 @@ public:
     void render_no_geo_update();
     void render_bind();
     void flush();
-    void push_verts(void *v, size_t n);
     void mush_begin();
     void mush_render(Mesh *m);
     void mush_end();
@@ -138,6 +141,17 @@ public:
     void vertexStructureDefineBegin(size_t vObjSz);
     void defineVertexPart(i32 n, __mu_glVInf inf);
     void vertexStructureDefineEnd();
+
+    void enableIndicies();
+    void disableIndicies();
+
+    void set_indicies(void *i, size_t n);
+    void push_indicies(void *i, size_t n);
+    void clear_indicies();
+
+    void push_verts(void *v, size_t n);
+    void set_verts(void *v, size_t n);
+    void clear_verts();
 
     //graphics states
     void iniStaticGraphicsState();

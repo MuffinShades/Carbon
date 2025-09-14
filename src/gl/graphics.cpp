@@ -134,7 +134,7 @@ void graphics::push_verts(void *v, size_t n) {
 
     if (!v || n == 0)
         return;
-    if (!this->vmem) {
+    if (!cur_state->vmem) {
         std::cout << "Warning vmem is not allocated! Did you call graphics::Load?" << std::endl;
         this->vmem_alloc();
         return;
@@ -148,14 +148,20 @@ void graphics::push_verts(void *v, size_t n) {
         return;
     }
 
-    in_memcpy(this->vmem + this->_c_vert * vos, v, n * vos);
+    in_memcpy(
+        ((char*)cur_state->vmem) + (this->_c_vert * vos),
+         v, n * vos
+    );
+
     this->_c_vert += n;
 }
 
 void graphics::vmem_alloc() {
+    const size_t vos = this->cur_state->__int_prop.v_obj_sz,
+                 bos = vos * BATCH_SIZE;
     this->free();
-    this->vmem = new Vertex[BATCH_SIZE];
-    ZeroMem(this->vmem, BATCH_SIZE);
+    cur_state->vmem = (void*) malloc(BATCH_SIZE * bos);
+    ZeroMem((char*)cur_state->vmem, BATCH_SIZE);
 }
 
 void graphics::vmem_clear() {

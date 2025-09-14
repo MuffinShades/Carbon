@@ -65,6 +65,7 @@ enum class CubeFace {
     Bottom
 };
 
+namespace Geo {
 class Cube {
 public:
     static Vertex* GetFace(CubeFace f);
@@ -73,3 +74,4 @@ public:
     static Vertex* GenFace(CubeFace f, vec4 texClip, vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f});
     static bool GenFace(Vertex* fs, size_t bufSz, CubeFace f, vec4 texClip, vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f});
 };
+}
