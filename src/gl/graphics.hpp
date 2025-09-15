@@ -93,7 +93,7 @@ private:
            std::cout << "Failed to bind to vao!" << std::endl;
     }
 
-    Shader *s = nullptr;
+    Shader *s = nullptr, *def_shader = nullptr;
 
     enum ReserveState {
         None,
@@ -166,6 +166,6 @@ public:
     Shader* getCurrentShader();
     //void DrawImage();
     //void FillRect(float x, float y, float w, float h);
-    void free();
+    void free_state();
     const size_t getEstimatedMemoryUsage();
 };

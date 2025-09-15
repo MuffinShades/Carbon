@@ -1,6 +1,6 @@
 #include "ui.hpp"
 
-void UIElement::graphicsPreCompute() {
+void UIElement::graphicsPreCompute(graphics *g) {
     
 }
 

@@ -59,7 +59,7 @@ private:
                 g = 0xff;
         }
 
-        return (hash % mask) & mask;
+        return hash & mask;
     }
 
     /**

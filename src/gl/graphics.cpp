@@ -159,13 +159,13 @@ void graphics::push_verts(void *v, size_t n) {
 void graphics::vmem_alloc() {
     const size_t vos = this->cur_state->__int_prop.v_obj_sz,
                  bos = vos * BATCH_SIZE;
-    this->free();
+    this->free_state();
     cur_state->vmem = (void*) malloc(BATCH_SIZE * bos);
     ZeroMem((char*)cur_state->vmem, BATCH_SIZE);
 }
 
 void graphics::vmem_clear() {
-    ZeroMem(this->vmem, BATCH_SIZE);
+    ZeroMem(cur_state->vmem, BATCH_SIZE);
     this->_c_vert = 0;
 }
 
@@ -229,11 +229,13 @@ void graphics::render_noflush() {
     //copy over buffer data to gpu memory
     vbo_bind(this->cur_state->vbo);
 
-    if (this->cur_state->g_fmt == graphicsState::__gs_fmt::_static) {
+    const size_t vos = cur_state->__int_prop.v_obj_sz;
+
+    if (cur_state->g_fmt == graphicsState::__gs_fmt::_static) {
         this->s->use();
         return;
     } else {
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * this->_c_vert, (void *) this->vmem);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vos * this->_c_vert, (void *) cur_state->vmem);
     }
 
     //set program variables
@@ -271,8 +273,8 @@ const size_t graphics::getEstimatedMemoryUsage() {
     return sizeof(Vertex) * BATCH_SIZE;
 }
 
-void graphics::free() {
-    _safe_free_a(this->vmem);
+void graphics::free_state() {
+    _safe_free_a(cur_state->vmem);
     this->_c_vert = 0;
 }
 
@@ -346,11 +348,13 @@ void graphics::mesh_unbind() {
         return;
 
     //swap
-    if (this->vstore) {
+    /*if (this->vstore) {
         this->vmem = this->vstore;
         this->_c_vert = this->interalState.nv;
         this->vstore = nullptr;
-    }
+    }*/
+
+    this->_c_vert = this->interalState.nv;
 
     this->rs_state = ReserveState::None;
 }

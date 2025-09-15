@@ -24,10 +24,10 @@ void ColorPicker::graphicsPreCompute(graphics *g) {
     g->defineVertexPart(1, vertexClassPart(ColorPick_Vertex, color));
     g->vertexStructureDefineEnd();
 
-    //
+    //s/v die
     ColorPick_Vertex vtx[] = RECT_VERTS_EX(
         0, 0, this->bounds.w, this->bounds.h, 
-        (0,0,0), (0,0,0), (0,0,0), (0,0,0)
+        (1,1,1), (1,0,0), (0,0,0), (0,0,0)
     );
 
 
