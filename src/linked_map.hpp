@@ -50,8 +50,8 @@ private:
         u64 hash = 0, g = 0xff;
 
         for (size_t i = 0; i < len; i++) {
-            hash + (dat[i] * g);
-            
+            hash += (dat[i] * g);
+
             g <<= 8;
             g |= 0xff;
 
