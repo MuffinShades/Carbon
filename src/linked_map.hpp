@@ -47,11 +47,16 @@ private:
     u64 computeHash(char* dat, const size_t len) {
         const u64 mask = (1 << this->hashBits) - 1;
 
-        u64 hash = 0;
+        u64 hash = 0, g = 0xff;
 
         for (size_t i = 0; i < len; i++) {
-            hash += dat[i] ^ (i ^ dat[0] + 0xf6) * 7;
-            hash ^= ~mask; //TODO: this line may do literally nothing ;-;
+            hash + (dat[i] * g);
+            
+            g <<= 8;
+            g |= 0xff;
+
+            if ((g >> 63) != 0)
+                g = 0xff;
         }
 
         return (hash % mask) & mask;
