@@ -1,6 +1,6 @@
 #include "filestream.hpp"
 
-FileStream::FileStream(std::string src) {
+FileByteStream::FileByteStream(std::string src) {
     if (src.length() == 0) return;
 
     stream = std::fstream(src, std::ios::in | std::ios::out | std::ios::binary);
@@ -17,8 +17,9 @@ FileStream::FileStream(std::string src) {
     this->ByteStream::enable_manual_mode();
 }
 
-size_t FileStream::seek(size_t pos) {
+size_t FileByteStream::seek(size_t pos) {
     stream.seekg(pos);
     stream.seekp(pos);
-    return ByteStream::seek(pos);
+    return this->ByteStream::seek(pos);
 }
+
