@@ -153,7 +153,7 @@ protected:
 	*/
 	void block_repair(size_t nCalls = 0);
 	void set_stream_data(byte *dat, size_t sz);
-	bool block_adv(bool pos_adv = false, bool write = false);
+	virtual bool block_adv(bool pos_adv = false, bool write = false);
 	virtual void pos_adv();
 	virtual void pos_adv(const size_t sz);
 

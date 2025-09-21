@@ -865,6 +865,11 @@ _match longest_match(hash_node<byte*>* firstMatch, lz_inst* ls, match_settings m
     const byte* _winEnd = ls->window + ls->lookAheadSz; //SUPER SLOW
     const byte* matchStart = ls->window;
 
+    //TODO: copy upto 8 possible matches before comparing
+    byte local_cache[2048] = {0};
+
+    in_memcpy(local_cache, curMatch->val, 256);
+
     //get le best match
     while (curMatch && ++chainLen <= ms.maxChainLength) {
         size_t mSz = 0;

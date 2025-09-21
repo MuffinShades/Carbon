@@ -4,11 +4,6 @@ Shader *_ColorPicker_Stock::getShader() {
     return stock.getShader();
 }
 
-struct ColorPick_Vertex {
-    f32 pos[2];
-    f32 color[3];
-};
-
 void ColorPicker::graphicsPreCompute(graphics *g) {
     if (!g) 
         return;
