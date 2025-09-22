@@ -123,8 +123,8 @@ public:
     offsetTable loca_table;
     offsetTable glyph_table;
     offsetTable cmap_table;
-    CMapMode charMapMode = CMap_null;
-    i32 charMapModeId = 0;
+    CMapMode platform = CMap_null;
+    i32 encodingId = 0;
     std::vector<offsetTable> tables;
     table_head header;
 };
