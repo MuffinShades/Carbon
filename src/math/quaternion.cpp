@@ -16,8 +16,28 @@ Quat4::Quat4(f32 qx, f32 qy, f32 qz, f32 qw) {
     this->w = qw;
 }
 
-Quat4 Quat4::operator*(Quat4 q) {
-    
+Quat4 Quat4::operator*(Quat4 q2) {
+    Quat4 q, q1 = *this;
+
+    q.x = (q1.x * q2.w) + (q1.w * q2.x) + (q1.y * q1.z) - (q1.z * q2.y);
+    q.y = (q1.y * q2.w) + (q1.w * q2.y) + (q1.z * q1.x) - (q1.x * q2.z);
+    q.z = (q1.z * q2.w) + (q1.w * q2.z) + (q1.x * q1.y) - (q1.y * q2.x);
+    q.w = (q1.w * q2.w) - (q1.x * q2.x) - (q1.y * q1.y) - (q1.z * q2.z);
+
+    return q;
+}
+
+Quat4 Quat4::operator+(Quat4 q) {
+    return Quat4(this->x + q.x, this->y + q.y, this->z + q.z, this->w + q.w);
+}
+
+void Quat4::normalize() {
+    const f32 len = sqrtf(x*x+y*y+z*z+w*w);
+
+    this->x /= len;
+    this->y /= len;
+    this->z /= len;
+    this->w /= len;
 }
 
 mat4 Quat4::toRotMatrix() {

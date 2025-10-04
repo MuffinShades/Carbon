@@ -269,3 +269,43 @@ f32 mat4::_Mat4Row::operator[](size_t column) {
 mat4::_Mat4Row mat4::operator[](i32 row) {
 	return _Mat4Row(row, this->m);
 }
+
+mat4 mat4::CreateCrossMatrix(vec3 v) {
+	f32 dat[16] = {
+		0.0f, -v.z, v.y, 0.0f,
+		v.z, 0.0f, -v.x, 0.0f,
+		-v.y, v.x, 0.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+
+	return mat4(dat);
+}
+
+mat4 mat4::Cross(mat4 m, vec3 v) {
+	f32 cMat[16] = {
+		0.0f, -v.z, v.y, 0.0f,
+		v.z, 0.0f, -v.x, 0.0f,
+		-v.y, v.x, 0.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+
+	return m * mat4(cMat);
+}
+
+mat4 mat4::operator*(f32 s) {
+	f32 nm[16];
+
+	forrange(16)
+		nm[i] = m[i] * s;
+
+	return mat4(nm);
+}
+
+mat4 mat4::operator+(mat4 m2) {
+	f32 nm[16];
+
+	forrange(16)
+		nm[i] = m[i] + m2.m[i];
+
+	return mat4(nm);
+}

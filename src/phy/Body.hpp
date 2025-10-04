@@ -3,10 +3,12 @@
 #include "../vec.hpp"
 
 struct MaterialProps {
-
+    f32 mu;
 };
 
 enum class Material {
+    Plastic,
+    Wood,
     __n_materials
 };
 

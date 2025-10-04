@@ -57,7 +57,8 @@ public:
 	_Mat4Row operator[](i32 row);
 
 	mat4 operator*(mat4 m2);
-
+	mat4 operator*(f32 s);
+	mat4 operator+(mat4 m2);
 
 	//utility functions
 	static vec3 MultiplyMat4Vec(vec3 v, mat4 m);
@@ -73,6 +74,8 @@ public:
 	static mat4 Translate(mat4 m, vec3 pos);
 	static mat4 Rotate(mat4 m, float theta, vec3 axis);
 	static mat4 LookAt(vec3 right, vec3 up, vec3 dir);
+	static mat4 CreateCrossMatrix(vec3 v);
+	static mat4 Cross(mat4 m, vec3 v);
 
 	~mat4() {
 	}
