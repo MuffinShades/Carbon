@@ -141,7 +141,7 @@ extern i32 game_main() {
     //BindableTexture tex = BindableTexture("moop.pak", "Global.Globe.Map", "Global.Vox.Tex.atlas");
 
     TexPart clip = atlas.getImageIndexPart(8, 11); //command block
-    m.setMeshData((Vertex*) Cube::GenFace(CubeFace::North, vec4(clip.tl.x, clip.tl.y, clip.br.x - clip.tl.x, clip.br.y - clip.tl.y)), 6, true);
+    m.setMeshData((Vertex*) Geo::Cube::GenFace(CubeFace::North, vec4(clip.tl.x, clip.tl.y, clip.br.x - clip.tl.x, clip.br.y - clip.tl.y)), 6, true);
 
     /*Shader s = Shader::LoadShaderFromResource(
         "moop.pak", 
@@ -182,7 +182,7 @@ extern i32 game_main() {
     }
 
     m.free();
-    g->free();
+    //g->free();
     _safe_free_b(g);
     _safe_free_b(tex);
     return 0;

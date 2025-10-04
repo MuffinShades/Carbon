@@ -19,7 +19,7 @@ void World::SetAtlas(TexAtlas *atlas) {
 
 #define GenChunkFace(face) \
     texInf = bInf.tex[(u32)face]; \
-    Cube::GenFace(face_buffer, 6, face, \
+    Geo::Cube::GenFace(face_buffer, 6, face, \
         TexAtlas::partToClip(atlas->getImageIndexPart(texInf.x, texInf.y)), \
     vec3(1.0f, 1.0f, 1.0f), c->pos + p); \
     dm.addMeshData(face_buffer, 6, false); 

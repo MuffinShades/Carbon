@@ -77,7 +77,7 @@ public:
 private:
     UIDimension bounds;
     OverflowMode o_mode = OverflowMode::None;
-    std::vector<UIElement> elems;
+    //std::vector<UIElement> elems;
 public:
     void render(graphics *g);
 };

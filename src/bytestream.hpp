@@ -134,8 +134,12 @@ protected:
 	/*
 
 	block_append important info
+
+	****************************************************************
+	* Do not set a value to __RESERVED_DO_NOT_SET__ (reason below) *
+	****************************************************************
 	
-	nCalls is there since block repair calls this function and it calls block repair
+	nCalls (__RESERVED_DO_NOT_SET__) is there since block repair calls this function and it calls block repair
 	so infinite recurrsion could occur. It should be impossible but this is here as
 	a backup since if this is running on some important system this recurrsion could
 	REALLY screw stuff up.
@@ -143,7 +147,7 @@ protected:
 	never set a value to nCalls, NEVER. just let the functions do their work
 
 	*/
-	void block_append(mem_block* block, const size_t nCalls = 0);
+	void block_append(mem_block* block, const size_t __RESERVED_DO_NOT_SET__ = 0);
 	void add_new_block(const size_t blockSz);
 	void add_new_block(byte* dat, const size_t blockSz);
 	/*

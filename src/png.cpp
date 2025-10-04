@@ -4,6 +4,7 @@
 #include "bitmap.hpp"
 #include "bitstream.hpp"
 #include "logger.hpp"
+#include "filestream.hpp"
 
 static Logger l;
 
@@ -377,10 +378,10 @@ void free_png_chunk(png_chunk* p) {
 
 png_image PngParse::Decode(ContentSrc src) {
 
-	byte* bytes = src.data();
-	size_t sz = src.size();
+	//byte* bytes = src.data();
+	//size_t sz = src.size();
 
-	ByteStream stream = ByteStream(bytes, sz);
+	FileByteStream stream = FileByteStream(src.src());
 	stream.int_mode = IntFormat_BigEndian; //set stream mode to big endian since that's what pngs use
 
 	png_image rpng;

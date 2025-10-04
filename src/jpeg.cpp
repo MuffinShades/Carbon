@@ -26,7 +26,7 @@ constexpr size_t zig_zag[] = {
 };
 
 //change to double if goofniess occurs
-constexpr float idct_matrix[] = {
+constexpr f32 idct_matrix[] = {
     0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,  0.707107f,
     0.980785f,  0.831470f,  0.555570f,  0.195090f, -0.195090f, -0.555570f, -0.831470f, -0.980785f,
     0.923880f,  0.382683f, -0.382683f, -0.923880f, -0.923880f, -0.382683f,  0.382683f,  0.923880f,

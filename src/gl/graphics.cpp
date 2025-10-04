@@ -329,10 +329,10 @@ void graphics::mesh_single_bind(Mesh *m) {
 
     //store and swap
     if (!this->rs_state != ReserveState::MeshBind) {
-        this->vstore = this->vmem;
+        //this->vstore = this->vmem;
         this->interalState.nv = this->_c_vert;
     }
-    this->vmem = const_cast<Vertex*>(dat);
+    this->cur_state->vmem = const_cast<Vertex*>(dat);
     this->_c_vert = nv;
 
     this->rs_state = ReserveState::MeshBind;
