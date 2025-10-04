@@ -243,9 +243,9 @@ struct cmap_format_4 {
         rangeShift, 
         *endCode = nullptr, 
         reservePad,
-        *startCode = nullptr,
-        *idDelta = nullptr,
-        *idRangeOffset = nullptr;
+        *startCode = nullptr;
+    i16 *idDelta = nullptr;
+    u16 *idRangeOffset = nullptr;
     void *segValBlock = nullptr;
 };
 
@@ -254,13 +254,16 @@ void free_cmap_format_4(cmap_format_4* c) {
     ZeroMem(c, sizeof(cmap_format_4));
 }
 
-void cmap_4(ttfStream *stream) {
+void cmap_4(ttfStream *stream, u16 t_char) {
     if (!stream) return;
 
     cmap_format_4 table = {
         .table_len = stream->readUInt16(),
         .lang = stream->readUInt16(),
         .segCount = (u16) (stream->readUInt16() >> 1), //reading in segcount * 2 so we need to divide by 2 or rsh 1
+        
+        //DO NOT USE SINCE THEY COULD BE SKETCHY
+        //also not needed
         .searchRange = stream->readUInt16(),
         .entrySelector = stream->readUInt16(),
         .rangeShift = stream->readUInt16()
@@ -284,6 +287,42 @@ void cmap_4(ttfStream *stream) {
     table.startCode =     segValueBlock + segSz * 1;
     table.idDelta =       segValueBlock + segSz * 2;
     table.idRangeOffset = segValueBlock + segSz * 3;
+
+    forrange(table.segCount) {
+        table.endCode[i] = stream->readUInt16();
+    }
+
+    table.reservePad = stream->readUInt16();
+
+    if (table.reservePad != 0) {
+        std::cout << "ttf error, invalid reserve pad!" << std::endl;
+    }
+
+    forrange(table.segCount) {
+        table.startCode[i] = stream->readUInt16();
+    }
+
+    forrange(table.segCount) {
+        table.idDelta[i] = stream->readInt16();
+    }
+
+    forrange(table.segCount) {
+        table.idRangeOffset[i] = stream->readUInt16();
+    }
+
+    //
+    i32 c_idx = 0;
+
+    while (table.endCode[c_idx] <= t_char) {
+        c_idx++;
+        
+        if (table.endCode[c_idx] == 0xffff)
+            break;
+    }
+
+    if (table.startCode[c_idx] > t_char) {
+        std::cout << "Character "<<t_char<<" not present in ttf!" << std::endl;
+    }
 
     //memory management
     free_cmap_format_4(&table);
@@ -310,12 +349,12 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
 
     //read data from the cmap table
     const u16 version = stream->readUInt16();
-    const u16 nSubTabls = stream->readUInt16();
+    const u16 nSubTables = stream->readUInt16();
 
     //mode
-    if (f->charMapMode == CMap_null) {
-        f->charMapMode = (enum CMapMode)stream->readInt16();
-        f->charMapModeId = stream->readInt16();
+    if (f->platform == CMap_null) {
+        f->platform = (enum CMapMode)stream->readInt16();
+        f->encodingId = stream->readInt16();
 
         const u32 off = stream->readUInt32();
         stream->seek(off);
@@ -324,6 +363,9 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
         switch (cmap_format) {
         case 4:
 
+            break;
+        case 12:
+            break;
         default:
             std::cout << "ttf error: unsupported cmap format: " << cmap_format << std::endl;
             break;
