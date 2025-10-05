@@ -285,7 +285,7 @@ void cmap_4(ttfStream *stream, u16 t_char) {
     //assign parts of the block
     table.endCode =       segValueBlock + segSz * 0;
     table.startCode =     segValueBlock + segSz * 1;
-    table.idDelta =       segValueBlock + segSz * 2;
+    table.idDelta =       (i16*) (segValueBlock + segSz * 2);
     table.idRangeOffset = segValueBlock + segSz * 3;
 
     forrange(table.segCount) {

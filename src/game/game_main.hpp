@@ -100,7 +100,10 @@ void render() {
 
     //g->render_no_geo_update();
 
-    w.render(g, p.getCam());
+    //w.render(g, p.getCam());
+
+    g->bindMeshToVbo(&m);
+    g->render_flush();
 
     //g->mush_end();
 }
@@ -165,9 +168,9 @@ extern i32 game_main() {
 
     glfwSwapInterval(0);
 
-    w.chunkBufIni();
+    //w.chunkBufIni();
     std::cout << "GPTR: " << (uintptr_t)g << std::endl;
-    w.genChunks(g);
+    //w.genChunks(g);
 
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);

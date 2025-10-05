@@ -61,7 +61,7 @@ void collisionCheckStep2(RigidBody3 rb1, RigidBody3 rb2) {
 }
     
 void collisionResolve(RigidBody3 rb1, RigidBody3 rb2, vec3 c_norm) {
-
+    
 }
 
 void RBodyScene3::collisionChecks() {

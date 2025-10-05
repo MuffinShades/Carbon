@@ -44,6 +44,11 @@ void FileByteStream::f_stream_seek(size_t p) {
     stream.seekp(p);
 }
 
+void FileBitStream::f_stream_seek(size_t p) {
+    stream.seekg(p);
+    stream.seekp(p);
+}
+
 void FileByteStream::flush_delete_block(mem_block *block) {
     if (!block || !stream.good()) 
         return;
