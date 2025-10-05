@@ -1,5 +1,7 @@
 #include "colorpicker.hpp"
 
+_UIStock _ColorPicker_Stock::stock;
+
 Shader *_ColorPicker_Stock::getShader() {
     return stock.getShader();
 }

@@ -1,14 +1,121 @@
 #include "RigidBody3.hpp"
 
-void rigid_pre_compute(RigidBody3 *rb) {
-    if (!rb)
+enum class rb_simple_type {
+    cuboid,
+    sphere,
+    cone,
+    non_simple
+};
+
+struct rb_simple_prop_cuboid {
+    vec3 dim;
+};
+
+mat4 computeCuboidIT(vec3 dim, f32 m) {
+    const f32 S = (1.0f / 12.0f) * m,
+              x2 = dim.x * dim.x,
+              y2 = dim.y * dim.y,
+              z2 = dim.z * dim.z;
+
+    f32 i_dat[16] = {
+        S * (z2 + y2), 0.0f, 0.0f, 0.0f,
+        0.0f, S * (x2 + z2), 0.0f, 0.0f,
+        0.0f, 0.0f, S * (x2 + y2), 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+
+    return mat4(i_dat);
+}
+
+f32 computeCuboidVolume(vec3 dim) {
+    return dim.x * dim.y * dim.z;
+}
+
+void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *simple_properties) {
+    if (!rb || !rb->mesh)
         return;
+
+    Mesh *msh = rb->mesh;
+
+    const size_t nv = msh->size();
+    const auto *m_data = msh->data();
+    Vertex v;
+    size_t i;
+
+    vec3 center = {0,0,0};
+
+    //compute center of mass
+    for (i = 0; i < nv; i++) {
+        v = m_data[i];
+
+        center = center + vec3(v.posf[0], v.posf[1], v.posf[2]);
+    }
+
+    if (nv > 0)
+        center = center * (1.0f / (f32)nv);
+
+    rb->obj_center = center;
+
+    //compute volume, mass, and I tensor
+    switch (s_ty) {
+    case rb_simple_type::cuboid: {
+        rb_simple_prop_cuboid *prop = (rb_simple_prop_cuboid*) simple_properties;
+
+        if (!prop)
+            break;
+
+        rb->volume = computeCuboidVolume(prop->dim);
+        rb->mass = rb->density * rb->volume;
+        rb->o_I = computeCuboidIT(prop->dim, rb->mass);
+
+        break;
+    }
+    default: {
+        std::cout << "Not implemeneted yet ;-;";
+        rb->mass = INFINITY;
+    }
+    }
+
+    //simple inverse stuff
+    //inverse mass
+    constexpr f32 mass_epsilon = 0.000001f;
+
+    if (rb->mass > 0) {
+        rb->imass = 1.0f / rb->mass;
+
+        if (rb->imass < mass_epsilon)
+            rb->imass = 0.0f;
+    } else
+        rb->imass = INFINITY;
+
+    //inverse inertia tensor
+    f32 iit_dat[16];
+    f32 iv;
+
+    for (i = 0; i < 16; i++) {
+        iv = rb->o_I.m[i];
+
+        if (iv != 0)
+            iit_dat[i] = 1.0f / iv;
+        else
+            iit_dat[i] = 0.0f;
+    }
+
+    rb->o_iI = mat4(iit_dat);
 }
 
 void RigidBody3::addForce(Force F) {
     this->a = this->a + F.F * this->imass;
     this->center = this->obj_center + this->p;
     this->torque = this->torque + vec3::CrossProd(this->center - F.pos, F.F);
+}
+
+void RigidBody3::addSimpleForce(vec3 F) {
+    this->a = this->a + F * this->imass;
+}
+
+void RigidBody3::applySimpleImpulse(vec3 J) {
+    this->v = this->v + J;
 }
 
 void RigidBody3::adjustITensor() {
@@ -53,15 +160,58 @@ f32 RigidBody3::boundingRadius() {
     return this->br;
 }
 
-void collisionCheckStep2(RigidBody3 rb1, RigidBody3 rb2) {
+graphicsState *RigidBody3::getGraphicsState(graphics *g) {
+    if (!this->made_gs)
+        this->makeGraphicsState(g);
+
+    return &this->gs;
+}
+
+void RigidBody3::makeGraphicsState(graphics *g) {
+    if (!g || !this->mesh) return;
+
+    g->useGraphicsState(&gs);
+    g->iniStaticGraphicsState();
+    g->bindMeshToVbo(this->mesh);
+    g->useDefaultGraphicsState();
+
+    this->made_gs = true;
+}
+
+mat4 RigidBody3::getMat() {
+    return this->m_mat;
+}
+
+//resolve collision between 2 bodies
+void RBodyScene3::collisionResolve(RigidBody3 rb1, RigidBody3 rb2, vec3 c_norm) {
+    
+}
+
+/*
+
+Projects a 3d point onto a 3d normal which returns the value
+which can then be used as the min / max for the sat
+
+*/
+f32 proj_v2n(vec3 vert, vec3 normal) {
+    return vec3::DotProd(vert, normal);
+}
+
+void RBodyScene3::collisionCheckStep2(RigidBody3 rb1, RigidBody3 rb2) {
     //sat
     bool c = false;
 
-    //TODO: collision resolve
-}
-    
-void collisionResolve(RigidBody3 rb1, RigidBody3 rb2, vec3 c_norm) {
-    
+    std::vector<vec3> check_normals;
+
+
+    vec3 lp_axis;
+    f32 lp_mag = INFINITY;
+
+    for (vec3 n : check_normals) {
+        
+    }
+
+    collisionResolve(rb1, rb2, lp_axis);
 }
 
 void RBodyScene3::collisionChecks() {
@@ -96,17 +246,35 @@ void RBodyScene3::collisionChecks() {
 }
 
 void RBodyScene3::addBody(RigidBody3 rb) {
-
+    this->objs.push_back(rb);
 }
 
 void RBodyScene3::tick(f32 dt) {
-    for (auto b : this->objs)
+    for (auto b : this->objs) {
+        b.applySimpleImpulse(g);
         b.tick(dt);
+    }
 
-    this->collisionChecks();
+    //this->collisionChecks();
 }
 
 void RBodyScene3::render(graphics* g, Camera *cam) {
     if (!cam || !g)
         return;
+
+    graphicsState *gs;
+    Shader *s = g->getCurrentShader();
+    mat4 mm;
+
+    for (auto b : this->objs) {
+        gs = b.getGraphicsState(g);
+        mm = b.getMat();
+        g->useGraphicsState(gs);
+        s->SetMat4("model_mat", &mm);
+        g->render_no_geo_update();
+    }
+}
+
+void RBodyScene3::setGravity(f32 g) {
+    this->g = g;
 }

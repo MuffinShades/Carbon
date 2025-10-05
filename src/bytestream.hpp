@@ -267,6 +267,8 @@ public:
 #endif
 };
 
+extern void free_block(mem_block* block);
+
 #ifdef MSFL_DLL
 #ifdef __cplusplus
 }

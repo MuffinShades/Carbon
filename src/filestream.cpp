@@ -1,7 +1,7 @@
 #include "filestream.hpp"
 
 //copied from bytestream.cpp
-void free_block(mem_block* block) {
+/*void free_block(mem_block* block) {
 	if (!block) return;
 
 	if (block->dat)
@@ -10,7 +10,7 @@ void free_block(mem_block* block) {
 	ZeroMem(block);
 
 	_safe_free_b(block);
-}
+}*/
 //------------------------
 
 FileByteStream::FileByteStream(std::string src) {

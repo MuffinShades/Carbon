@@ -10,18 +10,21 @@
 
 class RigidBody3 {
 private:
+    Mesh *mesh = nullptr;
     mat4 m_mat, r_mat;
     graphicsState gs;
 
+    bool made_gs = false;
+
     //br is bounding radius of a sphere that surrounds the post-scaled mesh
     //imass value of 0 will lock the object's position
-    f32 mass, imass = 0.0f, volume, br = 0.0f;
+    f32 mass, imass = 0.0f, volume, br = 0.0f, density;
 
-    vec3 p, v, a, av, aa, obj_center, center;
+    vec3 p = {0,0,0}, v = {0,0,0}, a = {0,0,0}, av = {0,0,0}, aa = {0,0,0}, obj_center, center;
     Quat4 rot;
     vec3 torque;
-    mat4 o_iI, o_i;
-    mat4 iI;
+    mat4 o_iI, o_I;
+    mat4 iI = mat4(1);
 
     void adjustITensor();
 public:
@@ -32,17 +35,22 @@ public:
     RigidBody3() {};
     RigidBody3(Mesh *m, f32 density, Material material);
 
-    graphicsState makeGraphicsState();
+    void makeGraphicsState(graphics *g);
+    graphicsState *getGraphicsState(graphics *g);
     void tick(f32 dt);
     mat4 getMat();
     bool inView(Camera* cam);
-    void applyImpulse(Force F);
+    void applyImpulse(Force J);
     void addForce(Force F);
+    void addSimpleForce(vec3 f);
+    void applySimpleImpulse(vec3 J);
+
+    friend void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *simple_properties);
 };
 
 class RBodyScene3 {
 private:
-    vec3 g;
+    vec3 g = {0,0,0};
     graphicsState sgs;
     std::vector<RigidBody3> objs;
 
@@ -51,6 +59,7 @@ private:
     void collisionResolve(RigidBody3 rb1, RigidBody3 rb2, vec3 c_norm);
 public:
     RBodyScene3() {}
+    void setGravity(f32 g);
     void addBody(RigidBody3 rb);
     void tick(f32 dt);
     void render(graphics* g, Camera *cam);
