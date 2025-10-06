@@ -1,11 +1,5 @@
 #include "RigidBody3.hpp"
-
-enum class rb_simple_type {
-    cuboid,
-    sphere,
-    cone,
-    non_simple
-};
+#include "../gl/geometry/cube.hpp"
 
 struct rb_simple_prop_cuboid {
     vec3 dim;
@@ -180,6 +174,29 @@ void RigidBody3::makeGraphicsState(graphics *g) {
 
 mat4 RigidBody3::getMat() {
     return this->m_mat;
+}
+
+RigidBody3::RigidBody3(enum class rb_simple_type s_ty, f32 dim, f32 density, Material material) {
+    if (s_ty == rb_simple_type::non_simple)
+        return;
+
+    switch (s_ty) {
+    case rb_simple_type::cuboid: {
+        this->density = density;
+
+        rb_simple_prop_cuboid prop = {
+            .dim = dim
+        };
+
+        rigid_pre_compute(this, s_ty, &prop);
+
+        this->mesh = new Mesh(Geo::Cube::GenCube(dim), nCubeVerts);
+
+        break;
+    }
+    default:
+        return;
+    }
 }
 
 //resolve collision between 2 bodies

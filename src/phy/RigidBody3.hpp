@@ -8,8 +8,16 @@
 #include "../gl/graphics.hpp"
 #include "Body.hpp"
 
+enum class rb_simple_type {
+    cuboid,
+    sphere,
+    cone,
+    non_simple
+};
+
 class RigidBody3 {
 private:
+    //TODO: change to shared pointer
     Mesh *mesh = nullptr;
     mat4 m_mat, r_mat;
     graphicsState gs;
@@ -34,6 +42,7 @@ public:
 
     RigidBody3() {};
     RigidBody3(Mesh *m, f32 density, Material material);
+    RigidBody3(enum class rb_simple_type s_ty, f32 dim, f32 density, Material material);
 
     void makeGraphicsState(graphics *g);
     graphicsState *getGraphicsState(graphics *g);

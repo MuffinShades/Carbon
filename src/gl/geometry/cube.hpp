@@ -56,6 +56,8 @@ constexpr struct Vertex cubeVerticies[] = {
     0, 0, 1,  0, -1, 0,  0.0f, 0.0f
 };
 
+constexpr size_t nCubeVerts = sizeof(cubeVerticies) / sizeof(Vertex);
+
 enum class CubeFace {
     North,
     South,
@@ -73,5 +75,7 @@ public:
     static bool GenFace(Vertex* fs, size_t bufSz, CubeFace f, vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f});
     static Vertex* GenFace(CubeFace f, vec4 texClip, vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f});
     static bool GenFace(Vertex* fs, size_t bufSz, CubeFace f, vec4 texClip, vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f});
+    static Vertex* GetBaseCube();
+    static Vertex* GenCube(vec3 scale = {1.0f, 1.0f, 1.0f}, vec3 off = {0.0f, 0.0f, 0.0f});
 };
 }

@@ -144,3 +144,25 @@ bool Cube::GenFace(Vertex* fs, size_t bufSz, CubeFace f, vec4 texClip, vec3 scal
 
     return true;
 }
+
+Vertex* Cube::GetBaseCube() {
+    return (Vertex*)cubeVerticies;
+}
+
+Vertex* Cube::GenCube(vec3 scale, vec3 off) {
+    Vertex* v = new Vertex[nCubeVerts];
+
+    forrange (nCubeVerts) {
+        v[i] = cubeVerticies[i];
+
+        v[i].posf[0] *= scale.x;
+        v[i].posf[1] *= scale.y;
+        v[i].posf[2] *= scale.z;
+
+        v[i].posf[0] += off.x;
+        v[i].posf[1] += off.y;
+        v[i].posf[2] += off.z;
+    }
+
+    return v;
+}
