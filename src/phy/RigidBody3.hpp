@@ -42,7 +42,7 @@ public:
 
     RigidBody3() {};
     RigidBody3(Mesh *m, f32 density, Material material);
-    RigidBody3(enum class rb_simple_type s_ty, f32 dim, f32 density, Material material);
+    RigidBody3(enum class rb_simple_type s_ty, vec3 dim, f32 density, Material material);
 
     void makeGraphicsState(graphics *g);
     graphicsState *getGraphicsState(graphics *g);

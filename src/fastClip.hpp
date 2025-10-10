@@ -5,9 +5,9 @@
  * 
  *	Fast Clip
  * 
- *  A faster and more efficient video coding scheme than h.264 and h.265
+ *  A faster and more efficient video coding scheme than h.264 and h.265 and h.266
  * 
- *	Copyright James Weigand 2025 All Right Reserved
+ *	Copyright lambdanan software 2025 All Right Reserved
  * 
  *  Format: .fcv (Fast Clip video)
  * 

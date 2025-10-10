@@ -176,7 +176,7 @@ mat4 RigidBody3::getMat() {
     return this->m_mat;
 }
 
-RigidBody3::RigidBody3(enum class rb_simple_type s_ty, f32 dim, f32 density, Material material) {
+RigidBody3::RigidBody3(rb_simple_type s_ty, vec3 dim, f32 density, Material material) {
     if (s_ty == rb_simple_type::non_simple)
         return;
 
@@ -190,7 +190,7 @@ RigidBody3::RigidBody3(enum class rb_simple_type s_ty, f32 dim, f32 density, Mat
 
         rigid_pre_compute(this, s_ty, &prop);
 
-        this->mesh = new Mesh(Geo::Cube::GenCube(dim), nCubeVerts);
+        //this->mesh = new Mesh(Geo::Cube::GenCube(dim), nCubeVerts);
 
         break;
     }

@@ -27,7 +27,9 @@ FileByteStream::FileByteStream(std::string src) {
     this->f_size = stream.tellg();
     stream.seekg(std::ios::beg);
 
-    this->ByteStream::enable_manual_mode();
+    this->load_new_block(this->blockAllocSz);
+
+    //this->ByteStream::enable_manual_mode();
 }
 
 size_t FileByteStream::seek(size_t pos) {

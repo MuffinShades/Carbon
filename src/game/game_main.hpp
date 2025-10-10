@@ -67,7 +67,7 @@ mat4 lookMat;
 RBodyScene3 scene;
 
 void scene_setup() {
-    RigidBody3 body1 = RigidBody3(rb_simple_type::cuboid, 1.0f, Material::Plastic);
+    RigidBody3 body1 = RigidBody3(rb_simple_type::cuboid, vec3(1.0, 1.0, 1.0), 1.0f, Material::Plastic);
 }
 
 void render() {

@@ -160,8 +160,13 @@ void graphics::vmem_alloc() {
     const size_t vos = this->cur_state->__int_prop.v_obj_sz,
                  bos = vos * BATCH_SIZE;
     this->free_state();
-    cur_state->vmem = (void*) malloc(BATCH_SIZE * bos);
-    ZeroMem((char*)cur_state->vmem, BATCH_SIZE);
+    cur_state->vmem = (void*) new byte[BATCH_SIZE * bos];
+
+    if (!cur_state->vmem) {
+        std::cout << "failed to allocate vmemory!" << std::endl;
+    }
+
+    ZeroMem<byte>((byte*)cur_state->vmem, BATCH_SIZE*bos);
 }
 
 void graphics::vmem_clear() {
