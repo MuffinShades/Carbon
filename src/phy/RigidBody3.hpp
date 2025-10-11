@@ -19,7 +19,7 @@ class RigidBody3 {
 private:
     //TODO: change to shared pointer
     Mesh *mesh = nullptr;
-    mat4 m_mat, r_mat;
+    mat4 m_mat = mat4(1), r_mat = mat4(1);
     graphicsState gs;
 
     bool made_gs = false;

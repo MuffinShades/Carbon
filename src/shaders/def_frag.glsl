@@ -90,7 +90,9 @@ void main() {
         tx_col = texture(tex, coords);
     }*/
 
-    tx_col = texture(tex, coords);
+    //tx_col = texture(tex, coords);
+
+    tx_col = vec4(1,0,0,1);
 
     //mix adds fog
     float fogEf = fade(posf.z / fogZ);
