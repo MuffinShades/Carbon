@@ -49,6 +49,7 @@ void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *sim
         center = center * (1.0f / (f32)nv);
 
     rb->obj_center = center;
+    rb->central_trans_mat = mat4::CreateTranslationMatrix((center) * -1.0f);
 
     //compute volume, mass, and I tensor
     switch (s_ty) {
@@ -102,6 +103,13 @@ void RigidBody3::addForce(Force F) {
     this->a = this->a + F.F * this->imass;
     this->center = this->obj_center + this->p;
     this->torque = this->torque + vec3::CrossProd(this->center - F.pos, F.F);
+
+    //
+    std::cout << "--Force Added--" << std::endl;
+    std::cout << "a: " << this->a.x << " " << this->a.y << " " << this->a.z << std::endl;
+    std::cout << "c: " << this->center.x << " " << this->center.y << " " << this->center.z << std::endl;
+    std::cout << "t: " << this->torque.x << " " << this->torque.y << " " << this->torque.z << std::endl;
+    std::cout << "IMASS: " << this->imass << " " << this->mass << " " << this->volume << " " << this->density << std::endl;
 }
 
 void RigidBody3::addSimpleForce(vec3 F) {
@@ -110,6 +118,10 @@ void RigidBody3::addSimpleForce(vec3 F) {
 
 void RigidBody3::applySimpleImpulse(vec3 J) {
     this->v = this->v + J;
+}
+
+void applyImpulse(Force J) {
+
 }
 
 void RigidBody3::adjustITensor() {
@@ -121,9 +133,13 @@ void RigidBody3::tick(f32 dt) {
     this->adjustITensor();
 
     this->aa = this->aa + this->iI * this->torque;
-    this->av = this->av + this->av * dt;
+    this->av = this->av + this->aa * dt;
 
     vec3 i_av = this->av * dt * 0.5f;
+
+    this->torque = vec3(0,0,0);
+
+    //std::cout << "Intertia Tensor: " << this->iI[0][0] << std::endl;
 
     this->rot = this->rot + Quat4(i_av.x, i_av.y, i_av.z, 0.0f) * this->rot;
     this->rot.normalize();
@@ -142,6 +158,8 @@ void RigidBody3::tick(f32 dt) {
     this->x = this->p.x;
     this->y = this->p.y;
     this->z = this->p.z;
+
+    this->m_mat = this->r_mat * this->central_trans_mat * this->s_mat;
 }
 
 bool RigidBody3::inView(Camera* cam) {
@@ -188,10 +206,12 @@ RigidBody3::RigidBody3(rb_simple_type s_ty, vec3 dim, f32 density, Material mate
             .dim = dim
         };
 
+        if (!this->mesh)
+            this->mesh = new Mesh;
+
+        this->mesh->setMeshData(Geo::Cube::GetBaseCube(), nCubeVerts);
+
         rigid_pre_compute(this, s_ty, &prop);
-
-        //this->mesh = new Mesh(Geo::Cube::GenCube(dim), nCubeVerts);
-
         break;
     }
     default:
@@ -200,7 +220,7 @@ RigidBody3::RigidBody3(rb_simple_type s_ty, vec3 dim, f32 density, Material mate
 }
 
 //resolve collision between 2 bodies
-void RBodyScene3::collisionResolve(RigidBody3 rb1, RigidBody3 rb2, vec3 c_norm) {
+void RBodyScene3::collisionResolve(RigidBody3* rb1, RigidBody3* rb2, vec3 c_norm) {
     
 }
 
@@ -214,7 +234,7 @@ f32 proj_v2n(vec3 vert, vec3 normal) {
     return vec3::DotProd(vert, normal);
 }
 
-void RBodyScene3::collisionCheckStep2(RigidBody3 rb1, RigidBody3 rb2) {
+void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
     //sat
     bool c = false;
 
@@ -236,7 +256,7 @@ void RBodyScene3::collisionChecks() {
 
     const size_t nObjs = this->objs.size();
 
-    RigidBody3 rb1, rb2;
+    RigidBody3 *rb1, *rb2;
 
     f32 dx,dy,dz,r_dis;
 
@@ -245,11 +265,11 @@ void RBodyScene3::collisionChecks() {
         for (j = i + 1; j < nObjs; ++j) {
             rb2 = this->objs[j];
 
-            dx = rb2.x - rb1.x;
-            dy = rb2.y - rb1.y;
-            dz = rb2.z - rb1.z;
+            dx = rb2->x - rb1->x;
+            dy = rb2->y - rb1->y;
+            dz = rb2->z - rb1->z;
 
-            r_dis = rb2.boundingRadius() + rb1.boundingRadius();   
+            r_dis = rb2->boundingRadius() + rb1->boundingRadius();   
             r_dis *= r_dis;
 
             //check bounding radius
@@ -262,14 +282,14 @@ void RBodyScene3::collisionChecks() {
     }
 }
 
-void RBodyScene3::addBody(RigidBody3 rb) {
+void RBodyScene3::addBody(RigidBody3 *rb) {
     this->objs.push_back(rb);
 }
 
 void RBodyScene3::tick(f32 dt) {
     for (auto b : this->objs) {
-        b.applySimpleImpulse(g);
-        b.tick(dt);
+        b->applySimpleImpulse(g);
+        b->tick(dt);
     }
 
     //this->collisionChecks();
@@ -284,8 +304,8 @@ void RBodyScene3::render(graphics* g, Camera *cam) {
     mat4 mm;
 
     for (auto b : this->objs) {
-        gs = b.getGraphicsState(g);
-        mm = b.getMat();
+        gs = b->getGraphicsState(g);
+        mm = b->getMat();
         g->useGraphicsState(gs);
         s->SetMat4("model_mat", &mm);
         g->render_no_geo_update();
@@ -293,5 +313,5 @@ void RBodyScene3::render(graphics* g, Camera *cam) {
 }
 
 void RBodyScene3::setGravity(f32 g) {
-    this->g = g;
+    this->g = vec3(0,g,0);
 }

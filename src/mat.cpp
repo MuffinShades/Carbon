@@ -158,9 +158,9 @@ mat4 mat4::CreateTranslationMatrix(vec3 pos) {
 		pos.x, pos.y, pos.z, 1.0f
 	};
 
-	std::cout << "Translation dat:" << std::endl;
-	forrange(16) std::cout << dat[i] << " ";
-	std::cout << std::endl;
+	//std::cout << "Translation dat:" << std::endl;
+	//forrange(16) std::cout << dat[i] << " ";
+	//std::cout << std::endl;
 
 	return mat4(dat);
 }

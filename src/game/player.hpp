@@ -6,8 +6,8 @@
 
 class Player {
 private:
-    const f32 speed = 0.02f;
-    const f32 sense = 0.5f;
+    const f32 speed = 3.5f;
+    const f32 sense = 0.3f;
     ControllableCamera cam = ControllableCamera();
 
     struct {
@@ -40,7 +40,7 @@ public:
         this->cam.changeYaw(dmx * sense);
     }
 
-    void tick(Window *w) {
+    void tick(Window *w, f32 dt) {
         mov.f = this->kActive(w, this->controls.f);
         mov.b = this->kActive(w, this->controls.b);
         mov.l = this->kActive(w, this->controls.l);
@@ -49,9 +49,9 @@ public:
         //std::cout << "Mov: " << mov.f << " " << mov.b << " " << mov.l << " " << mov.r << std::endl;
 
 
-        if (mov.f) this->cam.move(this->cam.getLookDirection() * speed, true);
-        if (mov.b) this->cam.move(this->cam.getLookDirection() * -speed, true);
-        if (mov.r) this->cam.move(vec3::CrossProd(this->cam.getLookDirection(), this->cam.getUp()) * speed, true);
-        if (mov.l) this->cam.move(vec3::CrossProd(this->cam.getLookDirection(), this->cam.getUp()) * -speed, true);
+        if (mov.f) this->cam.move(this->cam.getLookDirection() * speed * dt, true);
+        if (mov.b) this->cam.move(this->cam.getLookDirection() * -speed * dt, true);
+        if (mov.r) this->cam.move(vec3::CrossProd(this->cam.getLookDirection(), this->cam.getUp()) * speed * dt, true);
+        if (mov.l) this->cam.move(vec3::CrossProd(this->cam.getLookDirection(), this->cam.getUp()) * -speed * dt, true);
     }
 };

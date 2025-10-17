@@ -19,14 +19,23 @@ class RigidBody3 {
 private:
     //TODO: change to shared pointer
     Mesh *mesh = nullptr;
-    mat4 m_mat = mat4(1), r_mat = mat4(1);
+
+    /*
+    
+    m_mat -> model matrix
+    r_mat -> body rotaion matrix
+    s_mat -> body scaling matrix
+    central_trans_mat -> translation for rotation about the object's origin
+    
+    */
+    mat4 m_mat = mat4(1), r_mat = mat4(1), s_mat = mat4(1), central_trans_mat = mat4();
     graphicsState gs;
 
     bool made_gs = false;
 
     //br is bounding radius of a sphere that surrounds the post-scaled mesh
     //imass value of 0 will lock the object's position
-    f32 mass, imass = 0.0f, volume, br = 0.0f, density;
+    f64 mass = 0.0f, imass = 0.0f, volume, br = 0.0f, density;
 
     vec3 p = {0,0,0}, v = {0,0,0}, a = {0,0,0}, av = {0,0,0}, aa = {0,0,0}, obj_center, center;
     Quat4 rot;
@@ -61,15 +70,15 @@ class RBodyScene3 {
 private:
     vec3 g = {0,0,0};
     graphicsState sgs;
-    std::vector<RigidBody3> objs;
+    std::vector<RigidBody3*> objs;
 
     void collisionChecks();
-    void collisionCheckStep2(RigidBody3 rb1, RigidBody3 rb2);
-    void collisionResolve(RigidBody3 rb1, RigidBody3 rb2, vec3 c_norm);
+    void collisionCheckStep2(RigidBody3* rb1, RigidBody3* rb2);
+    void collisionResolve(RigidBody3* rb1, RigidBody3* rb2, vec3 c_norm);
 public:
     RBodyScene3() {}
     void setGravity(f32 g);
-    void addBody(RigidBody3 rb);
+    void addBody(RigidBody3 *rb);
     void tick(f32 dt);
     void render(graphics* g, Camera *cam);
 };

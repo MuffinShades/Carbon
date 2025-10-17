@@ -39,7 +39,7 @@ public:
 
 class vec3 {
 public:
-    float x = 0.0f, y = 0.0f, z = 0.0f;
+    f64 x = 0.0f, y = 0.0f, z = 0.0f;
     vec3(float x = 0.0f, float y = 0.0f, float z = 0.0f) : x(x), y(y), z(z) {}
 
     //operators

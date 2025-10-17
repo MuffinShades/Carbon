@@ -15,7 +15,7 @@
 #include "../phy/RigidBody3.hpp"
 
 //player
-Player p = Player({0.0f,0.0f,0.0f});
+Player p = Player({0.0f,0.0f,-1.0f});
 
 //input code
 f64 mxp = 0.0, myp = 0.0;
@@ -41,6 +41,10 @@ void mouseEnableUpdate(GLFWwindow* win) {
         glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  
 }
 
+//Physics Scene
+RigidBody3 body1 = RigidBody3(rb_simple_type::cuboid, vec3(1.0, 1.0, 1.0), 1.0f, Material::Plastic);
+RBodyScene3 scene;
+
 void kb_callback(GLFWwindow* win, i32 key, i32 scancode, i32 action, i32 mods) {
     if (!win) return;
 
@@ -49,6 +53,17 @@ void kb_callback(GLFWwindow* win, i32 key, i32 scancode, i32 action, i32 mods) {
         if (action == GLFW_PRESS) {
             mouseEnabled = !mouseEnabled;
             mouseEnableUpdate(win);
+        }
+        break;
+    case GLFW_KEY_Q:
+        if (action == GLFW_PRESS) {
+            std::cout << "!!!" << std::endl;
+            //scene.setGravity(-9.8f * 0.01f);
+            Force F = {
+                .pos = vec3(0.0f, 0.1f, 0.0f),
+                .F = vec3(2.0f, 2.0f, 2.0f)
+            };
+            body1.addForce(F);
         }
         break;
     }
@@ -63,13 +78,8 @@ Shader s;
 
 mat4 lookMat;
 
-//Physics Scene
-RBodyScene3 scene;
-
 void scene_setup() {
-    RigidBody3 body1 = RigidBody3(rb_simple_type::cuboid, vec3(1.0, 1.0, 1.0), 1.0f, Material::Plastic);
-
-    scene.addBody(body1);
+    scene.addBody(&body1);
 }
 
 void render() {
@@ -115,7 +125,7 @@ extern i32 game_main() {
 
     TexPart clip = atlas.getImageIndexPart(8, 11); //command block
 
-    tex->bind();
+    //tex->bind();
 
     //setup the physics scene
     scene_setup();
@@ -124,12 +134,18 @@ extern i32 game_main() {
     g->WinResize(WIN_W,WIN_H);
     glfwSwapInterval(0);
 
+    f32 lastFrame = 0,t,dt;
+
     while (win.isRunning()) {
         glClearColor(0.2, 0.7, 1.0, 1.0);
 
+        t = glfwGetTime();
+        dt = t - lastFrame;
+        lastFrame = t;
+
         //tick
-        p.tick(&win);
-        scene.tick(0.01f);
+        p.tick(&win, dt);
+        scene.tick(dt);
 
         //render
         render();
