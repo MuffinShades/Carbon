@@ -262,14 +262,14 @@ void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
     std::vector<vec3> check_normals;
 
 
-    vec3 lp_axis;
+    vec3 lp_axis, lp_pos;
     f32 lp_mag = INFINITY;
 
     for (vec3 n : check_normals) {
         
     }
 
-    collisionResolve(rb1, rb2, lp_axis);
+    collisionResolve(rb1, rb2, lp_pos, lp_axis);
 }
 
 void RBodyScene3::collisionChecks() {
