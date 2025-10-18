@@ -39,7 +39,7 @@ private:
 
     vec3 p = {0,0,0}, v = {0,0,0}, a = {0,0,0}, av = {0,0,0}, aa = {0,0,0}, obj_center, center;
     Quat4 rot;
-    vec3 torque;
+    vec3 torque = vec3(0,0,0), force = vec3(0,0,0);
     mat4 o_iI, o_I;
     mat4 iI = mat4(1);
 
@@ -74,7 +74,7 @@ private:
 
     void collisionChecks();
     void collisionCheckStep2(RigidBody3* rb1, RigidBody3* rb2);
-    void collisionResolve(RigidBody3* rb1, RigidBody3* rb2, vec3 c_norm);
+    void collisionResolve(RigidBody3* rb1, RigidBody3* rb2, vec3 c_pos, vec3 c_norm);
 public:
     RBodyScene3() {}
     void setGravity(f32 g);

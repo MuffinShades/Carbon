@@ -100,28 +100,28 @@ void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *sim
 }
 
 void RigidBody3::addForce(Force F) {
-    this->a = this->a + F.F * this->imass;
-    this->center = this->obj_center + this->p;
-    this->torque = this->torque + vec3::CrossProd(this->center - F.pos, F.F);
+    this->force = this->force + F.F;
+    this->torque = this->torque + vec3::CrossProd(F.pos - this->center, F.F);
 
     //
     std::cout << "--Force Added--" << std::endl;
-    std::cout << "a: " << this->a.x << " " << this->a.y << " " << this->a.z << std::endl;
-    std::cout << "c: " << this->center.x << " " << this->center.y << " " << this->center.z << std::endl;
+    std::cout << "f: " << this->force.x << " " << this->force.y << " " << this->force.z << std::endl;
     std::cout << "t: " << this->torque.x << " " << this->torque.y << " " << this->torque.z << std::endl;
     std::cout << "IMASS: " << this->imass << " " << this->mass << " " << this->volume << " " << this->density << std::endl;
 }
 
 void RigidBody3::addSimpleForce(vec3 F) {
-    this->a = this->a + F * this->imass;
+    this->force = this->force + F;
 }
 
 void RigidBody3::applySimpleImpulse(vec3 J) {
-    this->v = this->v + J;
+    this->v = this->v + J * this->imass;
 }
 
-void applyImpulse(Force J) {
-
+void RigidBody3::applyImpulse(Force J) {
+    this->applySimpleImpulse(J.F);
+    const vec3 relPos = J.pos - this->center;
+    this->av = this->av + this->iI * vec3::CrossProd(relPos, J.F);
 }
 
 void RigidBody3::adjustITensor() {
@@ -129,17 +129,16 @@ void RigidBody3::adjustITensor() {
 }
 
 void RigidBody3::tick(f32 dt) {
+    constexpr f32 damp_fac = 0.02f;
+    const f32 damp = powf(damp_fac, dt);
+
     //angular calculations
     this->adjustITensor();
 
-    this->aa = this->aa + this->iI * this->torque;
+    this->aa = this->iI * this->torque;
     this->av = this->av + this->aa * dt;
 
     vec3 i_av = this->av * dt * 0.5f;
-
-    this->torque = vec3(0,0,0);
-
-    //std::cout << "Intertia Tensor: " << this->iI[0][0] << std::endl;
 
     this->rot = this->rot + Quat4(i_av.x, i_av.y, i_av.z, 0.0f) * this->rot;
     this->rot.normalize();
@@ -147,25 +146,32 @@ void RigidBody3::tick(f32 dt) {
     this->r_mat = this->rot.toRotMatrix();
 
     //linear calculations
-    this->v = this->v + this->a * dt;
+    this->a = this->force * this->imass;
+    this->v = this->v + (this->a * dt);
+    this->p = this->p + (this->v * dt);
 
-    constexpr f32 damp_fac = 0.02f;
-    const f32 damp = powf(damp_fac, dt);
-    
-    this->p = this->p + this->v * dt;
-    this->v = this->v * damp; 
+    //position adjustments
+    this->center = this->obj_center + this->p;
 
     this->x = this->p.x;
     this->y = this->p.y;
     this->z = this->p.z;
 
-    this->m_mat = this->r_mat * this->central_trans_mat * this->s_mat;
+    //zero out all forces and torques and apply velocity damping
+    this->torque = vec3(0,0,0);
+    this->force = vec3(0,0,0);
+
+    this->v = this->v * damp; 
+    this->av = this->av * damp;
+
+    //create final model matrix
+    this->m_mat = mat4::CreateTranslationMatrix(this->p) * this->r_mat * this->central_trans_mat * this->s_mat;
 }
 
 bool RigidBody3::inView(Camera* cam) {
     if (!cam) return false;
 
-
+    return true;
 }
 
 f32 RigidBody3::boundingRadius() {
@@ -220,8 +226,23 @@ RigidBody3::RigidBody3(rb_simple_type s_ty, vec3 dim, f32 density, Material mate
 }
 
 //resolve collision between 2 bodies
-void RBodyScene3::collisionResolve(RigidBody3* rb1, RigidBody3* rb2, vec3 c_norm) {
+void RBodyScene3::collisionResolve(RigidBody3* rb1, RigidBody3* rb2, vec3 c_pos, vec3 c_norm) {
+    //TODO: calculute the impulse vector thing
+    f32 J = 0.0f;
     
+
+    //apply impulses
+    vec3 Fj = c_norm * J;
+
+    rb1->applyImpulse({
+        .pos = c_pos,
+        .F = c_norm * J
+    });
+
+    rb2->applyImpulse({
+        .pos = c_pos,
+        .F = c_norm * -J
+    });
 }
 
 /*

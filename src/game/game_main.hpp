@@ -42,7 +42,7 @@ void mouseEnableUpdate(GLFWwindow* win) {
 }
 
 //Physics Scene
-RigidBody3 body1 = RigidBody3(rb_simple_type::cuboid, vec3(1.0, 1.0, 1.0), 1.0f, Material::Plastic);
+RigidBody3 body1 = RigidBody3(rb_simple_type::cuboid, vec3(1.0, 1.0, 1.0), 0.1f, Material::Plastic);
 RBodyScene3 scene;
 
 void kb_callback(GLFWwindow* win, i32 key, i32 scancode, i32 action, i32 mods) {
@@ -61,7 +61,7 @@ void kb_callback(GLFWwindow* win, i32 key, i32 scancode, i32 action, i32 mods) {
             //scene.setGravity(-9.8f * 0.01f);
             Force F = {
                 .pos = vec3(0.0f, 0.1f, 0.0f),
-                .F = vec3(2.0f, 2.0f, 2.0f)
+                .F = vec3(200.0f, 0.0f, 0.0f)
             };
             body1.addForce(F);
         }
