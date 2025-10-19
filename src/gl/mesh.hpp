@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include "vertex.hpp"
+#include "../vec.hpp"
 
 struct MeshCard {
     i64 off = -1;
@@ -10,13 +11,18 @@ struct MeshCard {
 class Mesh {
 private:
     Vertex *verts = nullptr;
-    size_t nVerts = 0;
+    vec3 *normals = nullptr;
+    size_t nVerts = 0, nFaces = 0;
     MeshCard card;
     bool dataOwn = true;
+
+    void computeTriangleBasedNormals();
 public:
     Mesh();
     const Vertex *data() const;
     const size_t size() const;
+    const vec3 *getStoredTriangleBasedNormals();
+    const size_t getNTriangleFaces();
     void setMeshData(Vertex *v, size_t nVerts, bool free_obj = false);
     void free();
     class StockMeshes {

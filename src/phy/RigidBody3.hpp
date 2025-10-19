@@ -64,6 +64,7 @@ public:
     void applySimpleImpulse(vec3 J);
 
     friend void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *simple_properties);
+    friend class RBodyScene3;
 };
 
 class RBodyScene3 {

@@ -32,6 +32,39 @@ void Mesh::free() {
     this->nVerts = 0;
 }
 
+void Mesh::computeTriangleBasedNormals() {
+    if (this->nVerts % 3 != 0) {
+        std::cout << "Cannot generate triangle based normals on a non triangle mesh!" << std::endl;
+        return;
+    }
+
+    this->nFaces = this->nVerts / 3;
+    this->normals = new vec3[this->nFaces];
+
+    i64 i, f = 0;
+
+    for (i = 0; i < this->nVerts; i += 3) {
+        this->normals[f++] = vec3(
+            this->verts[i].n[0],
+            this->verts[i].n[1],
+            this->verts[i].n[2]
+        );
+    }
+}
+
+const size_t Mesh::getNTriangleFaces() {
+
+}
+
+const vec3 *Mesh::getStoredTriangleBasedNormals() {
+    if (this->normals)
+        return this->normals;
+    else {
+        this->computeTriangleBasedNormals();
+        return this->normals;
+    }
+}
+
 void DynamicMesh::free() {
     MeshChunk *c = this->rootChunk, *toFree;
 
