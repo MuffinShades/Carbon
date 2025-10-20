@@ -255,18 +255,84 @@ f32 proj_v2n(vec3 vert, vec3 normal) {
     return vec3::DotProd(vert, normal);
 }
 
+f32 proj_v2n_arr(const f32 *v, vec3 normal) {
+    return v[0] * normal.x + v[1] * normal.y + v[2] * normal.z;
+}
+
+struct _pproj {
+    bool err = false;
+    f32 min = INFINITY, max = -INFINITY;
+};
+
+_pproj proj_body_on_normal(RigidBody3 *rb, vec3 n) {
+    if (!rb)
+        return {.err=true};
+
+    Mesh *msh = rb->mesh;
+
+    if (!msh)
+        return {.err=true};
+
+    const size_t sz = msh->size();
+    const Vertex *verts = msh->data();
+
+    size_t i;
+    f32 prj;
+    _pproj r;
+
+    for (i = 0; i < sz; ++i) {
+        prj = proj_v2n_arr(verts[i].posf, n);
+        r.min = mu_min(r.min, prj);
+        r.max = mu_max(r.max, prj);
+    }
+
+    return r;
+}
+
+constexpr size_t DEF_COLLISION_NORMAL_BUF_SZ = 0xfff;
+
 void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
     //sat
     bool c = false;
 
-    std::vector<vec3> check_normals;
+    //buffer checks and stuff
+    const size_t rb1_n_faces = rb1->mesh->getNTriangleFaces(), 
+                 rb2_n_faces = rb2->mesh->getNTriangleFaces(),
+                 total_n_faces = rb1_n_faces + rb2_n_faces;
 
+    if (!this->checkNormalBuffer) {
+        this->checkNormalBufferSize = DEF_COLLISION_NORMAL_BUF_SZ;
+        this->checkNormalBuffer = new vec3[this->checkNormalBufferSize];
+    }
 
-    vec3 lp_axis, lp_pos;
+    if (this->checkNormalBufferSize < total_n_faces) {
+        vec3 *o_buffer = this->checkNormalBuffer;
+        this->checkNormalBuffer = new vec3[total_n_faces];
+        in_memcpy(this->checkNormalBuffer, o_buffer, this->checkNormalBufferSize * sizeof(vec3));
+        delete[] o_buffer; //delete the old unused buffer
+    }
+
+    //copy over normals
+    vec3 *n_inter_buf;
+
+    n_inter_buf = const_cast<vec3*>(rb1->mesh->getStoredTriangleBasedNormals());
+    in_memcpy(this->checkNormalBuffer              , n_inter_buf, rb1_n_faces * sizeof(vec3));
+
+    n_inter_buf = const_cast<vec3*>(rb2->mesh->getStoredTriangleBasedNormals());
+    in_memcpy(this->checkNormalBuffer + rb1_n_faces, n_inter_buf, rb2_n_faces * sizeof(vec3));
+
+    vec3 lp_axis, lp_pos, n;
     f32 lp_mag = INFINITY;
 
-    for (vec3 n : check_normals) {
+    size_t i;
+
+    for (i = 0; i < total_n_faces; ++i) {
+        n = this->checkNormalBuffer[i];
         
+        _pproj r1 = proj_body_on_normal(rb1, n),
+               r2 = proj_body_on_normal(rb2, n);
+
+        //TODO: check axis and get the info needed
     }
 
     collisionResolve(rb1, rb2, lp_pos, lp_axis);

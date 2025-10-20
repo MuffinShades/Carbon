@@ -65,6 +65,7 @@ public:
 
     friend void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *simple_properties);
     friend class RBodyScene3;
+    friend struct _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n);
 };
 
 class RBodyScene3 {
@@ -72,6 +73,9 @@ private:
     vec3 g = {0,0,0};
     graphicsState sgs;
     std::vector<RigidBody3*> objs;
+
+    vec3 *checkNormalBuffer = nullptr;
+    size_t checkNormalBufferSize = 0;
 
     void collisionChecks();
     void collisionCheckStep2(RigidBody3* rb1, RigidBody3* rb2);
