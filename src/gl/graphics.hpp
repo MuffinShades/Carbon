@@ -169,3 +169,7 @@ public:
     void free_state();
     const size_t getEstimatedMemoryUsage();
 };
+
+class Renderer {
+
+};

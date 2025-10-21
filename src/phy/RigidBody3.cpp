@@ -264,10 +264,24 @@ struct _pproj {
     f32 min = INFINITY, max = -INFINITY;
 };
 
+const vec3 global_up = vec3(0.0f,1.0f,0.0f);
+
 _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n) {
     if (!rb)
         return {.err=true};
 
+    //goofy thing
+    const vec3 a = n, b = vec3::CrossProd(n, global_up), c = vec3::CrossProd(a,b);
+    const f32 n_dis_dat[16] = {
+        a.x, b.x, c.x, 0.0f,
+        a.y, b.y, c.y, 0.0f,
+        a.z, b.z, c.z, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+
+    mat4 n_dis_proj = mat4((f32*) n_dis_dat);
+
+    //mesh
     Mesh *msh = rb->mesh;
 
     if (!msh)
@@ -277,13 +291,30 @@ _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n) {
     const Vertex *verts = msh->data();
 
     size_t i;
-    f32 prj;
+    f32 min_dis = INFINITY, max_dis = -INFINITY, sqr_dis;
     _pproj r;
+    vec3 dis_vec, pos_vec;
+    f32 *_posf;
+
+    vec3 min_vec, max_vec;
 
     for (i = 0; i < sz; ++i) {
-        prj = proj_v2n_arr(verts[i].posf, n);
-        r.min = mu_min(r.min, prj);
-        r.max = mu_max(r.max, prj);
+        _posf = (f32*) verts[i].posf;
+        pos_vec = {
+            _posf[0], _posf[1], _posf[2]
+        };
+        dis_vec = n_dis_proj * pos_vec;
+        sqr_dis = dis_vec.x * dis_vec.x * dis_vec.y * dis_vec.y;
+
+        if (sqr_dis < min_dis) {
+            min_dis = sqr_dis;
+            r.min = vec3::DotProd(pos_vec, n);
+        }
+        
+        if (sqr_dis > max_dis) {
+            max_dis = sqr_dis;
+            r.max = vec3::DotProd(pos_vec, n);
+        }
     }
 
     return r;
@@ -321,6 +352,9 @@ void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
     n_inter_buf = const_cast<vec3*>(rb2->mesh->getStoredTriangleBasedNormals());
     in_memcpy(this->checkNormalBuffer + rb1_n_faces, n_inter_buf, rb2_n_faces * sizeof(vec3));
 
+    //TODO: add the cross product between edges!!!
+    //TODO: add a function in mesh to compute triangle normals
+
     vec3 lp_axis, lp_pos, n;
     f32 lp_mag = INFINITY;
 
@@ -329,10 +363,29 @@ void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
     for (i = 0; i < total_n_faces; ++i) {
         n = this->checkNormalBuffer[i];
         
+        //TODO: when projecting first get  the min/max poins on the axis and then project them to get the range!!!
         _pproj r1 = proj_body_on_normal(rb1, n),
                r2 = proj_body_on_normal(rb2, n);
 
         //TODO: check axis and get the info needed
+
+        if (
+            (r1.min < r2.min && r1.max > r2.min)
+        ) {
+            const f32 p = r1.max - r2.min; //penetration
+            //axis is normal
+
+            if (p > ) {
+
+            }
+        } else if (
+            (r2.min < r1.min && r2.max > r1.min)
+        ) {
+            const f32 p = r2.max - r1.min; //penetration
+            //axis is -normal
+            vec3 axis = n * -1.0f;
+        } else
+            return; //no collision occured
     }
 
     collisionResolve(rb1, rb2, lp_pos, lp_axis);
