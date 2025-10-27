@@ -844,6 +844,8 @@ struct _match {
     size_t matchSz;
 };
 
+constexpr size_t absoluteMaxMatchLength = 2048;
+
 struct match_settings {
     size_t maxLength = 0x100;
     size_t goodLength = 0xffff;
@@ -859,6 +861,8 @@ _match longest_match(hash_node<byte*>* firstMatch, lz_inst* ls, match_settings m
     if (!ls->window)
         return {};
 
+    if (ms.maxLength > absoluteMaxMatchLength) ms.maxLength = absoluteMaxMatchLength;
+
     hash_node<byte*>* curMatch = firstMatch, *bestMatch = firstMatch;
     size_t bestSz = 0, chainLen = 0;
 
@@ -866,9 +870,14 @@ _match longest_match(hash_node<byte*>* firstMatch, lz_inst* ls, match_settings m
     const byte* matchStart = ls->window;
 
     //TODO: copy upto 8 possible matches before comparing
-    byte local_cache[2048] = {0};
+    constexpr size_t lc_addr_matchBegin = 2048;
+    constexpr size_t lc_addr_matchBegin = 0;
+    byte local_cache[4096] = {0};
 
-    in_memcpy(local_cache, curMatch->val, 256);
+    #define _cache_copy(start_addr, val, sz) in_memcpy(local_cache + (start_addr), (val), (sz));
+
+    _cache_copy(0, curMatch->val, 256);
+    _cache_copy(lc_addr_matchBegin, matchStart, 2048);
 
     //get le best match
     while (curMatch && ++chainLen <= ms.maxChainLength) {
@@ -884,8 +893,10 @@ _match longest_match(hash_node<byte*>* firstMatch, lz_inst* ls, match_settings m
         //guarentee matchs are in close-by blocks of memory, or just make a 
         //hash node as few bytes of memory as possible by stuff stuff in a u32
         //since simple arithmetic operations take literally 0 time
-        byte *cur = (byte*)matchStart,
-             *comp = curMatch->val;
+
+        //TODO: make sure to recopy the new comparrison into the cache
+        byte *cur = (byte*) local_cache[lc_addr_matchBegin],
+             *comp = (byte*) local_cache[lc_addr_compBegin];
 
         if (!comp) {
             curMatch = curMatch->prev;

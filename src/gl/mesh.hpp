@@ -12,6 +12,8 @@ class Mesh {
 private:
     Vertex *verts = nullptr;
     vec3 *normals = nullptr;
+    vec3 *unique_edges = nullptr;
+    size_t nUniqueEdges = 0;
     size_t nVerts = 0, nFaces = 0;
     MeshCard card;
     bool dataOwn = true;
@@ -24,8 +26,8 @@ public:
 
     const vec3 *getStoredTriangleBasedNormals();
     const size_t getNTriangleFaces();
-
-    const vec3 *computeTriangleBasedNormals();
+    vec3 *getUniqueEdges();
+    size_t getNUniqueEdges();
 
     void setMeshData(Vertex *v, size_t nVerts, bool free_obj = false);
     void free();

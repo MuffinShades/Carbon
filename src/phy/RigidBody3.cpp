@@ -261,7 +261,8 @@ f32 proj_v2n_arr(const f32 *v, vec3 normal) {
 
 struct _pproj {
     bool err = false;
-    f32 min = INFINITY, max = -INFINITY;
+    f32 min_dot = INFINITY, max_dot = -INFINITY;
+    vec3 min, max;
 };
 
 const vec3 global_up = vec3(0.0f,1.0f,0.0f);
@@ -308,12 +309,14 @@ _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n) {
 
         if (sqr_dis < min_dis) {
             min_dis = sqr_dis;
-            r.min = vec3::DotProd(pos_vec, n);
+            r.min_dot = vec3::DotProd(pos_vec, n);
+            r.min = pos_vec;
         }
         
         if (sqr_dis > max_dis) {
             max_dis = sqr_dis;
-            r.max = vec3::DotProd(pos_vec, n);
+            r.max_dot = vec3::DotProd(pos_vec, n);
+            r.max = pos_vec;
         }
     }
 
@@ -356,7 +359,7 @@ void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
     //TODO: add a function in mesh to compute triangle normals
 
     vec3 lp_axis, lp_pos, n;
-    f32 lp_mag = INFINITY;
+    f32 lp_mag = -INFINITY;
 
     size_t i;
 
@@ -370,25 +373,32 @@ void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
         //TODO: check axis and get the info needed
 
         if (
-            (r1.min < r2.min && r1.max > r2.min)
+            (r1.min_dot <= r2.min_dot && r1.max_dot >= r2.min_dot)
         ) {
-            const f32 p = r1.max - r2.min; //penetration
+            const f32 p = r2.min_dot - r1.max_dot; //penetration
             //axis is normal
 
-            if (p > ) {
-
+            if (p > lp_mag) {
+                lp_axis = n;
+                lp_mag = p;
+                lp_pos = r1.max + lp_axis * lp_mag;
             }
         } else if (
-            (r2.min < r1.min && r2.max > r1.min)
+            (r2.min_dot <= r1.min_dot && r2.max_dot >= r1.min_dot)
         ) {
-            const f32 p = r2.max - r1.min; //penetration
+            const f32 p = r1.min_dot - r2.max_dot; //penetration
             //axis is -normal
-            vec3 axis = n * -1.0f;
+            
+            if (p > lp_mag) {
+                lp_axis = n * -1.0f;
+                lp_mag = p;
+                lp_pos = r1.min + lp_axis * lp_mag;
+            }
         } else
             return; //no collision occured
     }
 
-    collisionResolve(rb1, rb2, lp_pos, lp_axis);
+    collisionResolve(rb1, rb2, lp_pos, lp_axis * lp_mag);
 }
 
 void RBodyScene3::collisionChecks() {

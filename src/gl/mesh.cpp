@@ -70,6 +70,21 @@ const vec3 *Mesh::getStoredTriangleBasedNormals() {
     }
 }
 
+vec3 *Mesh::getUniqueEdges() {
+    if (this->unique_edges)
+        return this->unique_edges;
+
+    
+} 
+
+size_t Mesh::getNUniqueEdges() {
+    if (this->unique_edges)
+        return this->nUniqueEdges;
+
+    this->getUniqueEdges();
+    return this->nUniqueEdges;
+}
+
 void DynamicMesh::free() {
     MeshChunk *c = this->rootChunk, *toFree;
 
