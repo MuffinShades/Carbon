@@ -62,6 +62,7 @@ public:
     void addForce(Force F);
     void addSimpleForce(vec3 f);
     void applySimpleImpulse(vec3 J);
+    void setPos(vec3 posf);
 
     friend void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *simple_properties);
     friend class RBodyScene3;

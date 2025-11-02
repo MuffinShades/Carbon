@@ -50,6 +50,7 @@ void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *sim
 
     rb->obj_center = center;
     rb->central_trans_mat = mat4::CreateTranslationMatrix((center) * -1.0f);
+    rb->br = 2;
 
     //compute volume, mass, and I tensor
     switch (s_ty) {
@@ -225,6 +226,10 @@ RigidBody3::RigidBody3(rb_simple_type s_ty, vec3 dim, f32 density, Material mate
     }
 }
 
+void RigidBody3::setPos(vec3 posf) {
+    this->p = posf;
+}
+
 //resolve collision between 2 bodies
 void RBodyScene3::collisionResolve(RigidBody3* rb1, RigidBody3* rb2, vec3 c_pos, vec3 c_norm) {
     //TODO: calculute the impulse vector thing
@@ -280,6 +285,7 @@ _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n) {
         0.0f, 0.0f, 0.0f, 1.0f
     };
 
+    mat4 rb_mat = rb->getMat();
     mat4 n_dis_proj = mat4((f32*) n_dis_dat);
 
     //mesh
@@ -301,11 +307,18 @@ _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n) {
 
     for (i = 0; i < sz; ++i) {
         _posf = (f32*) verts[i].posf;
-        pos_vec = {
-            _posf[0], _posf[1], _posf[2]
-        };
+
+        //set the pos vec
+        pos_vec.x = _posf[0];
+        pos_vec.y = _posf[1];
+        pos_vec.z = _posf[2];
+
+        //matrix transforms
+        pos_vec = rb_mat * pos_vec;
         dis_vec = n_dis_proj * pos_vec;
-        sqr_dis = dis_vec.x * dis_vec.x * dis_vec.y * dis_vec.y;
+
+        //get distance from axis / plane
+        sqr_dis = dis_vec.lenSqr();
 
         if (sqr_dis < min_dis) {
             min_dis = sqr_dis;
@@ -370,10 +383,10 @@ void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
         _pproj r1 = proj_body_on_normal(rb1, n),
                r2 = proj_body_on_normal(rb2, n);
 
-        //TODO: check axis and get the info needed
+        //std::cout << r1.min_dot << " " << r1.max_dot << " " << r2.min_dot << " " << r2.max_dot << std::endl;
 
         if (
-            (r1.min_dot <= r2.min_dot && r1.max_dot >= r2.min_dot)
+            r1.min_dot <= r2.min_dot && r1.max_dot >= r2.min_dot
         ) {
             const f32 p = r2.min_dot - r1.max_dot; //penetration
             //axis is normal
@@ -384,7 +397,7 @@ void RBodyScene3::collisionCheckStep2(RigidBody3 *rb1, RigidBody3 *rb2) {
                 lp_pos = r1.max + lp_axis * lp_mag;
             }
         } else if (
-            (r2.min_dot <= r1.min_dot && r2.max_dot >= r1.min_dot)
+            r2.min_dot <= r1.min_dot && r2.max_dot >= r1.min_dot
         ) {
             const f32 p = r1.min_dot - r2.max_dot; //penetration
             //axis is -normal
@@ -408,7 +421,7 @@ void RBodyScene3::collisionChecks() {
 
     RigidBody3 *rb1, *rb2;
 
-    f32 dx,dy,dz,r_dis;
+    f32 dx,dy,dz,r_dis,a_dis;
 
     for (i = 0; i < nObjs; ++i) {
         rb1 = this->objs[i];
@@ -419,11 +432,13 @@ void RBodyScene3::collisionChecks() {
             dy = rb2->y - rb1->y;
             dz = rb2->z - rb1->z;
 
+            a_dis = dx*dx + dy*dy + dz*dz;
+
             r_dis = rb2->boundingRadius() + rb1->boundingRadius();   
             r_dis *= r_dis;
 
             //check bounding radius
-            if (dx*dx + dy*dy + dz*dz >= r_dis)
+            if (a_dis >= r_dis)
                 continue;
                 
             //do sat
@@ -442,7 +457,7 @@ void RBodyScene3::tick(f32 dt) {
         b->tick(dt);
     }
 
-    //this->collisionChecks();
+    this->collisionChecks();
 }
 
 void RBodyScene3::render(graphics* g, Camera *cam) {

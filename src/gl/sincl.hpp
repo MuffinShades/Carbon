@@ -10,6 +10,12 @@
 #include <iostream>
 #include "../lang/tokens.hpp"
 
-class Sincl {
+struct _sincl_exp {
+    char *new_src = nullptr;
+    size_t src_len = 0;
+};
 
+class Sincl {
+public:
+    _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_original_src = false);
 };

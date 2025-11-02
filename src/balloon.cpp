@@ -871,7 +871,7 @@ _match longest_match(hash_node<byte*>* firstMatch, lz_inst* ls, match_settings m
 
     //TODO: copy upto 8 possible matches before comparing
     constexpr size_t lc_addr_matchBegin = 2048;
-    constexpr size_t lc_addr_matchBegin = 0;
+    constexpr size_t lc_addr_compBegin = 0;
     byte local_cache[4096] = {0};
 
     #define _cache_copy(start_addr, val, sz) in_memcpy(local_cache + (start_addr), (val), (sz));
@@ -895,8 +895,11 @@ _match longest_match(hash_node<byte*>* firstMatch, lz_inst* ls, match_settings m
         //since simple arithmetic operations take literally 0 time
 
         //TODO: make sure to recopy the new comparrison into the cache
-        byte *cur = (byte*) local_cache[lc_addr_matchBegin],
-             *comp = (byte*) local_cache[lc_addr_compBegin];
+        //byte *cur = (byte*) local_cache[lc_addr_matchBegin],
+        //   *comp = (byte*) local_cache[lc_addr_compBegin];
+
+        byte *cur = (byte*) matchStart,
+             *comp = curMatch->val;
 
         if (!comp) {
             curMatch = curMatch->prev;

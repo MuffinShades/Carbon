@@ -45,7 +45,7 @@ struct Token {
     int64_t rawiValue = 0;
     int enum_id = -1;
     uint64_t raw_checksum; //used for quick search / check of a string to see if it matches an existing one
-    size_t len;
+    size_t len, pgrm_pos;
     SrcMap src;
     psinf inf;
     bool is(std::string v);
@@ -57,10 +57,10 @@ struct lang_info {
     size_t n_operators = 0;
     std::string *keywords = nullptr;
     size_t n_keywords = 0;
-
 };
 
 class TokenGenerator {
 public:
+    static const char* cleanCode(const char* source, size_t srcLen);
     static std::vector<Token> genProgramTokens(const char* source, size_t srcLen, lang_info inf);
 };

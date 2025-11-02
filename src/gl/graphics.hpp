@@ -113,6 +113,11 @@ private:
     f32 winW, winH;
 
 public:
+    enum class StockRenderType {
+        Line
+        
+    };  
+
     graphics(Window *w) {
         if (w != nullptr)
             this->win = w;
@@ -168,8 +173,4 @@ public:
     //void FillRect(float x, float y, float w, float h);
     void free_state();
     const size_t getEstimatedMemoryUsage();
-};
-
-class Renderer {
-
 };

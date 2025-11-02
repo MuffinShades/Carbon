@@ -19,6 +19,93 @@
 #define IS_BRACKET(val) ((val) == '{' || (val) == '}' || (val) == '[' || (val) == ']' || (val) == '(' || (val) == ')')
 #define IS_NUMERICAL(val) ((val) >= '0' && (val) <= '9')
 
+#define SINGLE_LINE_COMMENT "//"
+#define MULTI_LINE_COMMENT_START "/*"
+#define MULTI_LINE_COMMENT_END "*/"
+
+const char* TokenGenerator::cleanCode(const char* source, size_t srcLen) {
+    char *cur = (char*) source, *end = (char*) source + srcLen;
+    bool slc = false, mlc = false; //bools for whether or not we in a single or multiline comment
+
+    const char slc_cmp[] = SINGLE_LINE_COMMENT;
+    const char mlcs_cmp[] = MULTI_LINE_COMMENT_START;
+    const char mlce_cmp[] = MULTI_LINE_COMMENT_END;
+
+    const size_t slc_len = strlen(slc_cmp);
+    const size_t mlcs_len = strlen(mlcs_cmp);
+    const size_t mlce_len = strlen(mlce_cmp);
+
+    char *out_buffer = new char[srcLen], *cur_out = out_buffer;
+
+    //std::cout << "Src Len: " << srcLen << std::endl;
+    //std::cout << "Clean Code: ";
+
+    int currentLine = 1;
+
+    do {
+        if (*cur == '\n') {
+            slc = false;
+            currentLine++;
+            *cur_out++= '\n';
+        }
+
+        if (mlc && *cur == mlce_cmp[0]) {
+            LENGTH_MATCH(cur, mlce_cmp, mlce_len, mlc);
+            mlc = !mlc;
+            if (!mlc) {
+                cur++;
+                continue;
+            }
+        }
+
+        if (!slc && !mlc) {
+            if (*cur == slc_cmp[0]) {
+                LENGTH_MATCH(cur, slc_cmp, slc_len, slc);
+                if (slc) {
+                    cur += slc_len - 1;
+                    continue;
+                }
+            }
+
+            if (!slc && *cur == mlcs_cmp[0]) {
+                LENGTH_MATCH(cur, mlcs_cmp, mlcs_len, mlc);
+                if (mlc) {
+                    cur += mlcs_len - 1;
+                    continue;
+                }
+            }
+
+            switch (*cur) {
+                case '\t': break;
+                case '\r': break;
+                case '\v': break;
+                default: {
+                    //todo: add to result
+                    char prev = *(cur - 1), next = *(cur + 1);
+
+                    if (
+                        IS_ALPHA_SYNUMERICAL(*cur) || 
+                        (
+                            *cur == ' ' && 
+                            (
+                                (IS_ALPHA_NUMERICAL(prev) && 
+                                 IS_ALPHA_NUMERICAL(next)) ||
+                                (IS_SYMBL(prev) &&
+                                 IS_SYMBL(next))
+                            )
+                        )
+                    )
+                        *cur_out++ = *cur;
+                    break;
+                }
+            }
+        }
+    } while(++cur <= end);
+
+    *cur_out = 0x00;
+    return out_buffer;
+}
+
 void tok_flush(Token &tok, std::vector<Token> &tokens) {
     if (tok.rawValue.length() <= 0) return;
 
@@ -89,12 +176,11 @@ void gen_token(Token& tok, ptr_itr<const char>* p, lang_info inf) {
         size_t i = 0, len;
         std::string cmp;
         
-        for (; i < itms_size && (len = (cmp = itms[i++]).length()) > 0;) {
-            const size_t I = i - 1; //value of I that should be used for the current loop cycle
+        for (; i < itms_size && (len = (cmp = itms[i]).length()) > 0; i++) {
             if (len != c_len) continue;
             if (_strCompare(cmp, symCollect, c_len)) {
                 lastBestMatch = c_len;
-                match = I;
+                match = i;
                 return true;
             }
         }
@@ -199,8 +285,8 @@ void gen_token(Token& tok, ptr_itr<const char>* p, lang_info inf) {
 }
 
 std::vector<Token> TokenGenerator::genProgramTokens(const char* source, size_t srcLen, lang_info inf) {
-    int pgrm_line = 1;
-    if (source == nullptr || srcLen <= 0) return std::vector<Token>(0);
+    size_t pgrm_line = 1, pgrm_line_pos = 1, pgrm_pos = 0;
+    if (!source || srcLen <= 0) return std::vector<Token>(0);
 
     std::vector<Token> tokens;
 
@@ -210,6 +296,7 @@ std::vector<Token> TokenGenerator::genProgramTokens(const char* source, size_t s
 
     //create the pointer interator
     ptr_itr<const char> p = ptr_itr<const char>(source, srcLen);
+    bool single_char_tok = true;
 
     do {
         switch (*p.cur) {
@@ -277,21 +364,37 @@ std::vector<Token> TokenGenerator::genProgramTokens(const char* source, size_t s
             case ' ': break;
             case '\n': {
                 pgrm_line++;
+                pgrm_line_pos = 1;
                 break;
             }
             default: {
                 gen_token(tok, &p, inf);
+                single_char_tok = false;
                 break;
             }
         }
+
+        size_t char_read;
+
+        if (single_char_tok)
+            char_read = 1;
+        else
+            char_read = tok.len;
+
+        pgrm_line_pos ++;
+        pgrm_pos ++;
 
         if (tok.ty != TokenType::tok_notype) {
             computeTokenCheckSum(tok);
             tokens.push_back(tok);
             tok.src.lineNumber = pgrm_line;
+            tok.src.linePos = pgrm_line_pos;
+            tok.pgrm_pos = pgrm_pos;
             tok.ty = TokenType::tok_notype;
             tok.rawValue = "";
         }
+
+        single_char_tok = true;
     } while(++p.cur <= p.p_end);
 
     tokens.push_back({

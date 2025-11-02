@@ -43,6 +43,7 @@ void mouseEnableUpdate(GLFWwindow* win) {
 
 //Physics Scene
 RigidBody3 body1 = RigidBody3(rb_simple_type::cuboid, vec3(1.0, 1.0, 1.0), 0.1f, Material::Plastic);
+RigidBody3 body2 = RigidBody3(rb_simple_type::cuboid, vec3(1.0, 1.0, 1.0), INFINITY, Material::Plastic);
 RBodyScene3 scene;
 
 void kb_callback(GLFWwindow* win, i32 key, i32 scancode, i32 action, i32 mods) {
@@ -57,13 +58,13 @@ void kb_callback(GLFWwindow* win, i32 key, i32 scancode, i32 action, i32 mods) {
         break;
     case GLFW_KEY_Q:
         if (action == GLFW_PRESS) {
-            std::cout << "!!!" << std::endl;
-            //scene.setGravity(-9.8f * 0.01f);
+            scene.setGravity(-.00098f);
             Force F = {
                 .pos = vec3(0.0f, 0.1f, 0.0f),
                 .F = vec3(200.0f, 0.0f, 0.0f)
             };
-            body1.addForce(F);
+            //body1.addForce(F);
+            //body2.addForce(F);
         }
         break;
     }
@@ -80,6 +81,8 @@ mat4 lookMat;
 
 void scene_setup() {
     scene.addBody(&body1);
+    body2.setPos(vec3(0, -3, 0));
+    scene.addBody(&body2);
 }
 
 void render() {
