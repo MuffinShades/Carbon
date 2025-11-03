@@ -97,7 +97,7 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_origina
     std::vector<Token> pgrm_tokens = TokenGenerator::genProgramTokens(c_src, c_src_len, lang_inf_GLSL_incl);
 
     _sincl_exp res = {
-        .new_src = c_src,
+        .new_src = (char*) c_src,
         .src_len = c_src_len
     };
 
