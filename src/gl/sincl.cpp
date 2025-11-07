@@ -101,11 +101,27 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_origina
         .src_len = c_src_len
     };
 
-    for (Token tk : pgrm_tokens) {
+    i32 i;
+    size_t n_tok = pgrm_tokens.size();
+    Token tk;
+    bool barrier = false;
+
+    for (i = 1; i < n_tok; i++) {
+        tk = pgrm_tokens[i];
+        if (tk.isTypeOf(TokenType::tok_tag)) {
+            barrier = true;
+            continue;
+        } else if (!barrier) {
+            i++;
+            continue;
+        }
+
         if (tk.is("include")) {
 
         } else if (tk.is("include_fn")) {
             
         }
+
+        barrier = false;
     }
 }
