@@ -117,9 +117,9 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_origina
         }
 
         if (tk.is("include")) {
-
-        } else if (tk.is("include_fn")) {
             
+        } else if (tk.is("include_fn")) {
+
         }
 
         barrier = false;
