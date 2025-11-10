@@ -361,6 +361,16 @@ std::vector<Token> TokenGenerator::genProgramTokens(const char* source, size_t s
                 tok.rawValue = *p.cur;
                 break;
             }
+            case '\"': {
+                tok.ty = TokenType::tok_double_quote;
+                tok.rawValue = *p.cur;
+                break;
+            }
+            case '\'': {
+                tok.ty = TokenType::tok_single_quote;
+                tok.rawValue = *p.cur;
+                break;
+            }
             case ' ': break;
             case '\n': {
                 pgrm_line++;

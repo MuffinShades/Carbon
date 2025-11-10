@@ -20,7 +20,9 @@ enum class TokenType {
     tok_comma,
     tok_num_literal,
     tok_decimal,
-    tok_pgrm_end
+    tok_pgrm_end,
+    tok_single_quote,
+    tok_double_quote
 };
 
 const std::string tok_type_strs[] = {"NOTYPE", "LITERAL", "OPP", "LNEND", 
