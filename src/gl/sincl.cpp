@@ -35,7 +35,16 @@ people develop
 #include "sincl.hpp"
 #include  "../lang/tokens.hpp"
 #include "../msutil.hpp"
+#include "filewrite.hpp"
+#include "linked_map.hpp"
 
+//WARNING: if you change the type of this you have to change how the variable below is calculated!!
+constexpr std::string valid_glsl_version_profiles[] = {
+    "core",
+    "es"
+};
+
+constexpr size_t n_valid_glsl_version_profiles = sizeof(valid_glsl_version_profiles) / sizeof(std::string);
 
 struct pgrm_fn {
     std::string name;
@@ -119,6 +128,13 @@ std::vector<pgrm_fn> get_glslShaderFunctions(std::vector<Token> pgrm_tokens) {
     } 
 }
 
+//flag that enables or disables the __ihistory param in the addshader include
+//this is only toggled by _sincl_src_finder::getSourceData() functions so previously
+//included files aren't included multiple times
+bool Sincl::ihistory_enable = false;
+
+//
+
 enum class include_src_region {
     unknown,
     dir, //directory includes like #include "file.glsl"
@@ -138,11 +154,93 @@ in specific mode the finder will only search and extract certain functions
 addSpecific --> adds a specific function the finder should search for when calling "getSrcData()"
 
 */
+
 class _sincl_src_finder {
 private:
     include_src_region rgn = include_src_region::unknown;
     std::string src_path;
-    bool valid = false;
+    bool valid = false, spec = false;
+
+    struct incl_history_node {
+        incl_history_node **includes = nullptr;
+        size_t n_includes = 0, n_alloc_includes = 0;
+    };
+
+    void free_ihistory_node_no_del(incl_history_node *n) {
+        if (!n) return;
+
+        i32 i;
+
+        for (i = 0; i < n->n_includes; i++)
+            free_ihistory_node(n->includes[i]);
+
+        _safe_free_a(n->includes);
+    }
+
+    void free_ihistory_node(incl_history_node *n) {
+        if (!n) return;
+
+        i32 i;
+
+        for (i = 0; i < n->n_includes; i++)
+            free_ihistory_node(n->includes[i]);
+
+        _safe_free_a(n->includes);
+        _safe_free_b(n);
+    }
+
+    void alloc_ihistory_node(incl_history_node *n) {
+        if (!n || n->n_alloc_includes == 0) return;
+
+        if (n->includes) {
+            free_ihistory_node_no_del(n);
+        }
+
+        n->includes = new incl_history_node*[n->n_alloc_includes];
+        ZeroMem(n->includes, n->n_alloc_includes);
+        n->n_includes = 0;
+    }
+
+    std::string getSpecificSourceData() {
+
+    }
+
+    std::string getSourceData(void *ihistory_ref = nullptr) {
+        if (src_path.length() == 0)
+            return "";
+        
+        file raw = FileWrite::readFromBin(src_path);
+
+        if (!raw.dat || raw.len == 0) {
+            if (raw.dat)
+                _safe_free_a(raw.dat);
+
+            return "";
+        }
+
+        //process the raw file
+        incl_history_node *h = new incl_history_node;
+        
+        constexpr size_t assumed_inital_max_include = 256;
+
+        //allocate the first node
+        h->n_alloc_includes = assumed_inital_max_include;
+        alloc_ihistory_node(h);
+
+        //start to process includes and other ihistory nodes
+        bool dis_ihist = false;
+        if (!Sincl::ihistory_enable) {
+            Sincl::enable_ihistory();
+            dis_ihist = true;
+        }
+
+        //do all the processing and stuff here
+
+
+        //disable the ihistory param
+        if (dis_ihist)
+            Sincl::disable_ihistory();
+    }
 public:
     _sincl_src_finder(include_src_region rgn, std::string src_path, bool specific = false) {
         this->rgn = rgn;
@@ -151,8 +249,11 @@ public:
             return;
 
         this->valid = true;
+        this->spec = specific;
     }
-    std::string getSrcData() {
+    std::string getSrcData(void *ihistory = nullptr) {
+        //TODO: make sure you check ihistory flag
+
         //parse the whole path
 
         //read from the file
@@ -170,7 +271,7 @@ public:
     }
 };
 
-_sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_original_src = false) {
+_sincl_exp AddShaderInclude(const char *src, size_t src_len, Sincl::Options settings, void *__ihistory) {
     if (!src || src_len == 0)
         return {};
 
@@ -207,9 +308,14 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_origina
     i32 i, j;
     size_t n_tok = pgrm_tokens.size(),
            last_proc_tok = n_tok + 3; //when processing and include statement, there must be at least 3 tokens left for the forms "asdf" and <asdf>
+    const size_t last_incl_proc_tok = n_tok + 3;
     size_t prev_chunk_end = 0;
     Token tk;
     bool barrier = false;
+
+    //have to change this since versions can be specified as #version [number] or #version [number] [profile]
+    if (settings.remove_version)
+        last_proc_tok = n_tok + 2;
 
     //skeleton of the output file
     std::vector<output_sector> output_skeleton;
@@ -236,10 +342,58 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_origina
             mode = include_mode::base;
         else if (tk.is("include_fn"))
             mode = include_mode::fn;
+        else if (settings.remove_version && tk.is("version")) {
+            //remove the version specifier
+            tk = pgrm_tokens[++i];
+
+            if (!tk.isTypeOf(TokenType::tok_num_literal)) {
+                std::cout << "Invalid glsl version number type! Version number is NaN!!" << std::endl;
+                delete[] c_src;
+                return {};
+            }
+
+            if (i >= last_proc_tok)
+                continue;
+
+            //look for the profile or something; idk why I have to do this but alas I must
+            size_t last_tok_line = tk.src.lineNumber;
+            tk = pgrm_tokens[i+1];
+
+            if (tk.src.lineNumber != last_tok_line) continue; //new line so no profile
+            if (!tk.isTypeOf(TokenType::tok_literal)) { //profile must be defined as a literal; nothing else
+                std::cout << "Invalid glsl version profile type [1]!" << std::endl;
+                delete[] c_src;
+                return {};
+            }
+            
+            //check the valid glsl profiles
+            bool valid_profile = false;
+            for (j = 0; j < n_valid_glsl_version_profiles; j++) {
+                if (tk.is(valid_glsl_version_profiles[i])) {
+                    valid_profile = true;
+                    break;
+                }
+            }
+
+            if (!valid_profile) {
+                std::cout << "Invalid glsl version profile type [2]!" << std::endl;
+                delete[] c_src;
+                return {};
+            }
+
+            i++; //inc i since if we got here there must be a valid profile thingy
+
+            continue;
+        }
         else {
             barrier = false;
             continue;
         }
+
+        //can't process an include if there aren't enough tokens
+        //TODO: throw an error or something instead of simply just skipping
+        if (i >= last_incl_proc_tok)
+            continue;
 
         //create a new output sector
 
@@ -361,6 +515,8 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_origina
             std::cout << "wtf memory corruption or something" << std::endl;
             break;
         }
+
+        std::string inter_data = src_read.getSrcData();
 
         //compute new prev_chunk_end
 
