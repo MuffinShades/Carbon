@@ -1,9 +1,12 @@
 //shader include operations
 /*
 
+Copyright Lambdana Software 2025
+Programmed by muffinshades
+
 #include "name" -> includes all functions from another shader
 #include <lib>
-#include_fn "name"@"fn" -> include specific function
+#include_fn "name"@fn -> include specific function
 #include_fn <lib>@fn
 
 */
@@ -16,6 +19,8 @@ struct _sincl_exp {
 };
 
 class Sincl {
+private:
+     
 public:
-    _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_original_src = false);
+    static _sincl_exp AddShaderInclude(const char *src, size_t src_len, bool delete_original_src = false);
 };

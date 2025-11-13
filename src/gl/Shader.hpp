@@ -5,6 +5,7 @@
 #include "../msutil.hpp"
 #include "../vec.hpp"
 #include "../mat.hpp"
+#include "sincl.hpp"
 
 class Shader {
 public:

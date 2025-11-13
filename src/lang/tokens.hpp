@@ -22,13 +22,21 @@ enum class TokenType {
     tok_decimal,
     tok_pgrm_end,
     tok_single_quote,
-    tok_double_quote
+    tok_double_quote,
+    tok_left_quack,
+    tok_right_quack,
+    tok_plus,
+    tok_minus,
+    tok_fslash,
+    tok_bslash
 };
 
 const std::string tok_type_strs[] = {"NOTYPE", "LITERAL", "OPP", "LNEND", 
                                      "LPAREN", "RPAREN", "LBRACK", "RBRACK", 
                                      "LSQBRACK", "RSQBRACK", "KEYWORD", "COLON",
-                                     "@", "#", "COMMA", "NUM_LIT", "DECIMAL", "PGRM_END"};
+                                     "@", "#", "COMMA", "NUM_LIT", "DECIMAL", "PGRM_END", 
+                                     "SQUOTE", "DQUOTE", "LQUACK", "RQUACK", "PLUS", "MINUS", 
+                                     "FSLASH", "BSLASH"};
 
 struct psinf {
     bool isType, isVar, isFn;
