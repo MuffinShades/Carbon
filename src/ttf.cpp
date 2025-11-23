@@ -233,6 +233,7 @@ u32 getGlyphOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
     return offset;
 }
 
+//cmap4
 struct cmap_format_4 {
     u16 
         table_len, 
@@ -254,7 +255,37 @@ void free_cmap_format_4(cmap_format_4* c) {
     ZeroMem(c, sizeof(cmap_format_4));
 }
 
-void cmap_4(ttfStream *stream, u16 t_char) {
+size_t decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
+    i32 c_idx = 0;
+
+    while (table.endCode[c_idx] <= w_char) {
+        c_idx++;
+        
+        if (table.endCode[c_idx] == 0xffff)
+            break;
+    }
+
+    if (table.startCode[c_idx] > w_char) {
+        std::cout << "Character "<< w_char <<" not present in ttf!" << std::endl;
+    }
+
+    const u16 iro = table.idRangeOffset[c_idx];
+    size_t glyphIndex = 0;
+
+    if (iro == 0) {
+        glyphIndex = (w_char + table.idDelta[c_idx]) % 0x10000; //modulo 65536
+    } else {
+        size_t loc = (c_idx + (table.idRangeOffset[c_idx] >> 1)) + (w_char - table.startCode[c_idx]);
+        if (loc >= table.segCount) {
+            std::cout << "tff error: failed to map glyph (cmap 4): out of range!" << std::endl;
+        }
+        glyphIndex = (table.idRangeOffset[loc] + table.idDelta[c_idx]) % 0x10000;
+    }
+
+    return glyphIndex;
+}
+
+cmap_format_4 cmap_4(ttfStream *stream) {
     if (!stream) return;
 
     cmap_format_4 table = {
@@ -310,26 +341,33 @@ void cmap_4(ttfStream *stream, u16 t_char) {
         table.idRangeOffset[i] = stream->readUInt16();
     }
 
-    //
-    i32 c_idx = 0;
-
-    while (table.endCode[c_idx] <= t_char) {
-        c_idx++;
-        
-        if (table.endCode[c_idx] == 0xffff)
-            break;
-    }
-
-    if (table.startCode[c_idx] > t_char) {
-        std::cout << "Character "<<t_char<<" not present in ttf!" << std::endl;
-    }
-
-    //memory management
-    free_cmap_format_4(&table);
+    return table;
 }
 
-void cmap_12() {
-    
+//cmap12
+struct cmap12_group {
+    u32 start_cc, //start char code
+        end_cc, //end char code
+        start_gc; //start glyph code
+};
+
+struct cmap_format_12 {
+    u32 len,
+        lang,
+        nGroups;
+    void *segValBlock = nullptr;
+};
+
+void free_cmap_format_12(cmap_format_12* c) {
+    if (c->segValBlock)
+        _safe_free_a(c->segValBlock);
+    ZeroMem(c, sizeof(cmap_format_12));
+}
+
+cmap_format_12 cmap_12(ttfStream *stream) {
+    if (!stream) return;
+
+
 }
 
 /**
