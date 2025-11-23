@@ -367,7 +367,28 @@ void free_cmap_format_12(cmap_format_12* c) {
 cmap_format_12 cmap_12(ttfStream *stream) {
     if (!stream) return;
 
+    const u16 fmt = stream->readUInt16();
 
+    if (fmt != 12) {
+        std::cout << "failed to read cmap 12 table: table is not cmap 12!" << std::endl;
+        return {};
+    }
+
+    const u16 rsv = stream->readUInt16();
+
+    if (rsv != 0) {
+        std::cout << "warning: cmap 12 reserve is not zero!" << std::endl;
+    }
+
+    cmap_format_12 table = {
+        .len = stream->readUInt32(),
+        .lang = stream->readUInt32(),
+        .nGroups = stream->readUInt32()
+    };
+
+    
+
+    return table;
 }
 
 /**
