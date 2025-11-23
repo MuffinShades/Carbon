@@ -355,6 +355,10 @@ struct cmap_format_12 {
     u32 len,
         lang,
         nGroups;
+
+    //groups and segValBlock are linked
+    //only delete this object with free_cmap_format_12
+    cmap12_group *groups = nullptr;
     void *segValBlock = nullptr;
 };
 
@@ -386,9 +390,46 @@ cmap_format_12 cmap_12(ttfStream *stream) {
         .nGroups = stream->readUInt32()
     };
 
-    
+    if (table.nGroups == 0)
+        return table;
+
+    table.groups = new cmap12_group[table.nGroups];
+    ZeroMem(table.groups, table.nGroups);
+    table.segValBlock = (void*) table.groups;
+
+    i32 i;
+
+    for (i = 0; i <  table.nGroups; ++i) {
+        cmap12_group g = {
+            .start_cc = stream->readUInt32(),
+            .end_cc = stream->readUInt32(),
+            .start_gc = stream->readUInt32()
+        };
+
+        table.groups[i] = g;
+    }
 
     return table;
+}
+
+size_t decode_char_from_cmap12(cmap_format_12 table, u32 uw_char) {
+    if (table.nGroups == 0 || !table.groups)
+        return 0;
+
+    i32 idx = 0;
+
+    cmap12_group g = table.groups[0];
+
+    while (g.end_cc <= uw_char) {
+        idx++;
+
+        if (idx >= table.nGroups) 
+            return 0;
+    }
+
+    if (g.start_cc > uw_char) return 0;
+
+    return g.start_gc + (uw_char - g.start_cc);
 }
 
 /**
