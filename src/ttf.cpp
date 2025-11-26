@@ -286,7 +286,7 @@ size_t decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
 }
 
 cmap_format_4 cmap_4(ttfStream *stream) {
-    if (!stream) return;
+    if (!stream) return {};
 
     cmap_format_4 table = {
         .table_len = stream->readUInt16(),
@@ -302,7 +302,7 @@ cmap_format_4 cmap_4(ttfStream *stream) {
 
     if (table.segCount == 0) {
         std::cout << "ttf error: failed to read cmap4, not enough segments!" << std::endl;
-        return;
+        return {};
     }
 
     //allocate a lot of memory
@@ -369,7 +369,7 @@ void free_cmap_format_12(cmap_format_12* c) {
 }
 
 cmap_format_12 cmap_12(ttfStream *stream) {
-    if (!stream) return;
+    if (!stream) return {};
 
     const u16 fmt = stream->readUInt16();
 

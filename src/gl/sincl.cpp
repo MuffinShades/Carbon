@@ -35,11 +35,11 @@ people develop
 #include "sincl.hpp"
 #include  "../lang/tokens.hpp"
 #include "../msutil.hpp"
-#include "filewrite.hpp"
-#include "linked_map.hpp"
+#include "../filewrite.hpp"
+#include "../linked_map.hpp"
 
 //WARNING: if you change the type of this you have to change how the variable below is calculated!!
-constexpr std::string valid_glsl_version_profiles[] = {
+const std::string valid_glsl_version_profiles[] = {
     "core",
     "es"
 };
@@ -121,11 +121,13 @@ std::vector<pgrm_fn> get_glslShaderFunctions(std::vector<Token> pgrm_tokens) {
         //check function body
         fn_body_check:
 
-
+        continue;
 
         //check left side of function (name and return type)
 
     } 
+
+    return std::vector<pgrm_fn>();
 }
 
 //flag that enables or disables the __ihistory param in the addshader include
@@ -259,6 +261,8 @@ public:
         //read from the file
 
         //return or some shit
+
+        return "";
     }
     void addSpecific(std::string s) {
         if (s.length() == 0)

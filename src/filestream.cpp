@@ -1,4 +1,5 @@
 #include "filestream.hpp"
+#include "logger.hpp"
 
 //copied from bytestream.cpp
 /*void free_block(mem_block* block) {
@@ -23,11 +24,15 @@ FileByteStream::FileByteStream(std::string src) {
         return;
     }
 
-    stream.seekg(std::ios::end);
+    stream.seekg(0, std::ios::end);
     this->f_size = stream.tellg();
-    stream.seekg(std::ios::beg);
+    stream.seekg(0, std::ios::beg);
 
     this->load_new_block(this->blockAllocSz);
+
+    this->seek(0); //just goto beginngin of the stream
+
+    std::cout << "stream pos [file_stream]: " << this->tell() << " Len: " << this->len << " Alloc: " << this->allocSz << " AllocChunk: " << this->blockAllocSz << std::endl;
 
     //this->ByteStream::enable_manual_mode();
 }
@@ -97,10 +102,16 @@ void FileByteStream::load_new_block(size_t sz) {
         f_stream_seek(this->f_pos);
 
         const size_t n_f_read = mu_min(fileBytesLeft, sz);
+        std::cout << "reading: " << n_f_read << "b" << " | " << fileBytesLeft << " | File Size: " << this->f_size << "bytes" << std::endl;
         stream.read((char*) block->dat, n_f_read);
     } 
 
     this->block_append(block);
+    this->len += block->sz;
+
+    Logger L;
+
+    L.LogHex(block->dat, mu_min(256, block->sz));
 }
 
 bool FileByteStream::block_adv(bool pos_adv, bool write) {

@@ -265,6 +265,7 @@ bool ByteStream::block_adv(bool pos_adv, bool write) {
 
 //WARNING: pos and block pos could get desynced here
 void ByteStream::pos_adv() {
+	std::cout << this->pos << " " << this->len << std::endl;
 	if (++this->pos >= this->len) {
 		this->pos = this->len - 1;
 		this->blockPos = this->pos - this->cur_block->pos;
