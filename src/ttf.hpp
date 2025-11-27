@@ -149,6 +149,29 @@ struct cmap_format_12 {
     void *segValBlock = nullptr;
 };
 
+struct gen_char_inf {
+    i16 ascent;
+    i16 descent;
+    i16 lineGap;
+    u16 advanceWidthMax;
+    u16 minLeftSideBearing;
+    u16 minRightSideBearing;
+    i16 xMaxExtent;
+    f32 caret_slope = 0.0f;
+    bool vertical_caret_slope = false;
+    i16 caretOffset;
+    i16 metricDataFormat;
+    u16 nLongHorMetrics;
+};
+
+struct char_metric {
+
+};
+
+struct char_set {
+
+};
+
 //le file
 class ttfFile {
 public:
@@ -165,10 +188,26 @@ public:
     offsetTable loca_table;
     offsetTable glyph_table;
     offsetTable cmap_table;
+    offsetTable hhea_table;
+    offsetTable hmtx_table;
     CMapMode platform = CMap_null;
     i32 encodingId = 0;
     std::vector<offsetTable> tables;
     table_head header;
+    gen_char_inf gc_inf;
+};
+
+enum class UnicodeRanges {
+    Utf8,
+    Utf16,
+    Latin_Basic,
+    Latin_1_Sup,
+    Latin_Exa,
+    Latin_Exb,
+    Latin_Full,
+    IPA_Ext,
+    Spacing_Mod_Letters
+
 };
 
 class ttfParse {
