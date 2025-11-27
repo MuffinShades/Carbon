@@ -234,22 +234,6 @@ u32 getGlyphOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
 }
 
 //cmap4
-struct cmap_format_4 {
-    u16 
-        table_len, 
-        lang, 
-        segCount = 0, 
-        searchRange, 
-        entrySelector, 
-        rangeShift, 
-        *endCode = nullptr, 
-        reservePad,
-        *startCode = nullptr;
-    i16 *idDelta = nullptr;
-    u16 *idRangeOffset = nullptr;
-    void *segValBlock = nullptr;
-};
-
 void free_cmap_format_4(cmap_format_4* c) {
     _safe_free_a(c->segValBlock);
     ZeroMem(c, sizeof(cmap_format_4));
@@ -345,23 +329,6 @@ cmap_format_4 cmap_4(ttfStream *stream) {
 }
 
 //cmap12
-struct cmap12_group {
-    u32 start_cc, //start char code
-        end_cc, //end char code
-        start_gc; //start glyph code
-};
-
-struct cmap_format_12 {
-    u32 len,
-        lang,
-        nGroups;
-
-    //groups and segValBlock are linked
-    //only delete this object with free_cmap_format_12
-    cmap12_group *groups = nullptr;
-    void *segValBlock = nullptr;
-};
-
 void free_cmap_format_12(cmap_format_12* c) {
     if (c->segValBlock)
         _safe_free_a(c->segValBlock);
@@ -444,15 +411,15 @@ size_t decode_char_from_cmap12(cmap_format_12 table, u32 uw_char) {
  *
  */
 u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
-    const size_t mapOff = f->cmap_table.off;
-    const size_t rPos = stream->seek(mapOff);
-
-    //read data from the cmap table
-    const u16 version = stream->readUInt16();
-    const u16 nSubTables = stream->readUInt16();
-
     //mode
     if (f->platform == CMap_null) {
+        const size_t mapOff = f->cmap_table.off;
+        const size_t rPos = stream->seek(mapOff);
+
+        //read data from the cmap table
+        const u16 version = stream->readUInt16();
+        const u16 nSubTables = stream->readUInt16();
+
         f->platform = (enum CMapMode)stream->readInt16();
         f->encodingId = stream->readInt16();
 
@@ -460,22 +427,36 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
         stream->seek(off);
         const u16 cmap_format = stream->readUInt16();
 
+        f->cmap_id = cmap_format;
+
         switch (cmap_format) {
         case 4:
-
+            f->cmap_fmt.fmt_4 = cmap_4(stream);
             break;
         case 12:
+            f->cmap_fmt.fmt_12 = cmap_12(stream);
             break;
         default:
             std::cout << "ttf error: unsupported cmap format: " << cmap_format << std::endl;
             break;
         }
-    }
-    else
-        //since we've already read it, skip the map type and platform specific ID
-        stream->skip(sizeof(i16) * 2);
 
-    stream->seek(rPos);
+        stream->seek(rPos);
+    }
+
+    switch (f->cmap_id) {
+        case 4:
+            if (tChar > 0xffff) {
+                std::cout << "ttf warning: selected font does not support 32-bit characters!" << std::endl;
+                return 0;
+            }
+            return decode_char_from_cmap4(f->cmap_fmt.fmt_4, (u16) tChar);
+        case 12:
+            return decode_char_from_cmap12(f->cmap_fmt.fmt_12, tChar);
+        default:
+            std::cout << "ttf error: failed to find cmap!" << std::endl;
+            break;
+    }
 
     return 0;
 }
@@ -681,7 +662,8 @@ Glyph ttfParse::ReadTTFGlyph(std::string src, u32 id) {
 
     read_offset_tables(&fStream, &f);
 
-    u32 offset = getGlyphOffset(&fStream, &f, id);
+    u32 _id = getUnicodeOffset(&fStream, &f, id);
+    u32 offset = getGlyphOffset(&fStream, &f, _id);
     tGlyph = read_glyph(&fStream, &f, offset);
 
     delete[] fBytes.dat;

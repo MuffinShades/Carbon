@@ -48,3 +48,5 @@ endif (WIN32)
 
 include(CTest)
 enable_testing()
+
+list(APPEND AWS_COMPILER_WARNINGS "-Wall" "-Werror" "-pedantic" "-Wextra" "-Wno-shorten-64-to-32")

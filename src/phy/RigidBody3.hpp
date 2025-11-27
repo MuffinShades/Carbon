@@ -51,7 +51,7 @@ public:
 
     RigidBody3() {};
     RigidBody3(Mesh *m, f32 density, Material material);
-    RigidBody3(enum class rb_simple_type s_ty, vec3 dim, f32 density, Material material);
+    RigidBody3(enum rb_simple_type s_ty, vec3 dim, f32 density, Material material);
 
     void makeGraphicsState(graphics *g);
     graphicsState *getGraphicsState(graphics *g);
@@ -64,7 +64,7 @@ public:
     void applySimpleImpulse(vec3 J);
     void setPos(vec3 posf);
 
-    friend void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *simple_properties);
+    friend void rigid_pre_compute(RigidBody3 *rb, enum rb_simple_type s_ty, void *simple_properties);
     friend class RBodyScene3;
     friend struct _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n);
 };

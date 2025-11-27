@@ -564,7 +564,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     BCurve *workingCurve = curveBuffer;
 
     //generate glyph edges
-    u32 minPx = 0, minPy = 0, maxPx = 0, maxPy = 0;
+    u32 minPx = 0xffffffff, minPy = 0xffffffff, maxPx = 0, maxPy = 0;
     i32 i, pSelect = 0, nEdgeCurves = 0;
     Point p, nextPoint, prevPoint;
     f32 cross;
@@ -572,18 +572,18 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     Edge newEdge;
 
     if (nPoints > 0) {
-        minPx = maxPx = cleanDat.p[0].x;
-        minPy = maxPy = cleanDat.p[0].y;
+        minPx = (maxPx = cleanDat.p[0].x);
+        minPy = (maxPy = cleanDat.p[0].y);
     }
 
     for (i = 0; i < nPoints - 1; ++i) {
         p = cleanDat.p[i];
 
-        minPx = mu_min(minPx, p.x);
+        /*minPx = mu_min(minPx, p.x);
         maxPx = mu_max(maxPx, p.x);
 
         minPy = mu_min(minPy, p.y);
-        maxPy = mu_max(maxPy, p.y);
+        maxPy = mu_max(maxPy, p.y);*/
 
         nextPoint = cleanDat.p[i + 1];
 
@@ -609,7 +609,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
             );
 
             //the curves are not on the same edge so contruct final edge
-            if (/*abs(cross) > 0.01f*/ true) {
+            if (abs(cross) > 0.01f) {
                 BCurve *edgeData = new BCurve[nEdgeCurves];
                 in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
 
@@ -621,7 +621,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
                 workingCurve = curveBuffer;
                 nEdgeCurves = 0;
             } else
-                workingCurve += sizeof(BCurve); //go to next working curve
+                workingCurve ++; //go to next working curve
 
             pSelect = 0;
             workingOnACurve = false;
@@ -631,6 +631,13 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
         } else
             workingOnACurve = true;
     }
+
+    Point final_point = cleanDat.p[nPoints-1];
+
+    /*minPx = mu_min(minPx, final_point.x);
+    maxPx = mu_max(maxPx, final_point.x);
+    minPy = mu_min(minPy, final_point.y);
+    maxPy = mu_max(maxPy, final_point.y);*/
 
     //add last point to the curve
     workingCurve->p[pSelect] = cleanDat.p[nPoints - 1];
@@ -648,24 +655,28 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     //generate single channel sdf
     i32 x,y;
 
-    const i32 glyphPadding = 100;
-
-    const f32 w = maxPx - minPx,
-        h = maxPy - minPy,
-        wc = w / glyphW,
-        hc = h / glyphH,
-        iwc = glyphW / w,
-        ihc = glyphH / h,
+    const f32 w = tGlyph.xMax - tGlyph.xMin,
+        h = tGlyph.yMax - tGlyph.yMin,
+        wc = w / (f32) glyphW,
+        hc = h / (f32) glyphH,
+        iwc = glyphW / (f32) w,
+        ihc = glyphH / (f32) h,
         maxPossibleDist = sqrtf(w*w + h*h);
+
+    byte color;
 
     for (y = 0; y < glyphH; ++y) {
         for (x = 0; x < glyphW; ++x) {
-            p.x = (((f32)x) + 0.5f) * wc;
-            p.y = (((f32)y) + 0.5f) * hc;
+            p.x = (((f32)x) + 0.5f) * wc + tGlyph.xMin;
+            p.y = (((f32)y) + 0.5f) * hc + tGlyph.yMin;
 
             EdgeDistInfo fieldDist = MinEdgeDist(p, glyphEdges);
 
-            byte color = mu_min(mu_max((fieldDist.signedDist.d / maxPossibleDist) * 128.0f + 127, 0),255);
+            color = mu_min(
+                mu_max(
+                    (fieldDist.signedDist.d / maxPossibleDist) * 128.0f + 127, 0),
+            255);
+
             const size_t mp = (x+y*glyphW) << 2;
 
             if (mp + 3 >= map->header.fSz)

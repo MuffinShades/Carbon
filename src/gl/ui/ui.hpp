@@ -101,11 +101,11 @@ protected:
     graphicsState gs;
     mat4 u_model;
 
-    virtual void dimUpdate(UIScalarDimension parentBounds);
+    virtual void dimUpdate(UIScalarDimension parentBounds) {};
     virtual void graphicsPreCompute(graphics *g);
 public:
     virtual void render(graphics *g);
-    virtual void re_render();
+    virtual void re_render() {};
 
     struct MouseState {
 
@@ -133,17 +133,17 @@ public:
     };
 
     //mouse related events
-    virtual void mouseDown(MouseState s);
-    virtual void mouseUp(MouseState s);
-    virtual void mouseHover(MouseState s);
-    virtual void mouseClick(MouseState s);
-    virtual void mouseScroll(MouseState s);
+    virtual void mouseDown(MouseState s) {};
+    virtual void mouseUp(MouseState s) {};
+    virtual void mouseHover(MouseState s) {};
+    virtual void mouseClick(MouseState s) {};
+    virtual void mouseScroll(MouseState s) {};
 
     //keyboard related events
-    virtual void keyDown();
-    virtual void keyUp();
+    virtual void keyDown() {};
+    virtual void keyUp() {};
 
     //other events
-    virtual void onFocus();
-    virtual void offFocus();
+    virtual void onFocus() {};
+    virtual void offFocus() {};
 };

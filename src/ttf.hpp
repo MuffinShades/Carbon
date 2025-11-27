@@ -113,8 +113,48 @@ enum CMapMode {
     CMap_null
 };
 
+//cmap formats
+struct cmap_format_4 {
+    u16 
+        table_len, 
+        lang, 
+        segCount = 0, 
+        searchRange, 
+        entrySelector, 
+        rangeShift, 
+        *endCode = nullptr, 
+        reservePad,
+        *startCode = nullptr;
+    i16 *idDelta = nullptr;
+    u16 *idRangeOffset = nullptr;
+    void *segValBlock = nullptr;
+};
+
+struct cmap12_group {
+    u32 start_cc, //start char code
+        end_cc, //end char code
+        start_gc; //start glyph code
+};
+
+struct cmap_format_12 {
+    u32 len,
+        lang,
+        nGroups;
+
+    //groups and segValBlock are linked
+    //only delete this object with free_cmap_format_12
+    cmap12_group *groups = nullptr;
+    void *segValBlock = nullptr;
+};
+
+//le file
 class ttfFile {
 public:
+    union {
+        cmap_format_12 fmt_12;
+        cmap_format_4 fmt_4;
+    } cmap_fmt = {};
+    u32 cmap_id = 0xff;
     u32 scalarType;
     u16 searchRange;
     u16 entrySelector;

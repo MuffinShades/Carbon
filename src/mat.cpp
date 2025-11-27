@@ -151,11 +151,11 @@ mat4 mat4::CreateRotationMatrixZ(float theta, vec3 origin) {
 };
 
 mat4 mat4::CreateTranslationMatrix(vec3 pos) {
-	float dat[16] = {
+	f32 dat[16] = {
 		1.0f, 0.0f, 0.0f, 0.0f,
 		0.0f, 1.0f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
-		pos.x, pos.y, pos.z, 1.0f
+		(f32) pos.x, (f32) pos.y, (f32) pos.z, 1.0f
 	};
 
 	//std::cout << "Translation dat:" << std::endl;
@@ -192,24 +192,24 @@ mat4 mat4::Translate(mat4 m, vec3 pos) {
 
 mat4 mat4::Rotate(mat4 m, float theta, vec3 axis) {
 	vec3 a = vec3::Normalize(axis);
-	float Cos = cosf(theta), Sin = sinf(theta), iCos = 1.0f - Cos;
+	f64 Cos = cosf(theta), Sin = sinf(theta), iCos = 1.0f - Cos;
 	vec3 tmp = vec3(iCos * a.x, iCos * a.y, iCos * a.z);
 
 	//calculation help from glm
-	float rMat[] = {
-		Cos + tmp.x * a.x,
-		tmp.x * a.y + Sin * a.z,
-		tmp.x * a.z - Sin * a.y,
+	f32 rMat[] = {
+		(f32) (Cos + tmp.x * a.x),
+		(f32) (tmp.x * a.y + Sin * a.z),
+		(f32) (tmp.x * a.z - Sin * a.y),
 		0.0f,
 
-		tmp.y * a.x - Sin * a.z,
-		Cos + tmp.y * a.y,
-		tmp.y * a.z + Sin * a.x,
+		(f32) (tmp.y * a.x - Sin * a.z),
+		(f32) (Cos + tmp.y * a.y),
+		(f32) (tmp.y * a.z + Sin * a.x),
 		0.0f,
 
-		tmp.z * a.x + Sin * a.y,
-		tmp.z * a.y - Sin * a.x,
-		Cos + tmp.z * a.z,
+		(f32) (tmp.z * a.x + Sin * a.y),
+		(f32) (tmp.z * a.y - Sin * a.x),
+		(f32) (Cos + tmp.z * a.z),
 		0.0f,
 
 		0.0f, 0.0f, 0.0f, 1.0f
@@ -224,9 +224,9 @@ mat4 mat4::LookAt(/*vec3 right, vec3 up, vec3 dir*/ vec3 pos, vec3 tar, vec3 up)
 	const vec3 u = vec3::CrossProd(r, f);
 
 	f32 dat[16] = {
-		r.x, u.x, -f.x, 0.0f,
-		r.y, u.y, -f.y, 0.0f,
-		r.z, u.z, -f.z, 0.0f,
+		(f32) r.x, (f32) u.x, (f32) -f.x, 0.0f,
+		(f32) r.y, (f32) u.y, (f32) -f.y, 0.0f,
+		(f32) r.z, (f32) u.z, (f32) -f.z, 0.0f,
 		//--------------------------//
 		-vec3::DotProd(r, pos),
 		-vec3::DotProd(u, pos),
@@ -272,9 +272,9 @@ mat4::_Mat4Row mat4::operator[](i32 row) {
 
 mat4 mat4::CreateCrossMatrix(vec3 v) {
 	f32 dat[16] = {
-		0.0f, -v.z, v.y, 0.0f,
-		v.z, 0.0f, -v.x, 0.0f,
-		-v.y, v.x, 0.0f, 0.0f,
+		0.0f, (f32) -v.z, (f32) v.y, 0.0f,
+		(f32) v.z, 0.0f, (f32) -v.x, 0.0f,
+		(f32) -v.y, (f32) v.x, 0.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f
 	};
 
@@ -283,9 +283,9 @@ mat4 mat4::CreateCrossMatrix(vec3 v) {
 
 mat4 mat4::Cross(mat4 m, vec3 v) {
 	f32 cMat[16] = {
-		0.0f, -v.z, v.y, 0.0f,
-		v.z, 0.0f, -v.x, 0.0f,
-		-v.y, v.x, 0.0f, 0.0f,
+		0.0f, (f32) -v.z, (f32) v.y, 0.0f,
+		(f32) v.z, 0.0f, (f32) -v.x, 0.0f,
+		(f32) -v.y, (f32) v.x, 0.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f
 	};
 

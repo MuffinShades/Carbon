@@ -25,7 +25,7 @@ f32 computeCuboidVolume(vec3 dim) {
     return dim.x * dim.y * dim.z;
 }
 
-void rigid_pre_compute(RigidBody3 *rb, enum class rb_simple_type s_ty, void *simple_properties) {
+void rigid_pre_compute(RigidBody3 *rb, enum rb_simple_type s_ty, void *simple_properties) {
     if (!rb || !rb->mesh)
         return;
 
@@ -279,9 +279,9 @@ _pproj proj_body_on_normal(RigidBody3 *rb, vec3 n) {
     //goofy thing
     const vec3 a = n, b = vec3::CrossProd(n, global_up), c = vec3::CrossProd(a,b);
     const f32 n_dis_dat[16] = {
-        a.x, b.x, c.x, 0.0f,
-        a.y, b.y, c.y, 0.0f,
-        a.z, b.z, c.z, 0.0f,
+        (f32) a.x, (f32) b.x, (f32) c.x, 0.0f,
+        (f32) a.y, (f32) b.y, (f32) c.y, 0.0f,
+        (f32) a.z, (f32) b.z, (f32) c.z, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     };
 
