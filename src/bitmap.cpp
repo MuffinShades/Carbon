@@ -66,6 +66,7 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
 
     datStream.free();
 
+    std::cout << "Writing Bmp to: " << src << std::endl;
     FileWrite::writeToBin(src, oStream.getBytePtr(), oStream.size());
 
     oStream.free();

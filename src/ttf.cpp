@@ -251,6 +251,7 @@ size_t decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
 
     if (table.startCode[c_idx] > w_char) {
         std::cout << "Character "<< w_char <<" not present in ttf!" << std::endl;
+        return 0;
     }
 
     const u16 iro = table.idRangeOffset[c_idx];
@@ -260,10 +261,11 @@ size_t decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
         glyphIndex = (w_char + table.idDelta[c_idx]) % 0x10000; //modulo 65536
     } else {
         size_t loc = (c_idx + (table.idRangeOffset[c_idx] >> 1)) + (w_char - table.startCode[c_idx]);
-        if (loc >= table.segCount) {
+        if (loc >= table.segBlockSz) {
             std::cout << "tff error: failed to map glyph (cmap 4): out of range!" << std::endl;
+            return 0;
         }
-        glyphIndex = (table.idRangeOffset[loc] + table.idDelta[c_idx]) % 0x10000;
+        glyphIndex = *(table.idRangeOffset + loc + table.idDelta[c_idx]) % 0x10000;
     }
 
     return glyphIndex;
@@ -284,6 +286,10 @@ cmap_format_4 cmap_4(ttfStream *stream) {
         .rangeShift = stream->readUInt16()
     };
 
+    /*std::cout << "table len: " << table.table_len << std::endl;
+    std::cout << "table lang: " << table.lang << std::endl;
+    std::cout << "table seg Count: " << table.segCount << std::endl;*/
+
     if (table.segCount == 0) {
         std::cout << "ttf error: failed to read cmap4, not enough segments!" << std::endl;
         return {};
@@ -291,17 +297,24 @@ cmap_format_4 cmap_4(ttfStream *stream) {
 
     //allocate a lot of memory
     constexpr size_t nSegValues = 4;
-    u16 *segValueBlock = new u16[table.segCount * nSegValues];
-    ZeroMem(segValueBlock, table.segCount * nSegValues);
+    size_t totalBlockAlloc = table.segCount * nSegValues;
+           table.nGlyphIds = (table.table_len - (totalBlockAlloc << 1)) >> 1;
+           totalBlockAlloc += table.nGlyphIds; //glyphIdArray
 
-    const size_t segSz = table.segCount * sizeof(u16);
+    table.segBlockSz = totalBlockAlloc << 1; //multiply by 2 to account for everything being a u16 
+
+    u16 *segValueBlock = new u16[totalBlockAlloc];
+    ZeroMem(segValueBlock, totalBlockAlloc);
+
+    const size_t segSz = table.segCount;
     table.segValBlock = segValueBlock;
 
     //assign parts of the block
-    table.endCode =       segValueBlock + segSz * 0;
-    table.startCode =     segValueBlock + segSz * 1;
+    table.endCode =               segValueBlock + segSz * 0;
+    table.startCode =             segValueBlock + segSz * 1;
     table.idDelta =       (i16*) (segValueBlock + segSz * 2);
-    table.idRangeOffset = segValueBlock + segSz * 3;
+    table.idRangeOffset =         segValueBlock + segSz * 3;
+    table.glyphIdArr =            segValueBlock + segSz * 4;
 
     forrange(table.segCount) {
         table.endCode[i] = stream->readUInt16();
@@ -323,6 +336,10 @@ cmap_format_4 cmap_4(ttfStream *stream) {
 
     forrange(table.segCount) {
         table.idRangeOffset[i] = stream->readUInt16();
+    }
+
+    forrange(table.nGlyphIds) {
+        table.glyphIdArr[i] = stream->readUInt16();
     }
 
     return table;
@@ -420,11 +437,14 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
         const u16 version = stream->readUInt16();
         const u16 nSubTables = stream->readUInt16();
 
-        f->platform = (enum CMapMode)stream->readInt16();
-        f->encodingId = stream->readInt16();
+        f->platform = (enum CMapMode)stream->readUInt16();
+        f->encodingId = stream->readUInt16();
 
         const u32 off = stream->readUInt32();
-        stream->seek(off);
+        std::cout << "Cmap Offset: " << off << std::endl;
+        size_t cm_pos = stream->tell() + (off - 12);
+        std::cout << "Cmap Pos: " << cm_pos << std::endl;
+        stream->seek(cm_pos);
         const u16 cmap_format = stream->readUInt16();
 
         f->cmap_id = cmap_format;

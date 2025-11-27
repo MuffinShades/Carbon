@@ -568,7 +568,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     i32 i, pSelect = 0, nEdgeCurves = 0;
     Point p, nextPoint, prevPoint;
     f32 cross;
-    bool workingOnACurve, pOnCurve;
+    bool workingOnACurve = false, pOnCurve;
     Edge newEdge;
 
     if (nPoints > 0) {

@@ -127,6 +127,8 @@ struct cmap_format_4 {
         *startCode = nullptr;
     i16 *idDelta = nullptr;
     u16 *idRangeOffset = nullptr;
+    u16 *glyphIdArr = nullptr;
+    size_t nGlyphIds = 0, segBlockSz = 0;
     void *segValBlock = nullptr;
 };
 
