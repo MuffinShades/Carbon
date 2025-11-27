@@ -106,7 +106,7 @@ const u8 uncode_range_decode[] = {
     0b00100000, 0x01, 0x27, 0xc0, 0x27, 0xef, //misc math symbols-a
     0b00100000, 0x01, 0x27, 0xf0, 0x27, 0xff, //sup-arrows-a
     0b00100000, 0x01, 0x28, 0x00, 0x28, 0xff, //braille patterns
-    0b00100000, 0x01, 0x29, 0x00, 0x29, 0x7f, //sup arrows b
+    0b00100000, 0x01, 0x29, 0x00, 0x29, 0x7f //sup arrows b
 };
 
 
@@ -516,6 +516,24 @@ size_t decode_char_from_cmap12(cmap_format_12 table, u32 uw_char) {
     return g.start_gc + (uw_char - g.start_cc);
 }
 
+//spacing tables and stuff
+bool read_hhea(ttfStream *stream, ttfFile* f) {
+    if (!stream || !f)
+        return 1;
+
+    stream->seek(f->hhea_table.off);
+
+    const u32 version = stream->readUInt32();
+
+    f->h_inf.ascent = stream->readFWord();
+    f->h_inf.descent = stream->readFWord();
+    f->h_inf.lineGap = stream->readFWord();
+    f->h_inf.advanceWidthMax = stream->readUFWord();
+    f->h_inf.minLeftSideBearing = stream->readFWord();
+
+    return 0;
+}
+
 /**
  *
  * getUnicodeOffset
@@ -604,6 +622,9 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     res.yMin = stream->readFWord();
     res.xMax = stream->readFWord();
     res.yMax = stream->readFWord();
+
+    std::cout << "Min Y: " << res.yMin << std::endl;
+    std::cout << "Max Y: " << res.yMax << std::endl;
 
     if (res.nContours == 0) {
         std::cout << "ttf warning: found no contours!" << std::endl;

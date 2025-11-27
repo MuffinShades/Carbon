@@ -149,7 +149,7 @@ struct cmap_format_12 {
     void *segValBlock = nullptr;
 };
 
-struct gen_char_inf {
+struct h_char_inf {
     i16 ascent;
     i16 descent;
     i16 lineGap;
@@ -194,7 +194,7 @@ public:
     i32 encodingId = 0;
     std::vector<offsetTable> tables;
     table_head header;
-    gen_char_inf gc_inf;
+    h_char_inf h_inf;
 };
 
 enum class UnicodeRanges {

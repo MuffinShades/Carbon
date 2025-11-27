@@ -536,21 +536,47 @@ EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge> edges) {
     return inf;
 }
 
-i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, size_t glyphH) {
+i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
     if (!map)
         return 1;
 
+    //do some dimension calculations
+    u32 sdfW = 0, sdfH = 0;
+
+    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
+              glyphH = tGlyph.yMax - tGlyph.yMin,
+              glyphYxRatio = glyphH / glyphW;
+
+    switch (size.slc) {
+    case sdf_dim_ty::Width:
+        map->header.w = (sdfW = size.m.w);
+        map->header.h = (sdfH = (size_t) ceil(sdfW * glyphYxRatio));
+        break;
+    case sdf_dim_ty::Height:
+        map->header.h = (sdfH = size.m.h);
+        map->header.w = (sdfW = (size_t) ceil(sdfH / glyphYxRatio));
+        break;
+    case sdf_dim_ty::Scale:
+        map->header.h = (sdfH = size.m.scale * glyphH);
+        map->header.w = (sdfW = size.m.scale * glyphW);
+        break;
+    }
+
+    //clean the glyph up
     gPData cleanDat = cleanGlyphPoints(tGlyph);
 
+    //get num points
     const size_t nPoints = cleanDat.p.size();
 
     map->header.bitsPerPixel = 32;
-    map->header.w = glyphW;
-    map->header.h = glyphH;
     map->header.fSz = map->header.h * map->header.w * 4;
 
     byte *bmpData = new byte[map->header.fSz];
     ZeroMem(bmpData, map->header.fSz);
+
+    //blank glyph so blank sdf
+    if (nPoints == 0)
+        return 0;
 
     map->data = bmpData;
 
@@ -561,29 +587,19 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     const size_t nCurves = nPoints >> 1;
     BCurve *curveBuffer = new BCurve[nCurves]; //stores curves of current edge
     ZeroMem(curveBuffer, nCurves);
+
     BCurve *workingCurve = curveBuffer;
 
     //generate glyph edges
-    u32 minPx = 0xffffffff, minPy = 0xffffffff, maxPx = 0, maxPy = 0;
-    i32 i, pSelect = 0, nEdgeCurves = 0;
+    i32 i;
+    i32 pSelect = 0, nEdgeCurves = 0;
     Point p, nextPoint, prevPoint;
     f32 cross;
     bool workingOnACurve = false, pOnCurve;
     Edge newEdge;
 
-    if (nPoints > 0) {
-        minPx = (maxPx = cleanDat.p[0].x);
-        minPy = (maxPy = cleanDat.p[0].y);
-    }
-
     for (i = 0; i < nPoints - 1; ++i) {
         p = cleanDat.p[i];
-
-        /*minPx = mu_min(minPx, p.x);
-        maxPx = mu_max(maxPx, p.x);
-
-        minPy = mu_min(minPy, p.y);
-        maxPy = mu_max(maxPy, p.y);*/
 
         nextPoint = cleanDat.p[i + 1];
 
@@ -634,11 +650,6 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
 
     Point final_point = cleanDat.p[nPoints-1];
 
-    /*minPx = mu_min(minPx, final_point.x);
-    maxPx = mu_max(maxPx, final_point.x);
-    minPy = mu_min(minPy, final_point.y);
-    maxPy = mu_max(maxPy, final_point.y);*/
-
     //add last point to the curve
     workingCurve->p[pSelect] = cleanDat.p[nPoints - 1];
 
@@ -655,18 +666,15 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
     //generate single channel sdf
     i32 x,y;
 
-    const f32 w = tGlyph.xMax - tGlyph.xMin,
-        h = tGlyph.yMax - tGlyph.yMin,
-        wc = w / (f32) glyphW,
-        hc = h / (f32) glyphH,
-        iwc = glyphW / (f32) w,
-        ihc = glyphH / (f32) h,
-        maxPossibleDist = sqrtf(w*w + h*h);
+    const f32
+        wc = glyphW / (f32) sdfW,
+        hc = glyphH / (f32) sdfH,
+        maxPossibleDist = sqrtf(glyphW*glyphW + glyphH*glyphH);
 
     byte color;
 
-    for (y = 0; y < glyphH; ++y) {
-        for (x = 0; x < glyphW; ++x) {
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
             p.x = (((f32)x) + 0.5f) * wc + tGlyph.xMin;
             p.y = (((f32)y) + 0.5f) * hc + tGlyph.yMin;
 
@@ -677,7 +685,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, size_t glyphW, 
                     (fieldDist.signedDist.d / maxPossibleDist) * 128.0f + 127, 0),
             255);
 
-            const size_t mp = (x+y*glyphW) << 2;
+            const size_t mp = (x+y*sdfW) << 2;
 
             if (mp + 3 >= map->header.fSz)
                 continue;
@@ -728,8 +736,14 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, size_t thresh) {
         for (x = 0; x < sdf->header.w; ++x) {
             p = (x + y * sdf->header.w) * by_pp;
 
-            forrange(by_pp)
-                bmp->data[p+i] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;
+            /*forrange(by_pp)
+                bmp->data[p+i] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;*/
+
+                //bmp->data[p] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;
+
+            if ((signed)sdf->data[p] - 127 > 0)
+                forrange(by_pp)
+                    bmp->data[p+i] = 255.0f;
         }
     }
 
