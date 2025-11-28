@@ -6,6 +6,8 @@
 
 #define MSFL_TTFRENDER_DEBUG
 
+constexpr f32 smol_number = 1.175e-38f;
+
 /**
  *
  * All le code for rendering dem bezier curves
@@ -668,10 +670,15 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
 
     const f32
         wc = glyphW / (f32) sdfW,
-        hc = glyphH / (f32) sdfH,
-        maxPossibleDist = sqrtf(glyphW*glyphW + glyphH*glyphH);
+        hc = glyphH / (f32) sdfH;
+        //maxPossibleDist = sqrtf(glyphW*glyphW + glyphH*glyphH);
 
     byte color;
+
+    f32 *distBuffer = new f32[sdfW * sdfH]; //i hate this so much
+
+    f32 maxDist = smol_number; //smol number
+    f32 d;
 
     for (y = 0; y < sdfH; ++y) {
         for (x = 0; x < sdfW; ++x) {
@@ -680,12 +687,28 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
 
             EdgeDistInfo fieldDist = MinEdgeDist(p, glyphEdges);
 
+            distBuffer[x + y * sdfW] = (d = fieldDist.signedDist.d);
+
+            //this is why i need that damn buffer
+            d = abs(d);
+            maxDist = mu_max(maxDist, d);
+        }
+    }
+
+    size_t distIdx;
+
+    //i dont want to do it again but maxPossibleDist is being a bitch
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
+            distIdx = x+y*sdfW;
+            d = distBuffer[distIdx];
+
             color = mu_min(
                 mu_max(
-                    (fieldDist.signedDist.d / maxPossibleDist) * 128.0f + 127, 0),
+                    (d / /*maxPossibleDist*/ maxDist) * 128.0f + 127, 0),
             255);
 
-            const size_t mp = (x+y*sdfW) << 2;
+            const size_t mp = distIdx << 2;
 
             if (mp + 3 >= map->header.fSz)
                 continue;
@@ -696,6 +719,8 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
             map->data[mp+3] = 255;
         }
     }
+
+    delete[] distBuffer; //wow!
 
     //oh look were managing memory :O
     for (Edge e : glyphEdges) {
@@ -714,7 +739,82 @@ f32 smoothstep(f32 t) {
     return t*t*(3.0f - 2.0f*t);
 }
 
-i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, size_t thresh) {
+//simple bilinear sample function or whatever i have i my head
+/*
+
+How to use this function:
+
+buffer --> buffer normally from the sdf's bitmap of the pixels in the sdf or image
+nchannels --> how many channels there are (assumes 1 byte per channel)
+bufW --> how wide is the sample image in px
+bufH --> how tall is the sample image in px
+sampX --> a percent value of where to sample the buffer from (sampX = xpos of outimage / outimage w)
+sampY --> a percent value of where to sample the buffer from (sampY = ypos of outimage / outimage h)
+
+*/
+#define MAX_BINLINEAR_CHANNELS 4
+void sampleBilinear(byte *buffer, byte *out, size_t nchannels, size_t bufW, size_t bufH, f32 sampX, f32 sampY) {
+    //                                     OO <-- Guy she told you not to worry about
+    if (!buffer                            || 
+        !out                               || 
+        nchannels == 0                     || 
+        nchannels > MAX_BINLINEAR_CHANNELS || 
+        bufW == 0                          || 
+        bufH == 0                          || 
+        sampX < 0                          || 
+        sampY < 0                          || 
+        sampX > 1.0f                       || 
+        sampY > 1.0f                     //V
+    )
+        return;
+
+    const f32 sx = sampX * (f32) bufW,
+              sy = sampY * (f32) bufH;
+
+    i32 lx = floor(sx), rx = lx + 1,
+        ly = floor(sy), ry = ly + 1;
+
+    f32 subX = rx - sx,
+        subY = ry - sy;
+
+    if (rx >= bufW) {
+        rx = bufW - 1;
+        subX = 0;
+    }
+
+    if (ry >= bufH) {
+        ry = bufH - 1;
+        subY = 0;
+    }
+
+    if (lx < 0) {
+        rx = 0;
+        subX = 0;
+    }
+
+    if (ly < 0)  {
+        ly = 0;
+        subY = 0;
+    }
+
+    const size_t tlp = (lx + ly * bufW) * nchannels,
+                 trp = (rx + ly * bufW) * nchannels,
+                 blp = (lx + ry * bufW) * nchannels,
+                 brp = (rx + ry * bufW) * nchannels;
+
+    f32 ht, hb;
+
+    i32 i = 0;
+
+    //horrizontal blur
+    for (i = 0; i < nchannels; i++) {
+        hb = lerp(buffer[trp+i], buffer[tlp+i], subX);
+        ht = lerp(buffer[brp+i], buffer[blp+i], subX);
+        out[i] = lerp(ht, hb, subY);
+    }
+}
+
+i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
     if (!sdf || !bmp) return 1;
 
     Bitmap::Free(bmp);
@@ -722,28 +822,59 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, size_t thresh) {
     if (!sdf->data) return 2;
     if (sdf->header.bitsPerPixel < 24) return 3;
 
+    bmp->header = sdf->header;
+
+    u32 outW = 0, outH = 0;
+
+    const f32 yxr = (f32) sdf->header.h / (f32) sdf->header.w;
+
+    switch (res_size.slc) {
+    case sdf_dim_ty::Width:
+        bmp->header.w = (outW = res_size.m.w);
+        bmp->header.h = (outH = (size_t) ceil(outW * yxr));
+        break;
+    case sdf_dim_ty::Height:
+        bmp->header.h = (outH = res_size.m.h);
+        bmp->header.w = (outW = (size_t) ceil(outH / yxr));
+        break;
+    case sdf_dim_ty::Scale:
+        bmp->header.h = (outH = res_size.m.scale * sdf->header.h);
+        bmp->header.w = (outW = res_size.m.scale * sdf->header.w);
+        break;
+    }
+
+
     const size_t by_pp = sdf->header.bitsPerPixel >> 3;
 
-    bmp->header = sdf->header;
-    bmp->header.fSz = sdf->header.w * sdf->header.h * by_pp;
+    bmp->header.fSz = bmp->header.w * bmp->header.h * by_pp;
     bmp->data = new byte[bmp->header.fSz];
     ZeroMem(bmp->data, bmp->header.fSz);
 
     i32 x, y;
     size_t p;
 
-    for (y = 0; y < sdf->header.h; ++y) {
-        for (x = 0; x < sdf->header.w; ++x) {
-            p = (x + y * sdf->header.w) * by_pp;
+    byte samp[4] = {0,0,0,0};
 
+    for (y = 0; y < outH; ++y) {
+        for (x = 0; x < outW; ++x) {
+            p = (x + y * outW) * by_pp;
             /*forrange(by_pp)
                 bmp->data[p+i] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;*/
 
                 //bmp->data[p] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;
 
-            if ((signed)sdf->data[p] - 127 > 0)
-                forrange(by_pp)
-                    bmp->data[p+i] = 255.0f;
+                
+            //do the bilinear sampling here
+            sampleBilinear(sdf->data, samp, sdf->header.bitsPerPixel >> 3, sdf->header.w, sdf->header.h, 
+                ((f32) x + 0.5f) / (f32) outW,
+                ((f32) y + 0.5f) / (f32) outH
+            );
+
+            if ((signed) samp[0] - 127 > 0)
+                forrange(by_pp-1)
+                    bmp->data[p+i] = 255;
+
+            bmp->data[p+by_pp-1] = 255;        
         }
     }
 
