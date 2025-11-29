@@ -2,6 +2,7 @@
 #include "msutil.hpp"
 #include "bitmap_render.hpp"
 #include "logger.hpp"
+#include "polynom.hpp"
 #include <vector>
 
 #define MSFL_TTFRENDER_DEBUG
@@ -10,7 +11,7 @@ constexpr f32 smol_number = 1.175e-38f; //number that is smol
 
 /**
  *
- * All le code for rendering dem bezier curves
+ * All le code for rendering dem glyphs
  *
  * Written by muffinshades 2024
  *
@@ -438,6 +439,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
         if (!tCurve.solve_inf.good) {
             //TODO: compute the a_base, b_base, and c_base
             // (bases are the terms computed on desmos that dont include the ref points)
+            // these terms are grabbed from function I
         }
 
         //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
