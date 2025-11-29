@@ -6,7 +6,7 @@
 
 #define MSFL_TTFRENDER_DEBUG
 
-constexpr f32 smol_number = 1.175e-38f;
+constexpr f32 smol_number = 1.175e-38f; //number that is smol
 
 /**
  *
@@ -381,6 +381,10 @@ f32 pointCross(Point a, Point b) {
 
 struct BCurve {
     Point p[3];
+    struct {
+        f32 a_base = 0.0f, b_base = 0.0f, c_base = 0.0f;
+        bool good = false;
+    } solve_inf;
 };
 
 struct Edge {
@@ -430,6 +434,14 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
 
     for (c = 0; c < e.nCurves; c++) {
         tCurve = e.curves[c];
+
+        if (!tCurve.solve_inf.good) {
+            //TODO: compute the a_base, b_base, and c_base
+            // (bases are the terms computed on desmos that dont include the ref points)
+        }
+
+        //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
+
         for (t = 0; t <= 1.0f; t += dt) {
             refPoint = bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],t);
 
@@ -806,10 +818,24 @@ void sampleBilinear(byte *buffer, byte *out, size_t nchannels, size_t bufW, size
 
     i32 i = 0;
 
+    byte tlv,trv,blv,brv;
+
     //horrizontal blur
     for (i = 0; i < nchannels; i++) {
-        hb = lerp(buffer[trp+i], buffer[tlp+i], subX);
-        ht = lerp(buffer[brp+i], buffer[blp+i], subX);
+        if (lx == 0 || ly == 0) tlv = 0;
+        else tlv = buffer[tlp+i]; 
+
+        if (rx >= bufW || ly == 0) trv = 0;
+        else trv = buffer[trp+i];
+
+        if (ry >= bufH || lx == 0) blv = 0;
+        else blv = buffer[blp+i]; 
+
+        if (ry >= bufH || rx >= bufW) brv = 0;
+        else brv = buffer[brp+i];
+
+        hb = lerp(trv, tlv, subX);
+        ht = lerp(brv, blv, subX);
         out[i] = lerp(ht, hb, subY);
     }
 }
@@ -870,11 +896,11 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
                 ((f32) y + 0.5f) / (f32) outH
             );
 
-            if ((signed) samp[0] - 127 > 0)
+            if ((i32) samp[0] - 127 > 0)
                 forrange(by_pp-1)
-                    bmp->data[p+i] = 255;
+                    bmp->data[p+i] = 0xff;
 
-            bmp->data[p+by_pp-1] = 255;        
+            bmp->data[p+by_pp-1] = 0xff;        
         }
     }
 

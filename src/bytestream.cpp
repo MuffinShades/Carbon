@@ -313,6 +313,8 @@ void ByteStream::pos_adv(const size_t sz) {
 	this->cur += bytesLeft;
 }
 
+#include "logger.hpp"
+
 
 //TODO: this function
 void ByteStream::writeBytes(byte *dat, size_t sz) {
@@ -335,7 +337,7 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 
 	this->blockPos = this->pos - this->cur_block->pos;
 
-	//std::cout << "Writing " << sz << "bytes to block at pos " << this->cur_block->pos << " | " << this->blockPos << std::endl;
+	std::cout << "Writing " << sz << "bytes to block at pos " << this->cur_block->pos << " | " << this->blockPos << std::endl;
 
 	size_t blockBytesLeft = (this->cur_block->sz - this->blockPos) - 1;
 	size_t rCopy = 
@@ -343,20 +345,29 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 			blockBytesLeft
 		);
 
-	//std::cout << "first copy: " << this->blockPos << " | " << this->pos << " | RCopy: " << rCopy << std::endl;
-	//std::cout << "Block info: " << std::endl;
-	//std::cout << "\tBlock Size: " << this->cur_block->sz << std::endl;
-	//std::cout << "\tDat Ptr: " << (uintptr_t) this->cur_block->dat << std::endl;
+	Logger l;
+
+	l.LogHex(dat, sz);
+
+	std::cout << "first copy: " << this->blockPos << " | " << this->pos << " | RCopy: " << rCopy << std::endl;
+	std::cout << "Block info: " << std::endl;
+	std::cout << "\tBlock Size: " << this->cur_block->sz << std::endl;
+	std::cout << "\tDat Ptr: " << (uintptr_t) this->cur_block->dat << " Relative Cur Ptr: " << (((uintptr_t) this->cur) - ((uintptr_t) this->cur_block->dat)) << std::endl;
 
 	if (rCopy > 0) {
 		in_memcpy(this->cur, dat, rCopy);
+		this->cur += rCopy;
+		this->pos += rCopy;
+		this->blockPos += rCopy;
 	}
 
-	//std::cout << this->pos << " | " << rCopy << std::endl;
+	l.LogHex(this->cur_block->dat, this->len);
+
+	std::cout << this->pos << " | " << rCopy << std::endl;
 	
 	sz -= rCopy;
 
-	if (sz == 0) return;
+	//if (sz == 0) return;
 
 	byte *dp = dat + rCopy;
 
@@ -375,16 +386,19 @@ void ByteStream::writeBytes(byte *dat, size_t sz) {
 		sz -= this->blockAllocSz;
 		dp += this->blockAllocSz;
 		//this->pos_adv(this->blockAllocSz);
+		this->pos += blockAllocSz;
 	}
+
+	std::cout << "sz: " << sz << std::endl;
 
 	if (sz > 0) {
 		this->block_adv(0, 1);
 		in_memcpy(this->cur, dp, sz);
 		this->cur += sz;
 		this->blockPos = sz;
+		this->pos += sz;
 	}
 
-	this->pos += sz;
 	this->blockPos = this->pos - this->cur_block->pos;
 }
 

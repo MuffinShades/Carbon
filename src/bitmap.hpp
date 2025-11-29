@@ -25,7 +25,7 @@ struct BitmapHeader {
     size_t w = 0, h = 0;
     i32 compressionMode = 0;
     u16 colorPlanes = 1;
-    u16 bitsPerPixel = 32;
+    u16 bitsPerPixel = 24;
     i32 vResolution = 1, hResolution = 1;
     size_t nPalleteColors = 0;
     size_t importantColors = 0;
