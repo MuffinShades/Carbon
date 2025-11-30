@@ -383,7 +383,7 @@ f32 pointCross(Point a, Point b) {
 struct BCurve {
     Point p[3];
     struct {
-        f32 a_base = 0.0f, b_base = 0.0f, c_base = 0.0f;
+        f32 a_base = 0.0f, b_base = 0.0f, c_base = 0.0f, d_base = 0.0f;
         bool good = false;
     } solve_inf;
 };
@@ -396,6 +396,10 @@ struct Edge {
 struct PDistInfo {
     f32 dx = INFINITY,dy = INFINITY,d = INFINITY,t = 0.0f;
     BCurve curve;
+    Point p;
+    struct {
+        f32 a,b,c,d;
+    } cubic_dbg;
 };
 
 const PDistInfo pSquareDist(Point p0, Point p1) {
@@ -406,14 +410,54 @@ const PDistInfo pSquareDist(Point p0, Point p1) {
     return inf;
 }
 
-
-
 //derivative of a bezier 3
 const Point dBdt3(Point p0, Point p1, Point p2, f32 t) {
     return {
         .x = 2.0f * ((1.0f - t) * (p1.x - p0.x) + t * (p2.x - p1.x)),
         .y = 2.0f * ((1.0f - t) * (p1.y - p0.y) + t * (p2.y - p1.y))
     };
+}
+
+const f32 compute_a_base_coord(f32 v0, f32 v1, f32 v2) {
+    return 
+         4.0f*v2*v2
+        -8.0f*v0*v2
+        -16.0f*v1*v2
+        +16.0f*v1*v1
+        +16.0f*v0*v1
+        +4.0f*v0*v0;
+}
+
+const f32 compute_b_base_coord(f32 v0, f32 v1, f32 v2) {
+    return 
+        -12.0f*v0*v1
+        +12.0f*v1*v2 
+        -24.0f*v1*v1;
+}
+
+const f32 compute_c_base_coord(f32 v0, f32 v1, f32 v2) {
+    return 
+    -4.0f*v0*v0
+    +8.0f*v1*v1
+    +4.0f*v0*v2
+    -8.0f*v0*v1;
+}
+
+const f32 compute_d_base_coord(f32 v0, f32 v1, f32 v2) {
+    return 4.0f*v0*v1;
+}
+
+const PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
+    PDistInfo inf;
+
+    inf.curve = b;
+    inf.p = p;
+    inf.t = t;
+    inf.dx = ((1.0f - t*t)*b.p[0].x+2.0f*(1.0f - t)*t*b.p[1].x+t*t*b.p[2].x)-p.x;
+    inf.dy = ((1.0f - t*t)*b.p[0].y+2.0f*(1.0f - t)*t*b.p[1].y+t*t*b.p[2].y)-p.y;
+    inf.d = inf.dx*inf.dx + inf.dy*inf.dy;
+
+    return inf;
 }
 
 PDistInfo EdgePointSignedDist(Point p, Edge e) {
@@ -424,22 +468,32 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
 
     PDistInfo d = {
         .d = INFINITY
-    }, pd;
+    }, d2 = {.d = INFINITY}, pd, pd2;
 
     Point refPoint;
 
-    i32 c;
-    f64 t;
+    i32 c,i;
+    f64 t,t2;
 
     BCurve tCurve;
 
+    f32 roots[5] = {0,1,0,0,0};
+    f32 *root_pass = roots + 2;
+
     for (c = 0; c < e.nCurves; c++) {
         tCurve = e.curves[c];
+
+        Point p0 = tCurve.p[0], p1 = tCurve.p[1], p2 = tCurve.p[2];
 
         if (!tCurve.solve_inf.good) {
             //TODO: compute the a_base, b_base, and c_base
             // (bases are the terms computed on desmos that dont include the ref points)
             // these terms are grabbed from function I
+            tCurve.solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
+            tCurve.solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
+            tCurve.solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
+            tCurve.solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+            tCurve.solve_inf.good = true;
         }
 
         //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
@@ -455,7 +509,65 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
                 d.curve = tCurve;
             }
         }
+
+        f32 a,b,c,e;
+
+        const i32 nRoots = solve_re_cubic_32_a(
+            a = (tCurve.solve_inf.a_base), 
+            b = (tCurve.solve_inf.b_base),
+            c = (tCurve.solve_inf.c_base 
+                + 4.0f * (p0.y*p.y + p0.x*p.x)
+                + 8.0f * (p1.y*p.y + p1.x*p.x)
+                - 4.0f * (p2.y*p.y + p2.x*p.x)),
+            e = (tCurve.solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x)),
+            root_pass
+        );
+
+        /*std::cout << "Actual Derivative: " << 
+            (
+                (
+                    (powf((bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],d.t+epsilon).x-p.x),2.0f)+
+                     powf((bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],d.t+epsilon).y-p.y),2.0f))-
+                    (powf((bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],d.t).x-p.x),2.0f)+
+                     powf((bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],d.t).y-p.y),2.0f))
+                )/epsilon
+            ) 
+            << " Predicted: " << (a*d.t*d.t*d.t+b*d.t*d.t+c*d.t+e) << std::endl;*/
+
+        for (i = 0; i < nRoots+2; i++) {
+            //t2 = (roots[i] > 1.0f) + (roots[i] >= 0.0f && roots[i] <= 1.0f) * roots[i];
+
+            if (roots[i] < 0.0f || roots[i] > 1.0f) continue;
+
+            pd = bezier3_point_dist(tCurve, p, roots[i]);
+            
+            if (pd.d < d2.d) {
+                d2 = pd;
+                d2.p = p;
+                d2.t = roots[i];
+                d2.curve = tCurve;
+                d2.cubic_dbg.a = a;
+                d2.cubic_dbg.b = b;
+                d2.cubic_dbg.c = c;
+                d2.cubic_dbg.d = e;
+            }
+        }
     }
+
+
+    if (abs(d.d - d2.d) > epsilon) {
+        std::cout << "Found Distance Comp: ";
+        std::cout << d.t << " ";
+        std::cout << d2.t << " | " 
+        << d2.cubic_dbg.a << " " << d2.cubic_dbg.b << " " << d2.cubic_dbg.c << " "<< d2.cubic_dbg.d 
+        << " | " << "(" << d2.curve.p[0].x << ", " << d2.curve.p[0].y << ")" 
+        << "(" << d2.curve.p[1].x << ", " << d2.curve.p[1].y << ")"
+        << "(" << d2.curve.p[2].x << ", " << d2.curve.p[2].y << ")"
+        << "(" << d2.p.x << ", " << d2.p.y << ")"
+        << std::endl;
+    }
+
+    d=d2;
 
     tCurve = d.curve;
 
