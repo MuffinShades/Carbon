@@ -450,10 +450,10 @@ const f32 compute_d_base_coord(f32 v0, f32 v1, f32 v2) {
     return -4.0f*v0*v0 + 4.0f*v0*v1;
 }
 
-const PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
+const inline PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
     PDistInfo inf;
 
-    inf.curve = b;
+    inf.curve = b; //OPTIMIZE: this copy is super slow!!!! (4% of execution time plus more)
     inf.p = p;
     inf.t = t;
     inf.dx = ((1.0f - t)*(1.0f - t)*b.p[0].x+2.0f*(1.0f - t)*t*b.p[1].x+t*t*b.p[2].x)-p.x;
@@ -501,7 +501,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
 
         //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
 
-        for (t = 0; t <= 1.0f; t += dt) {
+        /*for (t = 0; t <= 1.0f; t += dt) {
             refPoint = bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],t);
 
             pd = pSquareDist(p, refPoint);
@@ -511,7 +511,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
                 d.t = t;
                 d.curve = tCurve;
             }
-        }
+        }*/
 
         f32 a,b,c,e;
 
@@ -542,25 +542,25 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
 
             if (roots[i] < 0.0f || roots[i] > 1.0f) continue;
 
-            refPoint = bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],roots[i]);
+            //refPoint = bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],roots[i]);
 
-            pd = pSquareDist(p, refPoint);
+            pd = bezier3_point_dist(tCurve, p, roots[i]);
             
-            if (pd.d < d2.d) {
-                d2 = pd;
-                d2.p = p;
-                d2.t = roots[i];
-                d2.curve = tCurve;
-                d2.cubic_dbg.a = a;
+            if (pd.d < d.d) {
+                d = pd;
+                d.p = p;
+                d.t = roots[i];
+                d.curve = tCurve;
+                /*d2.cubic_dbg.a = a;
                 d2.cubic_dbg.b = b;
                 d2.cubic_dbg.c = c;
-                d2.cubic_dbg.d = e;
+                d2.cubic_dbg.d = e;*/
             }
         }
     }
 
 
-    if (abs(d.d - d2.d) > 0.1f) {
+    /*if (abs(d.d - d2.d) > 0.1f) {
         std::cout << "Found Distance Comp: ";
         std::cout << d.t << " ";
         std::cout << d2.t << " | " 
@@ -570,9 +570,9 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
         << "(" << d2.curve.p[2].x << ", " << d2.curve.p[2].y << ")"
         << "(" << d2.p.x << ", " << d2.p.y << ")"
         << std::endl;
-    }
+    }*/
 
-    d=d2;
+    //d=d2;
 
     tCurve = d.curve;
 
@@ -620,6 +620,8 @@ EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge> edges) {
     PDistInfo sdInf;
     i32 eIdx = 0;
 
+    //TODO: turn this into just like a static buffer or something that is shared between all calls to MinEdgedist
+    //this takes up 11% of the execution time!!!
     std::vector<EdgeDistInfo> duplicateEdges;
 
     for (Edge e : edges) {
