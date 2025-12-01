@@ -65,14 +65,22 @@ i32 solve_re_cubic_32_a(f32 a, f32 b, f32 c, f32 d, f32 re_roots[3]) {
     return 3;
 }
 
+i32 solve_linear_32(f32 a, f32 b, f32 roots[1]) {
+    roots[0] = -b/a;
+    return 1;
+}
+
 i32 solve_re_quadratic_32(f32 a, f32 b, f32 c, f32 re_roots[2]) {
+    if (a == 0)
+        return solve_linear_32(b, c, re_roots);
+
     const f32 i = b*b - 4.0f*a*c;
 
     if (i < 0.0f)
         return 0;
     
     if (i == 0.0f) {
-        re_roots[1] = -b / (2*a);
+        re_roots[1] = -b / (2.0f*a);
         return 1;
     }
 

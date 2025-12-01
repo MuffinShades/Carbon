@@ -420,31 +420,34 @@ const Point dBdt3(Point p0, Point p1, Point p2, f32 t) {
 
 const f32 compute_a_base_coord(f32 v0, f32 v1, f32 v2) {
     return 
-         4.0f*v2*v2
-        -8.0f*v0*v2
-        -16.0f*v1*v2
-        +16.0f*v1*v1
-        +16.0f*v0*v1
-        +4.0f*v0*v0;
+        4.0f*v0*v0
+    -16.0f*v0*v1
+    +8.0f*v0*v2
+    +16.0f*v1*v1
+    -16.0f*v1*v2
+    +4.0f*v2*v2;
 }
 
 const f32 compute_b_base_coord(f32 v0, f32 v1, f32 v2) {
     return 
-        -12.0f*v0*v1
-        +12.0f*v1*v2 
-        -24.0f*v1*v1;
+        -12.0f*v0*v0
+        +24.0f*v0*v1
+        -12.0f*v0*v2
+        +12.0f*v0*v1
+        -24.0f*v1*v1
+        +12.0f*v1*v2;
 }
 
 const f32 compute_c_base_coord(f32 v0, f32 v1, f32 v2) {
     return 
-    -4.0f*v0*v0
-    +8.0f*v1*v1
-    +4.0f*v0*v2
-    -8.0f*v0*v1;
+         12.0f*v0*v0
+        -24.0f*v0*v1
+        +4.0f*v0*v2
+        +8.0f*v1*v1;
 }
 
 const f32 compute_d_base_coord(f32 v0, f32 v1, f32 v2) {
-    return 4.0f*v0*v1;
+    return -4.0f*v0*v0 + 4.0f*v0*v1;
 }
 
 const PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
@@ -453,8 +456,8 @@ const PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
     inf.curve = b;
     inf.p = p;
     inf.t = t;
-    inf.dx = ((1.0f - t*t)*b.p[0].x+2.0f*(1.0f - t)*t*b.p[1].x+t*t*b.p[2].x)-p.x;
-    inf.dy = ((1.0f - t*t)*b.p[0].y+2.0f*(1.0f - t)*t*b.p[1].y+t*t*b.p[2].y)-p.y;
+    inf.dx = ((1.0f - t)*(1.0f - t)*b.p[0].x+2.0f*(1.0f - t)*t*b.p[1].x+t*t*b.p[2].x)-p.x;
+    inf.dy = ((1.0f - t)*(1.0f - t)*b.p[0].y+2.0f*(1.0f - t)*t*b.p[1].y+t*t*b.p[2].y)-p.y;
     inf.d = inf.dx*inf.dx + inf.dy*inf.dy;
 
     return inf;
@@ -516,10 +519,10 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
             a = (tCurve.solve_inf.a_base), 
             b = (tCurve.solve_inf.b_base),
             c = (tCurve.solve_inf.c_base 
-                + 4.0f * (p0.y*p.y + p0.x*p.x)
+                - 4.0f * (p0.y*p.y + p0.x*p.x)
                 + 8.0f * (p1.y*p.y + p1.x*p.x)
                 - 4.0f * (p2.y*p.y + p2.x*p.x)),
-            e = (tCurve.solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x)),
+            e = (tCurve.solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x) + 4.0f * (p0.y*p.y + p0.x*p.x)),
             root_pass
         );
 
@@ -539,7 +542,9 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
 
             if (roots[i] < 0.0f || roots[i] > 1.0f) continue;
 
-            pd = bezier3_point_dist(tCurve, p, roots[i]);
+            refPoint = bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],roots[i]);
+
+            pd = pSquareDist(p, refPoint);
             
             if (pd.d < d2.d) {
                 d2 = pd;
@@ -555,7 +560,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
     }
 
 
-    if (abs(d.d - d2.d) > epsilon) {
+    if (abs(d.d - d2.d) > 0.1f) {
         std::cout << "Found Distance Comp: ";
         std::cout << d.t << " ";
         std::cout << d2.t << " | " 
