@@ -398,6 +398,10 @@ struct PDistInfo {
     BCurve curve;
     Point p;
     struct {
+        f32 roots[3];
+        size_t nRoots;
+    } root_inf;
+    struct {
         f32 a,b,c,d;
     } cubic_dbg;
 };
@@ -463,6 +467,7 @@ const inline PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
     return inf;
 }
 
+//TODO: optimize this function for straight edges (see master thesis)
 PDistInfo EdgePointSignedDist(Point p, Edge e) {
     if (!e.curves || e.nCurves == 0) return {.d=INFINITY};
 
@@ -551,6 +556,8 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
                 d.p = p;
                 d.t = roots[i];
                 d.curve = tCurve;
+                in_memcpy(d.root_inf.roots, root_pass, sizeof(f32)*3);
+                d.root_inf.nRoots = nRoots;
                 /*d2.cubic_dbg.a = a;
                 d2.cubic_dbg.b = b;
                 d2.cubic_dbg.c = c;
@@ -667,6 +674,17 @@ EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge> edges) {
     }
 
     if (nDuplicates > 0) inf.dbgVal = 1;
+
+    return inf;
+}
+
+EdgeDistInfo MinEdgePseudoDist(Point p, std::vector<Edge> edges) {
+    EdgeDistInfo e = MinEdgeDist(p, edges);
+
+    //compute the pseudo distance
+    PDistInfo dist = e.signedDist;
+
+
 
     return inf;
 }
@@ -1026,4 +1044,203 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
     }
 
     return 0;
+}
+
+i32 RenderGlyphPseudoSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size) {
+    if (!map)
+        return 1;
+
+    //do some dimension calculations
+    u32 sdfW = 0, sdfH = 0;
+
+    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
+              glyphH = tGlyph.yMax - tGlyph.yMin,
+              glyphYxRatio = glyphH / glyphW;
+
+    switch (size.slc) {
+    case sdf_dim_ty::Width:
+        map->header.w = (sdfW = size.m.w);
+        map->header.h = (sdfH = (size_t) ceil(sdfW * glyphYxRatio));
+        break;
+    case sdf_dim_ty::Height:
+        map->header.h = (sdfH = size.m.h);
+        map->header.w = (sdfW = (size_t) ceil(sdfH / glyphYxRatio));
+        break;
+    case sdf_dim_ty::Scale:
+        map->header.h = (sdfH = size.m.scale * glyphH);
+        map->header.w = (sdfW = size.m.scale * glyphW);
+        break;
+    }
+
+    //clean the glyph up
+    gPData cleanDat = cleanGlyphPoints(tGlyph);
+
+    //get num points
+    const size_t nPoints = cleanDat.p.size();
+
+    map->header.bitsPerPixel = 32;
+    map->header.fSz = map->header.h * map->header.w * 4;
+
+    byte *bmpData = new byte[map->header.fSz];
+    ZeroMem(bmpData, map->header.fSz);
+
+    //blank glyph so blank sdf
+    if (nPoints == 0)
+        return 0;
+
+    map->data = bmpData;
+
+    //curve and edge generation, glyph clean up, and more
+
+    std::vector<Edge> glyphEdges;
+    
+    const size_t nCurves = nPoints >> 1;
+    BCurve *curveBuffer = new BCurve[nCurves]; //stores curves of current edge
+    ZeroMem(curveBuffer, nCurves);
+
+    BCurve *workingCurve = curveBuffer;
+
+    //generate glyph edges
+    i32 i;
+    i32 pSelect = 0, nEdgeCurves = 0;
+    Point p, nextPoint, prevPoint;
+    f32 cross;
+    bool workingOnACurve = false, pOnCurve;
+    Edge newEdge;
+
+    for (i = 0; i < nPoints - 1; ++i) {
+        p = cleanDat.p[i];
+
+        nextPoint = cleanDat.p[i + 1];
+
+        if (i > 0)
+            prevPoint = cleanDat.p[i - 1];
+        else
+            prevPoint = p;
+
+        pOnCurve = GetFlagValue(cleanDat.f[i], PointFlag_onCurve);
+
+        std::cout << pOnCurve << std::endl;
+
+        workingCurve->p[pSelect++] = p; //add point to the working curve
+
+        if (!pOnCurve) continue;
+
+        if (workingOnACurve) {
+            nEdgeCurves++;
+
+            cross = pointCross(
+                {p.x - prevPoint.x, p.y - prevPoint.y}, 
+                {nextPoint.x - p.x, nextPoint.y - p.y}
+            );
+
+            //the curves are not on the same edge so contruct final edge
+            if (abs(cross) > 0.01f) {
+                BCurve *edgeData = new BCurve[nEdgeCurves];
+                in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
+
+                newEdge.curves = edgeData;
+                newEdge.nCurves = nEdgeCurves;
+                
+                glyphEdges.push_back(newEdge);
+
+                workingCurve = curveBuffer;
+                nEdgeCurves = 0;
+            } else
+                workingCurve ++; //go to next working curve
+
+            pSelect = 0;
+            workingOnACurve = false;
+
+            if (!GetFlagValue(cleanDat.f[i+1], PointFlag_onCurve))
+                i--; //reuse current point for the next curve if the next point isnt on the curve
+        } else
+            workingOnACurve = true;
+    }
+
+    Point final_point = cleanDat.p[nPoints-1];
+
+    //add last point to the curve
+    workingCurve->p[pSelect] = cleanDat.p[nPoints - 1];
+
+    //generate final edge
+    nEdgeCurves++;
+    BCurve *edgeData = new BCurve[nEdgeCurves];
+    in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
+
+    newEdge.curves = edgeData;
+    newEdge.nCurves = nEdgeCurves;
+
+    glyphEdges.push_back(newEdge);
+
+    //generate single channel sdf
+    i32 x,y;
+
+    const f32
+        wc = glyphW / (f32) sdfW,
+        hc = glyphH / (f32) sdfH;
+        //maxPossibleDist = sqrtf(glyphW*glyphW + glyphH*glyphH);
+
+    byte color;
+
+    f32 *distBuffer = new f32[sdfW * sdfH]; //i hate this so much
+
+    f32 maxDist = smol_number; //smol number
+    f32 d;
+
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
+            p.x = (((f32)x) + 0.5f) * wc + tGlyph.xMin;
+            p.y = (((f32)y) + 0.5f) * hc + tGlyph.yMin;
+
+            EdgeDistInfo fieldDist = MinEdgePseudoDist(p, glyphEdges);
+
+            distBuffer[x + y * sdfW] = (d = fieldDist.signedDist.d);
+
+            //this is why i need that damn buffer
+            d = abs(d);
+            maxDist = mu_max(maxDist, d);
+        }
+    }
+
+    size_t distIdx;
+
+    //i dont want to do it again but maxPossibleDist is being a bitch
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
+            distIdx = x+y*sdfW;
+            d = distBuffer[distIdx];
+
+            color = mu_min(
+                mu_max(
+                    (d / /*maxPossibleDist*/ maxDist) * 128.0f + 127, 0),
+            255);
+
+            const size_t mp = distIdx << 2;
+
+            if (mp + 3 >= map->header.fSz)
+                continue;
+
+            map->data[mp+0] = color;
+            map->data[mp+1] = color;
+            map->data[mp+2] = color;
+            map->data[mp+3] = 255;
+        }
+    }
+
+    delete[] distBuffer; //wow!
+
+    //oh look were managing memory :O
+    for (Edge e : glyphEdges) {
+        _safe_free_a(e.curves);
+        e.nCurves = 0;
+    }
+
+    _safe_free_a(curveBuffer);
+
+    return 0;
+}
+
+i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size) {
+
 }
