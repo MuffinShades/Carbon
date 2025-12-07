@@ -684,9 +684,44 @@ EdgeDistInfo MinEdgePseudoDist(Point p, std::vector<Edge> edges) {
     //compute the pseudo distance
     PDistInfo dist = e.signedDist;
 
+    i32 i;
 
+    //recompute with high derivative
+    if (dist.t >= 1.0f) {
+        PDistInfo pd, gDist = dist;
 
-    return inf;
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] > 1.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    } 
+    //recompute with lower derivative
+    else if (dist.t <= 0.0f) {
+        f32 gRoot = dist.t;
+
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] < 0.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    }
+
+    e.signedDist = dist;
+
+    return e;
 }
 
 i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
@@ -840,8 +875,11 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
 
             distBuffer[x + y * sdfW] = (d = fieldDist.signedDist.d);
 
+           //distBuffer[x + y * sdfW] = x+y;
+
             //this is why i need that damn buffer
             d = abs(d);
+            //d = x+y;
             maxDist = mu_max(maxDist, d);
         }
     }
@@ -856,7 +894,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
 
             color = mu_min(
                 mu_max(
-                    (d / /*maxPossibleDist*/ maxDist) * 128.0f + 127, 0),
+                    (d / /*maxPossibleDist*/ maxDist) * 127.0f+128.0f, 0),
             255);
 
             const size_t mp = distIdx << 2;
@@ -961,16 +999,24 @@ void sampleBilinear(byte *buffer, byte *out, size_t nchannels, size_t bufW, size
 
     //horrizontal blur
     for (i = 0; i < nchannels; i++) {
-        if (lx == 0 || ly == 0) tlv = 0;
+        if (lx == 0 && ly != 0) tlv = buffer[trp];
+        else if (ly == 0 && lx != 0) tlv = buffer[blp];
+        else if (lx == 0 && ly == 0) tlv = buffer[brp];
         else tlv = buffer[tlp+i]; 
 
-        if (rx >= bufW || ly == 0) trv = 0;
+        if (rx < bufW && ly == 0) trv = buffer[brp];
+        else if (rx >= bufW && ly != 0) trv = buffer[tlp];
+        else if (rx >= bufW && ly == 0) trv = buffer[blp];
         else trv = buffer[trp+i];
 
-        if (ry >= bufH || lx == 0) blv = 0;
+        if (ry < bufH && lx == 0) blv = buffer[brp];
+        else if (ry >= bufH && lx != 0) blv = buffer[tlp];
+        else if (ry >= bufH && lx == 0) blv = buffer[trp];
         else blv = buffer[blp+i]; 
 
-        if (ry >= bufH || rx >= bufW) brv = 0;
+        if (ry < bufH && rx >= bufW) brv = buffer[blp];
+        else if (ry >= bufH && rx < bufW) brv = buffer[trp];
+        else if (ry >= bufH && rx >= bufW) brv = buffer[blp];
         else brv = buffer[brp+i];
 
         hb = lerp(trv, tlv, subX);
@@ -1036,8 +1082,10 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
             );
 
             if ((i32) samp[0] - 127 > 0)
-                forrange(by_pp-1)
-                    bmp->data[p+i] = 0xff;
+                //forrange(by_pp-1)
+                    bmp->data[p+1] = samp[0];
+            else
+                bmp->data[p+1] = samp[0];
 
             bmp->data[p+by_pp-1] = 0xff;        
         }
@@ -1046,7 +1094,7 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
     return 0;
 }
 
-i32 RenderGlyphPseudoSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size) {
+i32 ttfRender::RenderGlyphPseudoSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
     if (!map)
         return 1;
 
@@ -1242,5 +1290,5 @@ i32 RenderGlyphPseudoSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size) {
 }
 
 i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size) {
-
+    return 0;
 }
