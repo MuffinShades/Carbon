@@ -198,7 +198,7 @@ static u64 NumReverse(u64 v, size_t bSz) {
 #endif
 
 #ifndef mu_clamp
-#define mu_clamp(a, max, min) ((a) > (max) ? (max) : ((a) < (min) : (min) : (a)));
+#define mu_clamp(a, max, min) (((a) > (max)) ? (max) : (((a) < (min)) : (min) : (a)));
 #endif
 
 //branchless min from: https://stackoverflow.com/questions/24529504/find-out-max-min-of-two-number-without-using-if-else

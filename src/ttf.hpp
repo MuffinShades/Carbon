@@ -103,6 +103,7 @@ struct Glyph {
     byte* flags = nullptr;
     i32* contourEnds = nullptr;
     size_t nPoints;
+    i32* modifiedContourEnds = nullptr;
 };
 
 enum CMapMode {
