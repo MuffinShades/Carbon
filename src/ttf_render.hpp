@@ -76,6 +76,7 @@ extern "C" {
 class ttfRender {
 public:
     MSFL_EXP static i32 RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale = 1.0f);
+    MSFL_EXP static i32 RenderGlyphOutlineToBitmap(Glyph tGlyph, Bitmap* bmp, sdf_dim size);
     MSFL_EXP static i32 RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size);
     MSFL_EXP static i32 RenderGlyphPseudoSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size);
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size);
