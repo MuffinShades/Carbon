@@ -83,6 +83,7 @@ public:
     //MSFL_EXP static i32 RenderGlyphMSFGToBitMap(Glyph tGlyph, Bitmap* bmp, size_t glyphW, size_t glyphH);
     MSFL_EXP static i32 RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
     MSFL_EXP static i32 RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
+    MSFL_EXP static i32 GenerateUnicodeMSDFSubset(UnicodeRanges range, );
 };
 
 #ifdef MSFL_DLL

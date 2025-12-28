@@ -198,7 +198,7 @@ public:
     h_char_inf h_inf;
 };
 
-enum class UnicodeRanges {
+enum class UnicodeRange {
     Utf8,
     Utf16,
     Latin_Basic,

@@ -249,7 +249,7 @@ gPData cleanGlyphPoints(Glyph& tGlyph) {
         if (
             i < tGlyph.nPoints - 1 &&
             (oCurve = GetFlagValue(pFlag, PointFlag_onCurve)) == GetFlagValue(tGlyph.flags[i + 1], PointFlag_onCurve)
-        ) {
+            ) {
             //add implied point
             res.p.push_back(pLerp(p, tGlyph.points[i + 1], 0.5f));
             res.f.push_back(ModifyFlagValue(pFlag, PointFlag_onCurve, !oCurve));
@@ -273,6 +273,123 @@ gPData cleanGlyphPoints(Glyph& tGlyph) {
  *
  */
 i32 ttfRender::RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale) {
+    i32 mapW = tGlyph.xMax - tGlyph.xMin,
+        mapH = tGlyph.yMax - tGlyph.yMin;
+
+    if (scale <= 0.0f)
+        return 1;
+
+    mapW *= scale;
+    mapH *= scale;
+
+    mapW++;
+    mapH++;
+
+    bmp->header.w = mapW;
+    bmp->header.h = mapH;
+    bmp->data = new byte[mapW * mapH * sizeof(u32)];
+    bmp->header.fSz = mapW * mapH * sizeof(u32);
+    bmp->header.bitsPerPixel = 32;
+
+    ZeroMem(bmp->data, bmp->header.fSz);
+
+    //render the glyph
+    //gonna render white for now
+
+    size_t onCurve = 0, offCurve = 0;
+
+    const float nSteps = 150.0f, invStep = 1.0f / nSteps;
+
+    BitmapGraphics g(bmp);
+
+    gPData cleanDat = cleanGlyphPoints(tGlyph);
+    std::vector<Point> fPoints = cleanDat.p;
+    std::vector<i32> fFlags = cleanDat.f;
+
+#ifdef MSFL_TTFRENDER_DEBUG
+    srand(time(NULL));
+#endif
+
+    struct _curve {
+        Point p0, p1, p2;
+    };
+
+    std::vector<_curve> bCurves;
+
+    for (size_t i = 0; i < fPoints.size(); i++) {
+        i32 pFlag = fFlags[i];
+        Point p = fPoints[i];
+
+        if ((bool)GetFlagValue(pFlag, PointFlag_onCurve)) {
+#ifdef MSFL_TTFRENDER_DEBUG
+            g.SetColor(255, 255, 255, 255);
+            if (i == 0)
+                g.SetColor(255, 255, 0, 255);
+            g.DrawPixel(p.x * scale - tGlyph.xMin * scale, p.y * scale - tGlyph.yMin * scale);
+#endif
+
+            if (onCurve == 0 && offCurve == 0) {
+                onCurve++;
+                continue;
+            }
+
+            //there shouldnt be a stright line so...
+            if (offCurve == 0)
+                continue;
+
+            g.SetColor(255.0f, 255.0f, 255.0f, 255.0f);
+
+            //else draw le curve
+            for (float t = 0.0f; t <= 1.0f; t += invStep) {
+                const _curve currentCurve = {
+                    .p0 = ScalePoint(fPoints[i - 2], scale),
+                    .p1 = ScalePoint(fPoints[i - 1], scale),
+                    .p2 = ScalePoint(p, scale)
+                };
+
+                Point np = bezier3(
+                    currentCurve.p0,
+                    currentCurve.p1,
+                    currentCurve.p2,
+                    t
+                );
+
+                //add a curve
+                bCurves.push_back(currentCurve);
+
+                //g.SetColor((np.x / (float)mapW) * 255.0f, (np.y / (float)mapH) * 255.0f, 255, 255);
+                //DrawPoint(&g, np.x - tGlyph.xMin * scale, np.y - tGlyph.yMin * scale);
+                //g.SetColor(128.0f, 128.0f, 128.0f, 255.0f);
+                //g.DrawPixel(np.x - tGlyph.xMin * scale, np.y - tGlyph.yMin * scale);
+            }
+
+            offCurve = onCurve = 0;
+        }
+        else {
+            offCurve++;
+#ifdef MSFL_TTFRENDER_DEBUG
+            g.SetColor((i / (float)fPoints.size()) * 255.0f, 0.0f, 255.0f - ((i / (float)fPoints.size()) * 255.0f), 255);
+            g.DrawPixel(p.x * scale, p.y * scale);
+#endif
+        }
+    }
+
+    const float _Tx = -tGlyph.xMin * scale, _Ty = -tGlyph.yMin * scale;
+
+    //try just intersting over all the pixels
+    /*g.SetColor(255, 255, 255, 255);
+    for (float y = 0; y < mapH; y++) {
+        for (float x = 0; x < mapW; x++) {
+            i32 i = 0;
+            //intersection thingy
+            for (auto& c : bCurves)
+                i += intersectsCurve(c.p0, c.p1, c.p2, { x, y });
+
+            if ((i & 1) != 0)
+                g.DrawPixel(x + _Tx, y + _Ty);
+        }
+    }*/
+
     return 0;
 }
 
@@ -337,15 +454,31 @@ const Point dBdt3(Point p0, Point p1, Point p2, f32 t) {
 }
 
 const f32 compute_a_base_coord(f32 v0, f32 v1, f32 v2) {
-    return 4.0f*v0*v0-16.0f*v0*v1+8.0f*v0*v2+16.0f*v1*v1-16.0f*v1*v2+4.0f*v2*v2;
+    return 
+        4.0f*v0*v0
+    -16.0f*v0*v1
+    +8.0f*v0*v2
+    +16.0f*v1*v1
+    -16.0f*v1*v2
+    +4.0f*v2*v2;
 }
 
 const f32 compute_b_base_coord(f32 v0, f32 v1, f32 v2) {
-    return -12.0f*v0*v0+24.0f*v0*v1-12.0f*v0*v2+12.0f*v0*v1-24.0f*v1*v1+12.0f*v1*v2;
+    return 
+        -12.0f*v0*v0
+        +24.0f*v0*v1
+        -12.0f*v0*v2
+        +12.0f*v0*v1
+        -24.0f*v1*v1
+        +12.0f*v1*v2;
 }
 
 const f32 compute_c_base_coord(f32 v0, f32 v1, f32 v2) {
-    return 12.0f*v0*v0-24.0f*v0*v1+4.0f*v0*v2+8.0f*v1*v1;
+    return 
+         12.0f*v0*v0
+        -24.0f*v0*v1
+        +4.0f*v0*v2
+        +8.0f*v1*v1;
 }
 
 const f32 compute_d_base_coord(f32 v0, f32 v1, f32 v2) {
@@ -417,8 +550,24 @@ PDistInfo EdgePointSignedDist(Point p, Edge e) {
             root_pass
         );
 
+        /*for (f32 t = 0; t < 1.0f; t += 1.0f / 256.0f) {
+            pd = bezier3_point_dist(tCurve, p, t);
+            
+            if (pd.d < d.d) {
+                d = pd;
+                d.p = p;
+                d.t = t;
+                d.curve = tCurve;
+                in_memcpy(d.root_inf.roots, root_pass, sizeof(f32)*3);
+                d.root_inf.nRoots = nRoots;
+            }
+        }*/
+
         for (i = 2; i < nRoots+2; i++) {
-            t2 = (roots[i] > 1.0f) + (roots[i] >= 0.0f && roots[i] <= 1.0f) * roots[i];
+           t2 = (roots[i] > 1.0f) + (roots[i] >= 0.0f && roots[i] <= 1.0f) * roots[i];
+          // if (roots[i] < 0.0f || roots[i] > 1.0f) continue;
+
+           //refPoint = bezier3(tCurve.p[0],tCurve.p[1],tCurve.p[2],roots[i]);
 
             pd = bezier3_point_dist(tCurve, p, t2);
             
@@ -709,6 +858,8 @@ std::vector<Edge> generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nP
     for (i = 0; i < nPoints; i++) {
         oc = GetFlagValue(points.f[i], PointFlag_onCurve);
 
+        std::cout << "point: " << i << " " << glyph_data.modifiedContourEnds[cContCleanCheck] << " | " << oc << std::endl;
+
         //contour stuff
         if (cContCleanCheck < glyph_data.nContours && i == glyph_data.modifiedContourEnds[cContCleanCheck]) {
             onExpect = true;
@@ -732,6 +883,97 @@ std::vector<Edge> generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nP
         }
     }
 
+    //construct edges
+    //this is old code, don't use!!! It doesn't work and the new stuff is so much cleaner
+    //this is here just for nostalgia purposes
+    /*for (i = 0; i < nPoints - 1; ++i) {
+        p = points.p[i];
+        nextPoint = points.p[i + 1];
+
+        if (i > 0)
+            prevPoint = points.p[i - 1];
+        else
+            prevPoint = p;
+
+        pOnCurve = GetFlagValue(points.f[i], PointFlag_onCurve);
+
+        workingCurve->src_inf.ttf_relative_point_index[pSelect] = i; //store this cause it's important
+        workingCurve->p[pSelect++] = p; //add point to the working curve
+
+        if (!pOnCurve || i < 1) continue;
+
+        if (workingOnACurve) {
+            nEdgeCurves++;
+
+            //compute the derivatives between the two curves
+            //Point backDVec  = dBdt3(points.p[i - 2], points.p[i - 1], points.p[i - 0], 0.0f);
+            //Point frontDVec = dBdt3(points.p[i + 0], points.p[i + 1], points.p[i + 2], 1.0f);
+
+            cross = pointCrossNormal({
+                p.x - prevPoint.x,
+                p.y - prevPoint.y
+            }, {
+                nextPoint.x - p.x,
+                nextPoint.y - p.y
+            });   //cross product between the derivative vectors
+
+            std::cout << "Corner Sharpness: " << abs((cross)) << std::endl;
+
+            //the curves are not on the same edge so contruct final edge
+            if (abs(cross) > 0.1f || (cur_contour < glyph_data.nContours && i == glyph_data.modifiedContourEnds[cur_contour])) {
+                BCurve *edgeData = new BCurve[nEdgeCurves];
+                in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
+
+                newEdge.curves = edgeData;
+                newEdge.nCurves = nEdgeCurves;
+                newEdge.inital_point_index = beg_p_idx;
+                
+                glyphEdges.push_back(newEdge);
+
+                workingCurve = curveBuffer;
+                nEdgeCurves = 0;
+            } else
+                workingCurve ++; //go to next working curve
+
+            pSelect = 0;
+            workingOnACurve = false;
+
+            if (!GetFlagValue(points.f[i+1], PointFlag_onCurve))
+                i--; //reuse current point for the next curve if the next point isnt on the curve
+        } else {
+            workingOnACurve = true;
+            beg_p_idx = i;
+        }
+
+        if (cur_contour < glyph_data.nContours && i == glyph_data.modifiedContourEnds[cur_contour])
+            cur_contour++;
+    }
+
+    Point final_point = points.p[nPoints-1];
+
+    std::cout << "ps: " << pSelect << std::endl;
+
+    //add last 2 points to the curve
+    for (i = 1; i > 0; i--) {
+        workingCurve->src_inf.ttf_relative_point_index[pSelect] = nPoints - i;
+        workingCurve->p[pSelect] = points.p[nPoints - i];
+        pSelect++;
+    }
+
+    std::cout << "P Select End: " << pSelect << std::endl;
+
+    //generate final edge
+    nEdgeCurves++;
+    BCurve *edgeData = new BCurve[nEdgeCurves];
+    in_memcpy(edgeData, curveBuffer, sizeof(BCurve) * nEdgeCurves);
+
+    newEdge.curves = edgeData;
+    newEdge.nCurves = nEdgeCurves;
+
+    glyphEdges.push_back(newEdge);
+
+    _safe_free_a(curveBuffer);*/
+
     beg_p_idx = 0;
 
     for (i = 0; i < nPoints; i++) {
@@ -749,9 +991,9 @@ std::vector<Edge> generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nP
                 continue;
 
             //check to see if a new edge is needed
-            //snip is a 2 bit boolean type thing
-            //bit one is whether or not to snip
-            //bit two is whether or not the end of a contour was reached
+            //snip is a 2 byte boolean type thing
+            //byte one is whether or not to snip
+            //byte two is whether or not the end of a contour was reached
             byte snip = 0;
 
             if (i > 1 && i < nPoints - 1) {
@@ -845,6 +1087,8 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
     sdfTrueW = sdfW + (padding << 1);
     sdfTrueH = sdfH + (padding << 1);
 
+    std::cout << "padding extra: " << (sdfTrueW - sdfW) << " | " << (padding << 1) << " | " << sdfTrueW << " " << sdfW << std::endl;
+
     map->header.h = sdfTrueH;
 
     //clean the glyph up
@@ -855,6 +1099,8 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
 
     map->header.bitsPerPixel = 32;
     map->header.fSz = (map->header.h * map->header.w) * 4;
+
+    std::cout << "map size: " << map->header.fSz << " | " << map->header.w << " | " << map->header.h << std::endl;
 
     map->data = new byte[map->header.fSz];
     ZeroMem(map->data, map->header.fSz);
@@ -1082,6 +1328,11 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
     for (y = 0; y < outH; ++y) {
         for (x = 0; x < outW; ++x) {
             p = (x + y * outW) * by_pp;
+            /*forrange(by_pp)
+                bmp->data[p+i] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;*/
+
+                //bmp->data[p] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;
+
                 
             //do the bilinear sampling here
             sampleBilinear(sdf->data, samp, sdf->header.bitsPerPixel >> 3, sdf->header.w, sdf->header.h, 
@@ -1223,26 +1474,52 @@ struct Contour {
     size_t minPoint, maxPoint;
 };
 
-i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const i32 regionY, const u32 regionW, const u32 regionH, const u32 paddingLeft, const u32 paddingTop, const u32 paddingRight, const u32 paddingBottom) {
-    //simple error / render ability checks
-    if (regionW == 0 || regionH == 0) 
-        return 0;
-
-    if (map->header.w == 0 || map->header.h == 0)
-        return 0;
-
-    if (!map->data) {
+i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
+    if (!map)
         return 1;
+
+    //do some dimension calculations
+    u32 sdfW = 0, sdfH = 0, sdfTrueW = 0, sdfTrueH = 0;
+
+    const u32 padding = 1;
+
+    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
+              glyphH = tGlyph.yMax - tGlyph.yMin,
+              glyphYxRatio = glyphH / glyphW;
+
+    switch (size.slc) {
+    case sdf_dim_ty::Width:
+        map->header.w = (sdfW = size.m.w);
+        map->header.h = (sdfH = (size_t) ceil(sdfW * glyphYxRatio));
+        break;
+    case sdf_dim_ty::Height:
+        map->header.h = (sdfH = size.m.h);
+        map->header.w = (sdfW = (size_t) ceil(sdfH / glyphYxRatio));
+        break;
+    case sdf_dim_ty::Scale:
+        map->header.h = (sdfH = size.m.scale * glyphH);
+        map->header.w = (sdfW = size.m.scale * glyphW);
+        break;
     }
 
-    //
-    const size_t nChannels = map->header.bitsPerPixel >> 3;
+    sdfTrueW = sdfW + (padding << 1);
+    sdfTrueH = sdfH + (padding << 1);
 
-     //clean the glyph up
+    std::cout << "padding extra: " << (sdfTrueW - sdfW) << " | " << (padding << 1) << " | " << sdfTrueW << " " << sdfW << std::endl;
+
+    map->header.h = sdfTrueH;
+
+    //clean the glyph up
     gPData cleanDat = cleanGlyphPoints(tGlyph);
 
     //get num points
     const size_t nPoints = cleanDat.p.size();
+
+    map->header.bitsPerPixel = 32;
+    map->header.fSz = (map->header.h * map->header.w) * 4;
+
+    map->data = new byte[map->header.fSz];
+    ZeroMem(map->data, map->header.fSz);
 
     //blank glyph so blank sdf
     if (nPoints == 0)
@@ -1253,8 +1530,10 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
     std::vector<Edge> glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
 
     //compute conture colors
+
     i32 c;
 
+    uvec3 cur_color;
     u32 edge_i = 0;
     Edge cur_edge, next_edge;
     bool final_edge = false;
@@ -1278,10 +1557,11 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
         e_idx = 0;
         for (Edge e : glyphEdges) {
             if (
-                (e.inital_point_index >= cur_c->minPoint && e.inital_point_index < cur_c->maxPoint) ||
-                (e.final_point_index > cur_c->minPoint && e.final_point_index <= cur_c->maxPoint)
+                (e.inital_point_index >= cur_c->minPoint && e.inital_point_index <= cur_c->maxPoint) ||
+                (e.final_point_index > cur_c->minPoint && e.final_point_index < cur_c->maxPoint)
             ) {
                 cur_c->edge_idxs.push_back(e_idx);
+                std::cout << "assigning edge: " << e_idx << std::endl;
             }
 
             e_idx++;
@@ -1290,8 +1570,6 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
 
     //now color le edges
     i32 i;
-
-    uvec3 cur_color;
 
     for (c = 0; c < tGlyph.nContours; c++) {
         Contour ct = glyph_contours[c];
@@ -1314,285 +1592,7 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
 
             glyphEdges[t_edge].color = cur_color;
 
-            if (cur_color.y == 0) {
-                cur_color.y = 1;
-                cur_color.z = 0;
-            } else if (cur_color.x == 1 && cur_color.y == 1) {
-                cur_color.x = 0;
-                cur_color.z = 1;
-            } else {
-                cur_color.x = 1;
-                cur_color.z = 0;
-            }
-
-            edge_i++;
-        }
-    }
-
-    //generate multi channel sdf
-    i32 x,y;
-
-    const f32 glyphW = tGlyph.xMax - tGlyph.xMin, glyphH = tGlyph.yMax - tGlyph.yMin;
-
-    const u32 paddingX = paddingLeft + paddingRight,
-              paddingY = paddingTop + paddingBottom;
-
-    const f32
-        wc = glyphW / (f32) (regionW - paddingX),
-        hc = glyphH / (f32) (regionH - paddingY);
-
-    byte color;
-
-    vec3 *distBuffer = new vec3[regionW * regionH]; //i hate this so much
-
-    f32 maxDist = smol_number; //smol number
-    PDistInfo dr, dg, db;
-    f32 d_cmp;
-    vec3 maxDists;
-
-    PDistInfo d;
-
-    Edge er, eg, eb;
-
-    Point p;
-
-    size_t distIdx;
-
-    //generate the msdf
-    for (y = 0; y < regionH; ++y) {
-        for (x = 0; x < regionW; ++x) {
-            p.x = (((f32)x - paddingLeft) + 0.5f) * wc + (tGlyph.xMin);
-            p.y = (((f32)y - paddingTop) + 0.5f) * hc + (tGlyph.yMin);
-            
-            dr.d = dg.d = db.d = INFINITY;
-
-            for (Edge e : glyphEdges) {
-                d = EdgePointSignedDist(p, e);
-
-                if (e.color.x) {
-                    if (abs(abs(d.d) - abs(dr.d)) <= 0.01f) {
-                        //check orthoginality
-                        f32 o1 = curveOrtho(d.curve, p, d.t),
-                            o2 = curveOrtho(dr.curve, p, dr.t);
-
-                        if (o2 < o1) goto set_r;
-                    } else if (abs(d.d) < abs(dr.d)) {
-                     set_r:  
-                        dr = d;
-                        er = e;
-                    }
-                }
-
-                if (e.color.y) {
-                    if (abs(abs(d.d) - abs(dg.d)) <= 0.01f) {
-                        //check orthoginality
-                        f32 o1 = curveOrtho(d.curve, p, d.t),
-                            o2 = curveOrtho(dg.curve, p, dg.t);
-
-                        if (o2 < o1) goto set_g;
-                    } else if (abs(d.d) < abs(dg.d)) {
-                    set_g:  
-                        dg = d;
-                        eg = e;
-                    }
-                }
-
-                if (e.color.z) {
-                    if (abs(abs(d.d) - abs(db.d)) <= 0.01f) {
-                        //check orthoginality
-                        f32 o1 = curveOrtho(d.curve, p, d.t),
-                            o2 = curveOrtho(db.curve, p, db.t);
-
-                        if (o2 < o1) goto set_b;
-                    } else if (abs(d.d) < abs(db.d)) {
-                    set_b:  
-                        db = d;
-                        eb = e;
-                    }
-                }
-            }
-
-            auto cmp_dist = MinEdgeDist(p, glyphEdges);
-
-            distIdx = x+y*regionW;
-            const size_t mp = distIdx << 2;
-
-            dr.d = EdgePseudoDist(p, er).d;
-            dg.d = EdgePseudoDist(p, eg).d;
-            db.d = EdgePseudoDist(p, eb).d;
-
-            d_cmp = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d));            
-
-            distBuffer[x + y * regionW] = vec3(dr.d,dg.d,db.d);
-
-            //this is why i need that damn buffer
-            maxDists.x = mu_max(maxDists.x, abs(dr.d));
-            maxDists.y = mu_max(maxDists.y, abs(dg.d));
-            maxDists.z = mu_max(maxDists.z, abs(db.d));
-        }
-    }
-
-    vec3 dv;
-
-    //output the msdf to the bitmap
-    for (y = 0; y < regionH; ++y) {
-        for (x = 0; x < regionW; ++x) {
-
-            //add regionX and regionY for the location
-            distIdx = (x) + (y)*regionW;
-            dv = distBuffer[distIdx];
-
-            const size_t mp = ((x + regionX) + (y + regionY) * map->header.w) * nChannels;
-
-            //make sure we aren't gonna render out of bounds
-            if (mp + 3 >= map->header.fSz || mp < 0 || (x + regionX) < 0 || (y + regionY) < 0 || (x + regionX) >= map->header.w || (y + regionY) >= map->header.h)
-                continue;
-
-            constexpr f32 blend_after = 0.0f, blend_amount = 1.0f;
-
-            dv.x -= blend_after;
-            dv.y -= blend_after;
-            dv.z -= blend_after;
-
-            if (dv.x < 0)
-                map->data[mp+0] = mu_max(mu_min((((dv.x) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
-            else
-                map->data[mp+0] = 255;
-
-            if (dv.y < 0)
-                map->data[mp+1] = mu_max(mu_min((((dv.y) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
-            else
-                map->data[mp+1] = 255;
-
-            if (dv.z < 0)
-                map->data[mp+2] = mu_max(mu_min((((dv.z) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
-            else
-                map->data[mp+2] = 255;
-            
-            if (nChannels == 4)
-                map->data[mp+3] = 255;
-        }
-    }
-
-    delete[] distBuffer; //wow!
-    _safe_free_a(glyph_contours); //more memory management
-
-    //oh look were managing memory :O
-    for (Edge e : glyphEdges) {
-        _safe_free_a(e.curves);
-        e.nCurves = 0;
-    }
-
-    return 0;
-}
-
-i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
-    if (!map)
-        return 1;
-
-    //do some dimension calculations
-    u32 sdfW = 0, sdfH = 0, sdfTrueW = 0, sdfTrueH = 0;
-
-    const u32 padding = 4;
-
-    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
-              glyphH = tGlyph.yMax - tGlyph.yMin,
-              glyphYxRatio = glyphH / glyphW;
-
-    switch (size.slc) {
-    case sdf_dim_ty::Width:
-        sdfW = size.m.w;
-        sdfH = (size_t) ceil(sdfW * glyphYxRatio);
-        break;
-    case sdf_dim_ty::Height:
-        sdfH = size.m.h;
-        sdfW = (size_t) ceil(sdfH / glyphYxRatio);
-        break;
-    case sdf_dim_ty::Scale:
-        sdfH = size.m.scale * glyphH;
-        sdfW = size.m.scale * glyphW;
-        break;
-    }
-
-    sdfTrueW = sdfW + (padding << 1);
-    sdfTrueH = sdfH + (padding << 1);
-
-    map->header.h = sdfTrueH;
-    map->header.w = sdfTrueW;
-
-    const size_t nChannels = 3;
-
-    map->header.bitsPerPixel = (nChannels << 3);
-    map->header.fSz = (map->header.h * map->header.w) * nChannels;
-
-    map->data = new byte[map->header.fSz];
-    ZeroMem(map->data, map->header.fSz);
-
-    //curve and edge generation, glyph clean up, and more
-
-    /*std::vector<Edge> glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
-
-    //compute conture colors
-    i32 c;
-
-    u32 edge_i = 0;
-    Edge cur_edge, next_edge;
-    bool final_edge = false;
-    size_t ncontour_edges = 0;
-
-    const size_t nGlyphEdges = glyphEdges.size();
-
-    Contour *glyph_contours = new Contour[tGlyph.nContours];
-    u32 cur_min_idx = 0, e_idx = 0;
-
-    for (c = 0; c < tGlyph.nContours; c++) { //oh my fucking god C++???!?!?!?! No way!!! :O
-        Contour *cur_c = glyph_contours + c;
-
-        //compute min and max points
-        cur_c->minPoint = cur_min_idx;
-        cur_c->maxPoint = tGlyph.modifiedContourEnds[c] + cur_c->minPoint;
-
-        cur_min_idx += tGlyph.modifiedContourEnds[c];
-
-        //assign edges
-        e_idx = 0;
-        for (Edge e : glyphEdges) {
-            if (
-                (e.inital_point_index >= cur_c->minPoint && e.inital_point_index < cur_c->maxPoint) ||
-                (e.final_point_index > cur_c->minPoint && e.final_point_index <= cur_c->maxPoint)
-            ) {
-                cur_c->edge_idxs.push_back(e_idx);
-            }
-
-            e_idx++;
-        }
-    }
-
-    //now color le edges
-    i32 i;
-
-    uvec3 cur_color;
-
-    for (c = 0; c < tGlyph.nContours; c++) {
-        Contour ct = glyph_contours[c];
-
-        const size_t ncEdges = ct.edge_idxs.size();
-        u32 t_edge;
-
-        if (ncEdges == 0)
-            continue;
-        else if (ncEdges == 1) {
-            t_edge = ct.edge_idxs[0];
-            glyphEdges[t_edge].color = uvec3(1,1,1);
-            continue;
-        }
-
-        cur_color = uvec3(1,0,1);
-
-        for (i = 0; i < ncEdges; i++) {
-            t_edge = ct.edge_idxs[i];
-
-            glyphEdges[t_edge].color = cur_color;
+            std::cout << "Edge Color: " << cur_color.x << " " << cur_color.y << " " << cur_color.z << std::endl;
 
             if (cur_color.y == 0) {
                 cur_color.y = 1;
@@ -1609,16 +1609,18 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
         }
     }
 
+    std::cout << "Processed: " << edge_i << " / " << nGlyphEdges << "edges" << std::endl;
+
     //generate multi channel sdf
     i32 x,y;
 
     const f32
-        wc = glyphW / (f32) map->header.w,
-        hc = glyphH / (f32) map->header.h;
+        wc = glyphW / (f32) sdfTrueW,
+        hc = glyphH / (f32) sdfTrueH;
 
     byte color;
 
-    vec3 *distBuffer = new vec3[map->header.w * map->header.h]; //i hate this so much
+    vec3 *distBuffer = new vec3[sdfW * sdfH]; //i hate this so much
 
     f32 maxDist = smol_number; //smol number
     PDistInfo dr, dg, db;
@@ -1631,17 +1633,41 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
 
     Point p;
 
+    std::cout << "generating thing..." << std::endl;
+
     size_t distIdx;
 
-    for (y = 0; y < map->header.h; ++y) {
-        for (x = 0; x < map->header.w; ++x) {
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
             p.x = (((f32)x) + 0.5f) * wc + tGlyph.xMin;
             p.y = (((f32)y) + 0.5f) * hc + tGlyph.yMin;
             
             dr.d = dg.d = db.d = INFINITY;
 
+            //EdgeDistInfo fieldDistR = MinEdgePseudoDist(p, glyphEdges);
+            //EdgeDistInfo fieldDistG = MinEdgePseudoDist(p, glyphEdges);
+            //EdgeDistInfo fieldDistB = MinEdgePseudoDist(p, glyphEdges);
+
             for (Edge e : glyphEdges) {
                 d = EdgePointSignedDist(p, e);
+
+                /*if (abs(abs(d.d) - abs(dr.d)) <= 0.01f ) {
+                        //check orthoginality
+                    f32 o1 = curveOrtho(d.curve, p, d.t),
+                        o2 = curveOrtho(dr.curve, p, dr.t);
+
+                    if (o1 > o2) goto set_r2;
+                } else if (abs(d.d) < abs(dr.d)) { 
+                    dr = d;
+                    er = e;
+                }
+
+                if ( false) {
+                set_r2: 
+                    dr = d;
+                    er = e;
+                    //er.color = uvec3(255,255,0);
+                }*/
 
                 if (e.color.x) {
                     if (abs(abs(d.d) - abs(dr.d)) <= 0.01f) {
@@ -1688,8 +1714,21 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
 
             auto cmp_dist = MinEdgeDist(p, glyphEdges);
 
-            distIdx = x+y*map->header.w;
+            distIdx = x+y*sdfW;
             const size_t mp = distIdx << 2;
+
+            //dr = MinEdgeDist(p, glyphEdges).signedDist;
+
+            if (dr.d > 0) {
+                //map->data[mp+0] = er.color.x * 255.0f;
+                //map->data[mp+1] = er.color.y * 255.0f;
+                //map->data[mp+2] = er.color.z * 255.0f;
+
+                //map->data[mp+0] = 255;
+            } else {
+               /// map->data[mp+0] = 255;
+                //map->data[mp+1] = 128;
+            }
 
             dr.d = EdgePseudoDist(p, er).d;
             dg.d = EdgePseudoDist(p, eg).d;
@@ -1698,7 +1737,7 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
             d_cmp = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d));            
 
             //distBuffer[x + y * sdfW] = vec3(dr.d,cmp_dist.signedDist.d,db.d);
-            distBuffer[x + y * map->header.w] = vec3(dr.d,dg.d,db.d);
+            distBuffer[x + y * sdfW] = vec3(dr.d,dg.d,db.d);
 
            //distBuffer[x + y * sdfW] = x+y;
 
@@ -1706,6 +1745,7 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
             //d = abs(d);
             //d = x+y;
             maxDists.x = mu_max(maxDists.x, abs(dr.d));
+            //maxDists.y = mu_max(maxDists.y, abs(cmp_dist.signedDist.d));
             maxDists.y = mu_max(maxDists.y, abs(dg.d));
             maxDists.z = mu_max(maxDists.z, abs(db.d));
         }
@@ -1713,12 +1753,12 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
 
     vec3 dv;
 
-    for (y = 0; y < map->header.h; ++y) {
-        for (x = 0; x < map->header.w; ++x) {
-            distIdx = x+y*map->header.w;
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
+            distIdx = x+y*sdfW;
             dv = distBuffer[distIdx];
 
-            const size_t mp = distIdx * nChannels;
+            const size_t mp = distIdx << 2;
 
             if (mp + 3 >= map->header.fSz)
                 continue;
@@ -1732,20 +1772,28 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
             if (dv.x < 0)
                 map->data[mp+0] = mu_max(mu_min((((dv.x) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
             else
-                map->data[mp+0] = 255;
+                map->data[mp+0] = 255.0f;
 
             if (dv.y < 0)
                 map->data[mp+1] = mu_max(mu_min((((dv.y) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
             else
-                map->data[mp+1] = 255;
+                map->data[mp+1] = 255.0f;
 
             if (dv.z < 0)
                 map->data[mp+2] = mu_max(mu_min((((dv.z) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
             else
-                map->data[mp+2] = 255;
-            
-            if (nChannels == 4)
-                map->data[mp+3] = 255;
+                map->data[mp+2] = 255.0f;
+
+           // map->data[mp+1] = ((dv.y / maxDists.y) * 0.5f + 0.5f) * 255.0f;
+           // map->data[mp+2] = ((dv.z / maxDists.z) * 0.5f + 0.5f) * 255.0f;
+            //map->data[mp+0] = dv.x > 0.1f ? 255 : 0;
+            //map->data[mp+1] = dv.y > 0.1f ? 255 : 0;
+            //map->data[mp+2] = dv.z > 0.1f ? 255 : 0;
+            /*map->data[mp+0] = dv.x;
+            map->data[mp+1] = dv.y;
+            map->data[mp+2] = dv.z;*/
+
+            map->data[mp+3] = 255;
         }
     }
 
@@ -1758,10 +1806,7 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
         e.nCurves = 0;
     }
 
-    return 0;*/
-
-    //render the msdf to the canvas
-    return render_positioned_msdf(tGlyph, map, 0, 0, sdfTrueW, sdfTrueH, 10, 10, 10, 10);
+    return 0;
 }
 
 f32 median(f32 a, f32 b, f32 c) {
@@ -1812,6 +1857,10 @@ i32 ttfRender::RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
     for (y = 0; y < outH; ++y) {
         for (x = 0; x < outW; ++x) {
             p = (x + y * outW) * by_pp;
+            /*forrange(by_pp)
+                bmp->data[p+i] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;*/
+
+                //bmp->data[p] = 255.0f - smoothstep((f32)-((signed)sdf->data[p] - 127) / (f32)thresh) * 255.0f;
 
                 
             //do the bilinear sampling here

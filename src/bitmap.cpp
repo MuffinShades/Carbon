@@ -87,24 +87,53 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
     i32 p;
     byte *b_data;
 
+    //stupid ass rule in bmp specification
+    //formula stolen from wikipedia and optimized with fucked up bitshifts by yours truley
+    const size_t ndword_based_bytes = (((bmp->header.bitsPerPixel * bmp->header.w) + 31) >> 5) << 2;
+    const size_t ppr = ndword_based_bytes - (bmp->header.bitsPerPixel >> 3) * bmp->header.w;
+
+    size_t sc, x;
+
     switch (by_pp) {
     case 2:
-        oStream.writeBytes(bmp->data, bmp->header.fSz);
+        b_data = bmp->data;
+
+        for (sc = 0; sc < bmp->header.h; sc++) {
+            for (x = 0; x < bmp->header.w; x++) {
+                p = (x + sc * bmp->header.w) * by_pp;
+                oStream.writeUInt16(
+                    b_data[p+2] | (b_data[p+1] << 8)
+                );
+            }
+
+            for (x = 0; x < ppr; x++) oStream.writeByte(0);
+        }
         break;
     case 3:
         b_data = bmp->data;
-        for (p = 0; p < nPixBytes; p += by_pp) {
-            oStream.writeUInt24(
-                b_data[p+2] | (b_data[p+1] << 8) | (b_data[p] << 16)
-            );
+
+        for (sc = 0; sc < bmp->header.h; sc++) {
+            for (x = 0; x < bmp->header.w; x++) {
+                p = (x + sc * bmp->header.w) * by_pp;
+                oStream.writeUInt24(
+                    b_data[p+2] | (b_data[p+1] << 8) | (b_data[p] << 16)
+                );
+            }
+
+            for (x = 0; x < ppr; x++) oStream.writeByte(0);
         }
         break;
     case 4:
         b_data = bmp->data;
-        for (p = 0; p < nPixBytes; p += by_pp) {
-            oStream.writeUInt24(
-                b_data[p+2] | (b_data[p+1] << 8) | (b_data[p] << 16)
-            );
+        for (sc = 0; sc < bmp->header.h; sc++) {
+            for (x = 0; x < bmp->header.w; x++) {
+                p = (x + sc * bmp->header.w) * by_pp;
+                oStream.writeUInt24(
+                    b_data[p+2] | (b_data[p+1] << 8) | (b_data[p] << 16)
+                );
+            }
+
+            for (x = 0; x < ppr; x++) oStream.writeByte(0);
         }
         break;
     }
