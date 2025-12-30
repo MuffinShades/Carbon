@@ -2090,7 +2090,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         //sizing adjust
         //TODO: ADJUST FOR PADDING
         sheet_w = mu_max(sheet_w, target_rgn.x + gw);
-        sheet_h = mu_max(sheet_w, target_rgn.y + gh);
+        sheet_h = mu_max(sheet_h, target_rgn.y + gh);
 
         //Split the target region up accordingly and then continue yk
         //just gonna split on the vertical cause why not
