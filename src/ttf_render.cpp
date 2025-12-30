@@ -2042,6 +2042,10 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
         i32 gw = (g.xMax - g.xMin) * scale, gh = (g.yMax - g.yMin) * scale;
 
+        //add the padding
+        gw += padding * 2;
+        gh += padding * 2;
+
         std::cout << "testing " << nRegions << " regions" << std::endl;
 
         for (j = 0; j < nRegions; j++) {
@@ -2063,10 +2067,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             }
         }
 
-        //add the padding
-        gw += padding * 2;
-        gh += padding * 2;
-
         //add thing to sheet position or something
         SpriteRegion target_rgn = rgn_stack[best_rgn];
 
@@ -2083,8 +2083,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         font.c_pos[i] = {
             .x = (u32) target_rgn.x,
             .y = (u32) target_rgn.y,
-            .w = (u32) gw,
-            .h = (u32) gh
+            .w = (u32) gw - padding * 2,
+            .h = (u32) gh - padding * 2
         };
 
         //sizing adjust
