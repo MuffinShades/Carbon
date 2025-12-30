@@ -97,6 +97,7 @@ public:
 };
 
 struct Glyph {
+    u16 char_id;
     i16 nContours;
     float xMin, yMin, xMax, yMax;
     Point* points = nullptr;
@@ -211,12 +212,26 @@ enum class UnicodeRange {
 
 };
 
+struct _rLoc {
+    u32 start;
+    u32 i;
+};
+
+struct GlyphSet {
+    UnicodeRange rangeId;
+    Glyph *glyphs = nullptr;
+    size_t nGlyphs = 0;
+    _rLoc* rangeLocations = nullptr;
+    size_t nRanges = 0;
+};
+
 class ttfParse {
 public:
     MSFL_EXP static ttfFile ParseTTFFile(std::string src);
     MSFL_EXP static ttfFile ParseBin(byte* dat, size_t sz);
     MSFL_EXP static Glyph ReadTTFGlyph(std::string src, u32 id);
     MSFL_EXP static Glyph ReadUnicodeGlyph(std::string src, u32 id);
+    MSFL_EXP static GlyphSet GenerateGlyphSet(std::string src, UnicodeRange charRange);
 };
 
 #ifdef MSFL_DLL

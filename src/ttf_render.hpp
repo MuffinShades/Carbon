@@ -25,7 +25,7 @@ struct sdf_dim {
     union {
         u32 w;
         u32 h;
-        u32 scale;
+        f32 scale;
     } m;
     sdf_dim_ty slc;
 };
@@ -48,7 +48,7 @@ static sdf_dim sdf_height_dim(u32 h) {
     return d;
 }
 
-static sdf_dim sdf_scale_dim(u32 s) {
+static sdf_dim sdf_scale_dim(f32 s) {
     sdf_dim d;
 
     d.m.scale = s;
@@ -73,6 +73,17 @@ extern "C" {
 #endif
 #endif
 
+struct CharSpritePos {
+    u32 x, y, w, h;
+};
+
+struct FontInst {
+    Bitmap sheet;
+    UnicodeRange range;
+    CharSpritePos *c_pos = nullptr;
+    bool good = false;
+};
+
 class ttfRender {
 public:
     MSFL_EXP static i32 RenderGlyphToBitmap(Glyph tGlyph, Bitmap* bmp, float scale = 1.0f);
@@ -83,7 +94,7 @@ public:
     //MSFL_EXP static i32 RenderGlyphMSFGToBitMap(Glyph tGlyph, Bitmap* bmp, size_t glyphW, size_t glyphH);
     MSFL_EXP static i32 RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
     MSFL_EXP static i32 RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
-    MSFL_EXP static i32 GenerateUnicodeMSDFSubset(UnicodeRanges range, );
+    MSFL_EXP static FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size);
 };
 
 #ifdef MSFL_DLL

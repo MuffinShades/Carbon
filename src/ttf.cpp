@@ -812,3 +812,130 @@ Glyph ttfParse::ReadTTFGlyph(std::string src, u32 id) {
 
     return tGlyph;
 }
+
+//extracts range data from the table thing
+struct _RangeData {
+    size_t nRanges = 0;
+    u32 *min = nullptr;
+    u32 *max = nullptr;
+    bool good = false;
+} extract_range_data(UnicodeRange charRange) {
+    _RangeData r;
+
+    i32 cur_range_id = -1, b = 0;
+
+    constexpr size_t bMax = sizeof(uncode_range_decode) / sizeof(u8);
+
+    i32 i, j;
+
+    while (cur_range_id != (u32) charRange) {
+        if (b + 2 >= bMax) {
+            cur_range_id = -1;
+            break;
+        }
+
+        u8 flg = uncode_range_decode[b++];
+        size_t n = uncode_range_decode[b++];
+
+        if (n == 0) {
+            cur_range_id++;
+            continue;
+        }
+
+        const size_t nb_per_pos = (flg >> 4) & 3;
+        const size_t nb_per_range = nb_per_pos << 1;
+
+        if ((flg >> 7) & 1) {
+
+        } else {
+            r.nRanges = n;
+            r.min = new u32[n];
+            r.max = new u32[n];
+
+            for (i = 0; i < n; i++) {
+                if (b + (nb_per_range - 1) >= bMax) {
+                    _safe_free_a(r.min);
+                    _safe_free_a(r.max);
+                    ZeroMem(&r, 1);
+                    std::cout << "error: invalid internal table!" << std::endl;
+                    return r;
+                }
+
+                r.min[i] = (r.max[i] = 0);
+
+                //decode min
+                for (j = nb_per_pos - 1; j >= 0; j--)
+                    r.min[i] |= (uncode_range_decode[b++] << (j << 3)) & 0xff;
+
+                //decode max
+                for (j = nb_per_pos - 1; j >= 0; j--)
+                    r.max[i] |= (uncode_range_decode[b++] << (j << 3)) & 0xff;
+            }
+        }
+    }
+
+    if (cur_range_id < 0) {
+        std::cout << "ttf error: invalid range!" << std::endl;
+        return r;
+    }
+
+    r.good = true;
+
+    return r;
+}
+
+GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
+    GlyphSet gs = {
+        .rangeId = charRange
+    };
+
+    file fBytes = FileWrite::readFromBin(src);
+
+    if (!fBytes.dat || fBytes.len <= 0) {
+        std::cout << "ttf error: failed to read file!" << std::endl;
+        return gs;
+    }
+
+    ttfFile f;
+    ttfStream fStream = ttfStream(fBytes.dat, fBytes.len);
+
+    //extract range info
+    _RangeData rd = extract_range_data(charRange);
+
+    if (rd.good) {
+        _safe_free_a(fBytes.dat);
+        return gs;
+    }
+
+    //
+    read_offset_tables(&fStream, &f);
+
+    i32 r, ucode_i, tg = 0;
+    gs.nGlyphs = 0;
+
+    gs.rangeLocations = new _rLoc[rd.nRanges];
+    ZeroMem(gs.rangeLocations, rd.nRanges);
+
+    for (r = 0; r < rd.nRanges; r++) {
+        gs.nGlyphs += rd.max[r] - rd.min[r];
+    }
+
+    gs.glyphs = new Glyph[gs.nGlyphs];
+    ZeroMem(gs.glyphs, gs.nGlyphs);
+    
+    //read in the glyphs
+    for (r = 0; r < rd.nRanges; r++) {
+        gs.rangeLocations[r] = {
+            .start = rd.min[r],
+            .i = (u32) tg
+        };
+
+        for (ucode_i = rd.min[r]; ucode_i < rd.max[r]; ucode_i++) {
+            u32 loc = getUnicodeOffset(&fStream, &f, ucode_i);
+            u32 offset = getGlyphOffset(&fStream, &f, loc);
+            gs.glyphs[tg++] = read_glyph(&fStream, &f, offset);
+        }
+    }
+
+    return gs;
+}

@@ -1918,3 +1918,188 @@ i32 ttfRender::RenderGlyphOutlineToBitmap(Glyph tGlyph, Bitmap* map, sdf_dim siz
 
     return 0;
 }
+
+template<class _Ty> void mu_swap(_Ty *a, _Ty *b) {
+    _Ty temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+template<class _Ty, class _CmpFn> i32 _partition(_Ty *arr, _CmpFn cmp, i32 low, i32 high) {
+    _Ty p = arr[low];
+
+    i32 i = low, j = high;
+
+    while (i < j) {
+        while (cmp(arr[i], p) <= 0 && i <= high - 1) i++;
+        while (cmp(arr[j], p) > 0 && j >= low + 1) j--;
+        if (i < j)
+            swap(arr + i, arr + j);
+    }
+
+    swap(arr + low, arr + high);
+
+    return j;
+}
+
+//quick sort function
+//cmp is a lambda that compares the two values given to it
+// ie [](Obj a, Obj b) return i32;
+//returning a 0 is equivalent to the values being equal
+//returning < 0 is equivalent to value a being less then value b
+//returning > 0 is equivalent to value a being greater then value b
+//Ie: sort from least to greatest --> return a-b
+//Ie: sort from greatest to least --> return b-a
+template<class _Ty, class _CmpFn> void mu_qsort(_Ty *arr, _CmpFn cmp, size_t len, i32 _low = 0, i32 _high = -1) {
+    if (!arr || low > high)
+        return;
+
+    if (high < 0 || high >= len) high = len - 1;
+    if (low < 0) low = 0;
+    
+    i32 p = _partition(arr, cmp, _low, _high);
+
+    qsort(arr, len, _low, p - 1);
+    qsort(arr, len, p + 1, _high);
+}
+
+//
+FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size) {
+    //param checks and shit
+    FontInst font;
+
+    // get all the glyphs
+    GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
+
+    if (glyphs.nGlyphs == 0)
+        return font;
+
+    font.range = range;
+
+    //compute scale
+    f32 scale = 1.0f;
+
+    switch (first_char_size.slc) {
+    case sdf_dim_ty::Width:
+        scale = (f32) first_char_size.m.w / (f32) (glyphs.glyphs[0].xMax - glyphs.glyphs[0].xMin);
+        break;
+    case sdf_dim_ty::Height:
+        scale = (f32) first_char_size.m.h / (f32) (glyphs.glyphs[0].yMax - glyphs.glyphs[0].yMin);
+        break;
+    case sdf_dim_ty::Scale:
+        scale = first_char_size.m.scale;
+        break;
+    }
+
+    sdf_dim c_dim = sdf_scale_dim(scale);
+
+    //sort by size (ascending)
+    Glyph *gly = new Glyph[glyphs.nGlyphs];
+    in_memcpy(gly, glyphs.glyphs, sizeof(Glyph) * glyphs.nGlyphs);
+
+    auto cmp = [](Glyph a, Glyph b) {
+        const i32 Aa = (a.xMax - a.xMin) * (a.yMax - a.yMin),
+                  Ab = (b.xMax - b.xMin) * (b.yMax - b.yMin);
+
+        return Aa - Ab;
+    };
+
+    mu_qsort(gly, cmp, glyphs.nGlyphs);
+
+    //compute the positions of all the characters
+    struct SpriteRegion {
+        i32 x = 0, y = 0, w = -1, h = -1; //-1 for w and height is treated as infinity
+    };
+
+    u32 sheet_w = 0, sheet_h = 0;
+
+    std::vector<SpriteRegion> rgn_stack = {{}}; //add the first "infinite" region
+
+    i32 i = 0, j = -1;
+    SpriteRegion Rn;
+
+    while (i < glyphs.nGlyphs) {
+        Glyph g = gly[i]; //get the current glyph
+        i32 best_rgn;
+        u32 smallest_fit = (unsigned) (-1), fit;
+
+        const size_t nRegions = rgn_stack.size();
+
+        const i32 gw = g.xMax - g.xMin, gh = g.yMax - g.yMin;
+
+        for (j = 0; j < nRegions; j++) {
+            Rn = rgn_stack[j];
+
+            //branchless :D
+            u32 fit = (Rn.w >= Rn.h) * (abs(Rn.w - gw)) + (Rn.w < Rn.h) * (abs(Rn.h - gh));
+
+            if (fit < smallest_fit) {
+                best_rgn = j;
+                smallest_fit = fit;
+            }
+        }
+
+        if (j < 0) {
+            //uh oh
+            std::cout << "error invalid region!" << std::endl;
+            continue;
+        }
+
+        //add thing to sheet position or something
+        SpriteRegion target_rgn = rgn_stack[best_rgn];
+
+        if (target_rgn.x < 0 || target_rgn.y < 0 || gw < 0 || gh < 0) {
+            std::cout << "error invalid region!" << std::endl;
+            continue;
+        }
+
+        //TODO INCLUDE PADDING IN GW AND GH!!!
+
+        font.c_pos[i] = {
+            .x = (u32) target_rgn.x,
+            .y = (u32) target_rgn.y,
+            .w = (u32) gw,
+            .h = (u32) gh
+        };
+
+        //sizing adjust
+        //TODO: ADJUST FOR PADDING
+        sheet_w = mu_max(sheet_w, target_rgn.x + gw);
+        sheet_h = mu_max(sheet_w, target_rgn.y + gh);
+
+        //Split the target region up accordingly and then continue yk
+        //just gonna split on the vertical cause why not
+
+        //top rgn
+        SpriteRegion r1 = {
+            .x = target_rgn.x + gw,
+            .y = target_rgn.y,
+            .w = -1,
+            .h = gh
+        };
+
+        //bottom rgn
+        SpriteRegion r2 = {
+            .x = target_rgn.x,
+            .y = target_rgn.y + gh,
+            .w = -1,
+            .h = -1
+        };
+
+        rgn_stack.erase(rgn_stack.begin() + best_rgn); //remove old region
+        rgn_stack.push_back(r1);   //add 2 new regions
+        rgn_stack.push_back(r2); 
+    }
+
+    //generate the spritesheet
+    
+
+    for (i = 0; i < glyphs.nGlyphs; i++) {
+
+    }
+
+    //memory management
+    _safe_free_a(gly);
+
+    return font;
+}
