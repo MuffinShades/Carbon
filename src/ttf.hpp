@@ -200,6 +200,7 @@ public:
 };
 
 enum class UnicodeRange {
+    SimpleAlphabet,
     Utf8,
     Utf16,
     Latin_Basic,

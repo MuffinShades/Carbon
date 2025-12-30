@@ -35,6 +35,7 @@ Range Conglomeration Flag set to false -->
 */
 
 const u8 uncode_range_decode[] = {
+    0b00000000, 0x01, 0x41, 0x5a, //simple alphabet
     0b00000000, 0x01, 0x00, 0xff, //utf-8
     0b00100000, 0x01, 0x00, 0x00, 0xff, 0xff, //utf-16
     0b00000000, 0x01, 0x20, 0x7f, //Latin Basic
@@ -822,13 +823,16 @@ struct _RangeData {
 } extract_range_data(UnicodeRange charRange) {
     _RangeData r;
 
-    i32 cur_range_id = -1, b = 0;
+    bool found_range = false;
+    i32 cur_range_id = 0, b = 0;
 
     constexpr size_t bMax = sizeof(uncode_range_decode) / sizeof(u8);
 
+    std::cout << "Max: " << bMax << std::endl;
+
     i32 i, j;
 
-    while (cur_range_id != (u32) charRange) {
+    do {
         if (b + 2 >= bMax) {
             cur_range_id = -1;
             break;
@@ -842,12 +846,21 @@ struct _RangeData {
             continue;
         }
 
-        const size_t nb_per_pos = (flg >> 4) & 3;
+        const size_t nb_per_pos = ((flg >> 4) & 3) + 1;
         const size_t nb_per_range = nb_per_pos << 1;
 
         if ((flg >> 7) & 1) {
 
         } else {
+            if (cur_range_id != (u32) charRange) {
+                b += n * (nb_per_pos * 2);
+                continue;
+            }
+
+            std::cout << "n ranges: " << n  << " | " << nb_per_pos << std::endl;
+
+            found_range = true;
+
             r.nRanges = n;
             r.min = new u32[n];
             r.max = new u32[n];
@@ -870,21 +883,25 @@ struct _RangeData {
                 //decode max
                 for (j = nb_per_pos - 1; j >= 0; j--)
                     r.max[i] |= (uncode_range_decode[b++] << (j << 3)) & 0xff;
+
+                std::cout << "Range: " << r.min[i] << " --> " << r.max[i] << std::endl;
             }
         }
-    }
+    } while (cur_range_id != (u32) charRange);
 
-    if (cur_range_id < 0) {
+    if (cur_range_id < 0 || !found_range) {
         std::cout << "ttf error: invalid range!" << std::endl;
         return r;
     }
 
     r.good = true;
 
+    std::cout << "N: " << r.nRanges << std::endl; 
+
     return r;
 }
 
-GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
+GlyphSet ttfParse:: GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     GlyphSet gs = {
         .rangeId = charRange
     };
@@ -902,7 +919,8 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     //extract range info
     _RangeData rd = extract_range_data(charRange);
 
-    if (rd.good) {
+    if (!rd.good) {
+        std::cout << "ttf error: bad range" << std::endl;
         _safe_free_a(fBytes.dat);
         return gs;
     }
@@ -929,6 +947,8 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
             .start = rd.min[r],
             .i = (u32) tg
         };
+        
+        std::cout << "gn inc: " << gs.nGlyphs << " " << rd.max[r] << " " << rd.min[r] << std::endl;
 
         for (ucode_i = rd.min[r]; ucode_i < rd.max[r]; ucode_i++) {
             u32 loc = getUnicodeOffset(&fStream, &f, ucode_i);

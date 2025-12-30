@@ -1925,7 +1925,7 @@ template<class _Ty> void mu_swap(_Ty *a, _Ty *b) {
     *b = temp;
 }
 
-template<class _Ty, class _CmpFn> i32 _partition(_Ty *arr, _CmpFn cmp, i32 low, i32 high) {
+template<class _Ty> i32 _partition(_Ty *arr, i32 (*cmp)(_Ty, _Ty), i32 low, i32 high) {
     _Ty p = arr[low];
 
     i32 i = low, j = high;
@@ -1934,10 +1934,10 @@ template<class _Ty, class _CmpFn> i32 _partition(_Ty *arr, _CmpFn cmp, i32 low, 
         while (cmp(arr[i], p) <= 0 && i <= high - 1) i++;
         while (cmp(arr[j], p) > 0 && j >= low + 1) j--;
         if (i < j)
-            swap(arr + i, arr + j);
+            mu_swap(arr + i, arr + j);
     }
 
-    swap(arr + low, arr + high);
+    mu_swap(arr + low, arr + high);
 
     return j;
 }
@@ -1950,26 +1950,37 @@ template<class _Ty, class _CmpFn> i32 _partition(_Ty *arr, _CmpFn cmp, i32 low, 
 //returning > 0 is equivalent to value a being greater then value b
 //Ie: sort from least to greatest --> return a-b
 //Ie: sort from greatest to least --> return b-a
-template<class _Ty, class _CmpFn> void mu_qsort(_Ty *arr, _CmpFn cmp, size_t len, i32 _low = 0, i32 _high = -1) {
-    if (!arr || low > high)
+template<class _Ty> void mu_qsort(_Ty *arr, i32 (*cmp)(_Ty, _Ty), size_t len, i32 _low = 0, i32 _high = -1) {
+    if (!arr || _low > _high)
         return;
 
-    if (high < 0 || high >= len) high = len - 1;
-    if (low < 0) low = 0;
+    if (_high < 0 || _high >= len) _high = len - 1;
+    if (_low < 0) _low = 0;
     
     i32 p = _partition(arr, cmp, _low, _high);
 
-    qsort(arr, len, _low, p - 1);
-    qsort(arr, len, p + 1, _high);
+    mu_qsort(arr, cmp, len, _low, p - 1);
+    mu_qsort(arr, cmp, len, p + 1, _high);
 }
 
+i32 _glyphCmp(Glyph a, Glyph b) {
+    const i32 Aa = (a.xMax - a.xMin) * (a.yMax - a.yMin),
+              Ab = (b.xMax - b.xMin) * (b.yMax - b.yMin);
+
+    return Aa - Ab;
+};
+
 //
-FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size) {
+FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size) {
     //param checks and shit
     FontInst font;
 
+    const f32 padding_per_32 = 4.0f;
+
     // get all the glyphs
     GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
+
+    std::cout << "Generating " << glyphs.nGlyphs << " glyphs..." << std::endl;
 
     if (glyphs.nGlyphs == 0)
         return font;
@@ -1977,38 +1988,40 @@ FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim 
     font.range = range;
 
     //compute scale
-    f32 scale = 1.0f;
+    f32 scale = 1.0f, p_const = 32.0f;
 
     switch (first_char_size.slc) {
     case sdf_dim_ty::Width:
         scale = (f32) first_char_size.m.w / (f32) (glyphs.glyphs[0].xMax - glyphs.glyphs[0].xMin);
+        p_const = first_char_size.m.w;
         break;
     case sdf_dim_ty::Height:
         scale = (f32) first_char_size.m.h / (f32) (glyphs.glyphs[0].yMax - glyphs.glyphs[0].yMin);
+        p_const = first_char_size.m.h;
         break;
     case sdf_dim_ty::Scale:
         scale = first_char_size.m.scale;
+
+        //take avg between char w and char h
+        p_const = 
+            ((glyphs.glyphs[0].xMax - glyphs.glyphs[0].xMin) + 
+            (glyphs.glyphs[0].yMax - glyphs.glyphs[0].yMin)) * 0.5f * scale;
         break;
     }
 
     sdf_dim c_dim = sdf_scale_dim(scale);
 
+    const u32 padding = ceil((p_const / 32.0f) * padding_per_32);
+
     //sort by size (ascending)
     Glyph *gly = new Glyph[glyphs.nGlyphs];
     in_memcpy(gly, glyphs.glyphs, sizeof(Glyph) * glyphs.nGlyphs);
 
-    auto cmp = [](Glyph a, Glyph b) {
-        const i32 Aa = (a.xMax - a.xMin) * (a.yMax - a.yMin),
-                  Ab = (b.xMax - b.xMin) * (b.yMax - b.yMin);
-
-        return Aa - Ab;
-    };
-
-    mu_qsort(gly, cmp, glyphs.nGlyphs);
+    mu_qsort<Glyph>(gly, &_glyphCmp, glyphs.nGlyphs);
 
     //compute the positions of all the characters
     struct SpriteRegion {
-        i32 x = 0, y = 0, w = -1, h = -1; //-1 for w and height is treated as infinity
+        i32 x = 0, y = 0, w = -1, h = -1, age = 0; //-1 for w and height is treated as infinity
     };
 
     u32 sheet_w = 0, sheet_h = 0;
@@ -2018,40 +2031,52 @@ FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim 
     i32 i = 0, j = -1;
     SpriteRegion Rn;
 
+    font.c_pos = new CharSpritePos[glyphs.nGlyphs];
+
     while (i < glyphs.nGlyphs) {
         Glyph g = gly[i]; //get the current glyph
-        i32 best_rgn;
-        u32 smallest_fit = (unsigned) (-1), fit;
+        i32 best_rgn = 0;
+        u32 smallest_fit = (unsigned) (-1), fit, low_age = (unsigned) (-1);
 
         const size_t nRegions = rgn_stack.size();
 
-        const i32 gw = g.xMax - g.xMin, gh = g.yMax - g.yMin;
+        i32 gw = (g.xMax - g.xMin) * scale, gh = (g.yMax - g.yMin) * scale;
+
+        std::cout << "testing " << nRegions << " regions" << std::endl;
 
         for (j = 0; j < nRegions; j++) {
             Rn = rgn_stack[j];
 
-            //branchless :D
-            u32 fit = (Rn.w >= Rn.h) * (abs(Rn.w - gw)) + (Rn.w < Rn.h) * (abs(Rn.h - gh));
+            if ((Rn.w < gw && Rn.w > 0) || (Rn.h < gh && Rn.h > 0)) continue;
 
-            if (fit < smallest_fit) {
+            //branchless :D
+            //still works with -1 denoting infinite region
+            u32 fit = (Rn.w >= Rn.h) * (((unsigned) Rn.w) - gw) + (Rn.w < Rn.h) * (((unsigned)Rn.h) - gh);
+
+            if (Rn.age < low_age) {
+                best_rgn = j;
+                smallest_fit = fit;
+                low_age = Rn.age;
+            } else if (Rn.age == low_age && fit < smallest_fit) {
                 best_rgn = j;
                 smallest_fit = fit;
             }
         }
 
-        if (j < 0) {
-            //uh oh
-            std::cout << "error invalid region!" << std::endl;
-            continue;
-        }
+        //add the padding
+        gw += padding * 2;
+        gh += padding * 2;
 
         //add thing to sheet position or something
         SpriteRegion target_rgn = rgn_stack[best_rgn];
 
         if (target_rgn.x < 0 || target_rgn.y < 0 || gw < 0 || gh < 0) {
             std::cout << "error invalid region!" << std::endl;
+            i++;
             continue;
         }
+
+        std::cout << "T Region: " << target_rgn.x << " " << target_rgn.y << std::endl;
 
         //TODO INCLUDE PADDING IN GW AND GH!!!
 
@@ -2075,7 +2100,8 @@ FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim 
             .x = target_rgn.x + gw,
             .y = target_rgn.y,
             .w = -1,
-            .h = gh
+            .h = gh,
+            .age = target_rgn.age + 1
         };
 
         //bottom rgn
@@ -2083,19 +2109,37 @@ FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim 
             .x = target_rgn.x,
             .y = target_rgn.y + gh,
             .w = -1,
-            .h = -1
+            .h = -1,
+            .age = target_rgn.age + 1
         };
 
         rgn_stack.erase(rgn_stack.begin() + best_rgn); //remove old region
-        rgn_stack.push_back(r1);   //add 2 new regions
-        rgn_stack.push_back(r2); 
+        rgn_stack.push_back(r1); rgn_stack.push_back(r2); //add 2 new regions
+
+        std::cout << "Computed Glyph: " << i << " | " << gw << "x" << gh << std::endl;
+
+        i++;
     }
 
     //generate the spritesheet
-    
+    font.sheet.data = new byte[(sheet_w * sheet_h) * 3];
+    ZeroMem(font.sheet.data, (sheet_w * sheet_h) * 3);
+    font.sheet.header.w = sheet_w;
+    font.sheet.header.h = sheet_h;
+    font.sheet.header.bitsPerPixel = 24;
+    font.sheet.header.fSz = (sheet_w * sheet_h) * 3;
+
+    CharSpritePos r_pos;
 
     for (i = 0; i < glyphs.nGlyphs; i++) {
-
+        r_pos = font.c_pos[i];
+        render_positioned_msdf(
+            gly[i], 
+            &font.sheet, 
+            r_pos.x, r_pos.y, r_pos.w, r_pos.h, 
+            padding, padding, padding, padding
+        );
+        std::cout << "Generated Glyph: " << i << std::endl;
     }
 
     //memory management
