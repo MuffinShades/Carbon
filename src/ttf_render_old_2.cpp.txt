@@ -367,7 +367,7 @@ const inline PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
 }
 
 //TODO: optimize this function for straight edges (see master thesis)
-PDistInfo EdgePointSignedDist(Point p, Edge& e) {
+PDistInfo EdgePointSignedDist(Point p, Edge e) {
     if (!e.curves || e.nCurves == 0) return {.d=INFINITY};
 
     constexpr size_t nCheckSteps = 256;
@@ -382,11 +382,13 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
     i32 c,i;
     f64 t,t2;
 
+    BCurve tCurve;
+
     f32 roots[5] = {0,1,0,0,0};
     f32 *root_pass = roots + 2;
 
     for (c = 0; c < e.nCurves; c++) {
-        BCurve& tCurve = e.curves[c];
+        tCurve = e.curves[c];
 
         Point p0 = tCurve.p[0], p1 = tCurve.p[1], p2 = tCurve.p[2];
 
@@ -432,9 +434,10 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
         }
     }
 
-    //compute the signed distance
+    tCurve = d.curve;
+
     d.d = mu_sign(pointCross(
-        dBdt3(d.curve.p[0],d.curve.p[1],d.curve.p[2],d.t),
+        dBdt3(tCurve.p[0],tCurve.p[1],tCurve.p[2],d.t),
         {d.dx,d.dy}
     )) * sqrtf(d.d);
 
@@ -467,7 +470,7 @@ f32 curveOrtho(BCurve c, Point p, f32 t) {
     )));
 }
 
-EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge>& edges) {
+EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge> edges) {
     EdgeDistInfo inf = {
         .signedDist = INFINITY
     };
@@ -481,7 +484,7 @@ EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge>& edges) {
     //this takes up 11% of the execution time!!!
     std::vector<EdgeDistInfo> duplicateEdges;
 
-    for (Edge& e : edges) {
+    for (Edge e : edges) {
         sdInf = EdgePointSignedDist(p, e);
         sd = sdInf.d;
         ad = abs(sd);
@@ -1216,18 +1219,6 @@ i32 ttfRender::RenderGlyphPseudoSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim s
     return 0;
 }
 
-//snake optimized msdf min signed dist
-/*
-
-The algorithm is goofy as fuck
-
-Just kinda conjured it from the depths of my mind
-
-*/
-i32 msdf_msd_snake_opt() {
-
-}
-
 struct Contour {
     std::vector<size_t> edge_idxs;
     size_t minPoint, maxPoint;
@@ -1537,6 +1528,238 @@ i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) 
 
     map->data = new byte[map->header.fSz];
     ZeroMem(map->data, map->header.fSz);
+
+    //curve and edge generation, glyph clean up, and more
+
+    /*std::vector<Edge> glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+
+    //compute conture colors
+    i32 c;
+
+    u32 edge_i = 0;
+    Edge cur_edge, next_edge;
+    bool final_edge = false;
+    size_t ncontour_edges = 0;
+
+    const size_t nGlyphEdges = glyphEdges.size();
+
+    Contour *glyph_contours = new Contour[tGlyph.nContours];
+    u32 cur_min_idx = 0, e_idx = 0;
+
+    for (c = 0; c < tGlyph.nContours; c++) { //oh my fucking god C++???!?!?!?! No way!!! :O
+        Contour *cur_c = glyph_contours + c;
+
+        //compute min and max points
+        cur_c->minPoint = cur_min_idx;
+        cur_c->maxPoint = tGlyph.modifiedContourEnds[c] + cur_c->minPoint;
+
+        cur_min_idx += tGlyph.modifiedContourEnds[c];
+
+        //assign edges
+        e_idx = 0;
+        for (Edge e : glyphEdges) {
+            if (
+                (e.inital_point_index >= cur_c->minPoint && e.inital_point_index < cur_c->maxPoint) ||
+                (e.final_point_index > cur_c->minPoint && e.final_point_index <= cur_c->maxPoint)
+            ) {
+                cur_c->edge_idxs.push_back(e_idx);
+            }
+
+            e_idx++;
+        }
+    }
+
+    //now color le edges
+    i32 i;
+
+    uvec3 cur_color;
+
+    for (c = 0; c < tGlyph.nContours; c++) {
+        Contour ct = glyph_contours[c];
+
+        const size_t ncEdges = ct.edge_idxs.size();
+        u32 t_edge;
+
+        if (ncEdges == 0)
+            continue;
+        else if (ncEdges == 1) {
+            t_edge = ct.edge_idxs[0];
+            glyphEdges[t_edge].color = uvec3(1,1,1);
+            continue;
+        }
+
+        cur_color = uvec3(1,0,1);
+
+        for (i = 0; i < ncEdges; i++) {
+            t_edge = ct.edge_idxs[i];
+
+            glyphEdges[t_edge].color = cur_color;
+
+            if (cur_color.y == 0) {
+                cur_color.y = 1;
+                cur_color.z = 0;
+            } else if (cur_color.x == 1 && cur_color.y == 1) {
+                cur_color.x = 0;
+                cur_color.z = 1;
+            } else {
+                cur_color.x = 1;
+                cur_color.z = 0;
+            }
+
+            edge_i++;
+        }
+    }
+
+    //generate multi channel sdf
+    i32 x,y;
+
+    const f32
+        wc = glyphW / (f32) map->header.w,
+        hc = glyphH / (f32) map->header.h;
+
+    byte color;
+
+    vec3 *distBuffer = new vec3[map->header.w * map->header.h]; //i hate this so much
+
+    f32 maxDist = smol_number; //smol number
+    PDistInfo dr, dg, db;
+    f32 d_cmp;
+    vec3 maxDists;
+
+    PDistInfo d;
+
+    Edge er, eg, eb;
+
+    Point p;
+
+    size_t distIdx;
+
+    for (y = 0; y < map->header.h; ++y) {
+        for (x = 0; x < map->header.w; ++x) {
+            p.x = (((f32)x) + 0.5f) * wc + tGlyph.xMin;
+            p.y = (((f32)y) + 0.5f) * hc + tGlyph.yMin;
+            
+            dr.d = dg.d = db.d = INFINITY;
+
+            for (Edge e : glyphEdges) {
+                d = EdgePointSignedDist(p, e);
+
+                if (e.color.x) {
+                    if (abs(abs(d.d) - abs(dr.d)) <= 0.01f) {
+                        //check orthoginality
+                        f32 o1 = curveOrtho(d.curve, p, d.t),
+                            o2 = curveOrtho(dr.curve, p, dr.t);
+
+                        if (o2 < o1) goto set_r;
+                    } else if (abs(d.d) < abs(dr.d)) {
+                     set_r:  
+                        dr = d;
+                        er = e;
+                    }
+                }
+
+                if (e.color.y) {
+                    if (abs(abs(d.d) - abs(dg.d)) <= 0.01f) {
+                        //check orthoginality
+                        f32 o1 = curveOrtho(d.curve, p, d.t),
+                            o2 = curveOrtho(dg.curve, p, dg.t);
+
+                        if (o2 < o1) goto set_g;
+                    } else if (abs(d.d) < abs(dg.d)) {
+                    set_g:  
+                        dg = d;
+                        eg = e;
+                    }
+                }
+
+                if (e.color.z) {
+                    if (abs(abs(d.d) - abs(db.d)) <= 0.01f) {
+                        //check orthoginality
+                        f32 o1 = curveOrtho(d.curve, p, d.t),
+                            o2 = curveOrtho(db.curve, p, db.t);
+
+                        if (o2 < o1) goto set_b;
+                    } else if (abs(d.d) < abs(db.d)) {
+                    set_b:  
+                        db = d;
+                        eb = e;
+                    }
+                }
+            }
+
+            auto cmp_dist = MinEdgeDist(p, glyphEdges);
+
+            distIdx = x+y*map->header.w;
+            const size_t mp = distIdx << 2;
+
+            dr.d = EdgePseudoDist(p, er).d;
+            dg.d = EdgePseudoDist(p, eg).d;
+            db.d = EdgePseudoDist(p, eb).d;
+
+            d_cmp = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d));            
+
+            //distBuffer[x + y * sdfW] = vec3(dr.d,cmp_dist.signedDist.d,db.d);
+            distBuffer[x + y * map->header.w] = vec3(dr.d,dg.d,db.d);
+
+           //distBuffer[x + y * sdfW] = x+y;
+
+            //this is why i need that damn buffer
+            //d = abs(d);
+            //d = x+y;
+            maxDists.x = mu_max(maxDists.x, abs(dr.d));
+            maxDists.y = mu_max(maxDists.y, abs(dg.d));
+            maxDists.z = mu_max(maxDists.z, abs(db.d));
+        }
+    }
+
+    vec3 dv;
+
+    for (y = 0; y < map->header.h; ++y) {
+        for (x = 0; x < map->header.w; ++x) {
+            distIdx = x+y*map->header.w;
+            dv = distBuffer[distIdx];
+
+            const size_t mp = distIdx * nChannels;
+
+            if (mp + 3 >= map->header.fSz)
+                continue;
+
+            constexpr f32 blend_after = 0.0f, blend_amount = 1.0f;
+
+            dv.x -= blend_after;
+            dv.y -= blend_after;
+            dv.z -= blend_after;
+
+            if (dv.x < 0)
+                map->data[mp+0] = mu_max(mu_min((((dv.x) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
+            else
+                map->data[mp+0] = 255;
+
+            if (dv.y < 0)
+                map->data[mp+1] = mu_max(mu_min((((dv.y) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
+            else
+                map->data[mp+1] = 255;
+
+            if (dv.z < 0)
+                map->data[mp+2] = mu_max(mu_min((((dv.z) / blend_amount) * 0.5f + 0.5f) * 255.0f, 255.0f),0.0f);
+            else
+                map->data[mp+2] = 255;
+            
+            if (nChannels == 4)
+                map->data[mp+3] = 255;
+        }
+    }
+
+    delete[] distBuffer; //wow!
+    _safe_free_a(glyph_contours); //more memory management
+
+    //oh look were managing memory :O
+    for (Edge e : glyphEdges) {
+        _safe_free_a(e.curves);
+        e.nCurves = 0;
+    }
+
+    return 0;*/
 
     //render the msdf to the canvas
     return render_positioned_msdf(tGlyph, map, 0, 0, sdfTrueW, sdfTrueH, 10, 10, 10, 10);
