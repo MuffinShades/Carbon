@@ -97,7 +97,7 @@ public:
 };
 
 struct Glyph {
-    u16 char_id;
+    i32 char_id = -1; //-1 is a placeholder character for the missing character glyph
     i16 nContours;
     float xMin, yMin, xMax, yMax;
     Point* points = nullptr;

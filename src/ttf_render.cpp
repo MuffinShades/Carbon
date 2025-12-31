@@ -353,13 +353,14 @@ const f32 compute_d_base_coord(f32 v0, f32 v1, f32 v2) {
 }
 
 const inline PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
-    PDistInfo inf;
-
-    inf.curve = b; //OPTIMIZE: this copy is super slow!!!! (4% of execution time plus more)
-    inf.p = p;
-    inf.t = t;
-    inf.dx = ((1.0f - t)*(1.0f - t)*b.p[0].x+2.0f*(1.0f - t)*t*b.p[1].x+t*t*b.p[2].x)-p.x;
-    inf.dy = ((1.0f - t)*(1.0f - t)*b.p[0].y+2.0f*(1.0f - t)*t*b.p[1].y+t*t*b.p[2].y)-p.y;
+    PDistInfo inf = {
+        .dx = ((1.0f - t) * (1.0f - t) * b.p[0].x + 2.0f * (1.0f - t) * t * b.p[1].x + t * t * b.p[2].x) - p.x,
+        .dy = ((1.0f - t) * (1.0f - t) * b.p[0].y + 2.0f * (1.0f - t) * t * b.p[1].y + t * t * b.p[2].y) - p.y,
+        .t = t,
+        .curve = b,
+        .p = p
+    };
+    
     inf.d = inf.dx*inf.dx + inf.dy*inf.dy;
 
     return inf;
@@ -2024,7 +2025,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         i32 x = 0, y = 0, w = -1, h = -1, age = 0; //-1 for w and height is treated as infinity
     };
 
-    u32 sheet_w = 0, sheet_h = 0;
+    u32 sheet_w = 1, sheet_h = 1;
 
     std::vector<SpriteRegion> rgn_stack = {{}}; //add the first "infinite" region
 
@@ -2035,33 +2036,51 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     while (i < glyphs.nGlyphs) {
         Glyph g = gly[i]; //get the current glyph
+
+        //detect if it is a missing character
+        std::cout << "Char id: " << g.char_id << std::endl;
+        if (g.char_id < 0) {
+            font.c_pos[i] = {
+                .x = 0,
+                .y = 0,
+                .w = 0,
+                .h = 0
+            };
+            i++;
+            continue;
+        }
+
         i32 best_rgn = 0;
         u32 smallest_fit = (unsigned) (-1), fit, low_age = (unsigned) (-1);
 
         const size_t nRegions = rgn_stack.size();
 
-        i32 gw = (g.xMax - g.xMin) * scale, gh = (g.yMax - g.yMin) * scale;
-
-        //add the padding
-        gw += padding * 2;
-        gh += padding * 2;
+        i32 gw = (g.xMax - g.xMin) * scale + padding * 2, gh = (g.yMax - g.yMin) * scale + padding * 2;
 
         std::cout << "testing " << nRegions << " regions" << std::endl;
 
         for (j = 0; j < nRegions; j++) {
             Rn = rgn_stack[j];
 
+            //make sure it fits
             if ((Rn.w < gw && Rn.w > 0) || (Rn.h < gh && Rn.h > 0)) continue;
 
             //branchless :D
             //still works with -1 denoting infinite region
-            u32 fit = (Rn.w >= Rn.h) * (((unsigned) Rn.w) - gw) + (Rn.w < Rn.h) * (((unsigned)Rn.h) - gh);
+            //pick region based on least total area increase
+            //const u32 fit = (Rn.w >= Rn.h) * (((unsigned) Rn.w) - gw) + (Rn.w < Rn.h) * (((unsigned)Rn.h) - gh);
+            const u32 fit = mu_max(Rn.x + gw, sheet_w) * mu_max(Rn.y + gh, sheet_h);
 
-            if (Rn.age < low_age) {
+            /*if (Rn.age < low_age) {
                 best_rgn = j;
                 smallest_fit = fit;
                 low_age = Rn.age;
-            } else if (Rn.age == low_age && fit < smallest_fit) {
+            } */
+            if (fit < smallest_fit) {
+                best_rgn = j;
+                smallest_fit = fit;
+            } else if (fit == smallest_fit && Rn.age < low_age) {
+                low_age = Rn.age;
                 best_rgn = j;
                 smallest_fit = fit;
             }
@@ -2078,8 +2097,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
         std::cout << "T Region: " << target_rgn.x << " " << target_rgn.y << std::endl;
 
-        //TODO INCLUDE PADDING IN GW AND GH!!!
-
         font.c_pos[i] = {
             .x = (u32) target_rgn.x,
             .y = (u32) target_rgn.y,
@@ -2095,6 +2112,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         //Split the target region up accordingly and then continue yk
         //just gonna split on the vertical cause why not
 
+        rgn_stack.erase(rgn_stack.begin() + best_rgn); //remove old region
+
         //top rgn
         SpriteRegion r1 = {
             .x = target_rgn.x + gw,
@@ -2104,18 +2123,21 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             .age = target_rgn.age + 1
         };
 
+        rgn_stack.push_back(r1);
+
         //bottom rgn
-        SpriteRegion r2 = {
-            .x = target_rgn.x,
-            .y = target_rgn.y + gh,
-            .w = -1,
-            .h = -1,
-            .age = target_rgn.age + 1
-        };
+        const i32 h2 = (target_rgn.h >= 0) * (target_rgn.h - gh) + (target_rgn.h < 0) * -1;
 
-        rgn_stack.erase(rgn_stack.begin() + best_rgn); //remove old region
-        rgn_stack.push_back(r1); rgn_stack.push_back(r2); //add 2 new regions
-
+        if (abs(h2) >= 1) {
+            SpriteRegion r2 = {
+                .x = target_rgn.x,
+                .y = target_rgn.y + gh,
+                .w = -1,
+                .h = h2,
+                .age = target_rgn.age + 1
+            };
+            rgn_stack.push_back(r2); //add 2 new regions
+        }
         std::cout << "Computed Glyph: " << i << " | " << gw << "x" << gh << std::endl;
 
         i++;
@@ -2133,6 +2155,10 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     for (i = 0; i < glyphs.nGlyphs; i++) {
         r_pos = font.c_pos[i];
+
+        if (r_pos.w <= 0 || r_pos.h <= 0)
+            continue;
+
         render_positioned_msdf(
             gly[i], 
             &font.sheet, 

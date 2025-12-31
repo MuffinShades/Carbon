@@ -35,7 +35,7 @@ Range Conglomeration Flag set to false -->
 */
 
 const u8 uncode_range_decode[] = {
-    0b00000000, 0x01, 0x41, 0x5a, //simple alphabet
+    0b00000000, 0x01, 0x00, 0xff, //simple alphabet
     0b00000000, 0x01, 0x00, 0xff, //utf-8
     0b00100000, 0x01, 0x00, 0x00, 0xff, 0xff, //utf-16
     0b00000000, 0x01, 0x20, 0x7f, //Latin Basic
@@ -340,7 +340,7 @@ void free_cmap_format_4(cmap_format_4* c) {
     ZeroMem(c, sizeof(cmap_format_4));
 }
 
-size_t decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
+i32 decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
     i32 c_idx = 0;
 
     while (table.endCode[c_idx] <= w_char) {
@@ -352,7 +352,7 @@ size_t decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
 
     if (table.startCode[c_idx] > w_char) {
         std::cout << "Character "<< w_char <<" not present in ttf!" << std::endl;
-        return 0;
+        return -1;
     }
 
     const u16 iro = table.idRangeOffset[c_idx];
@@ -364,7 +364,7 @@ size_t decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
         size_t loc = (c_idx + (table.idRangeOffset[c_idx] >> 1)) + (w_char - table.startCode[c_idx]);
         if (loc >= table.segBlockSz) {
             std::cout << "tff error: failed to map glyph (cmap 4): out of range!" << std::endl;
-            return 0;
+            return -1;
         }
         glyphIndex = *(table.idRangeOffset + loc + table.idDelta[c_idx]) % 0x10000;
     }
@@ -497,9 +497,9 @@ cmap_format_12 cmap_12(ttfStream *stream) {
     return table;
 }
 
-size_t decode_char_from_cmap12(cmap_format_12 table, u32 uw_char) {
+i32 decode_char_from_cmap12(cmap_format_12 table, u32 uw_char) {
     if (table.nGroups == 0 || !table.groups)
-        return 0;
+        return -1;
 
     i32 idx = 0;
 
@@ -509,10 +509,10 @@ size_t decode_char_from_cmap12(cmap_format_12 table, u32 uw_char) {
         idx++;
 
         if (idx >= table.nGroups) 
-            return 0;
+            return -1;
     }
 
-    if (g.start_cc > uw_char) return 0;
+    if (g.start_cc > uw_char) return -1;
 
     return g.start_gc + (uw_char - g.start_cc);
 }
@@ -546,7 +546,7 @@ bool read_hhea(ttfStream *stream, ttfFile* f) {
  * of loca table.
  *
  */
-u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
+i32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
     //mode
     if (f->platform == CMap_null) {
         const size_t mapOff = f->cmap_table.off;
@@ -587,7 +587,7 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
         case 4:
             if (tChar > 0xffff) {
                 std::cout << "ttf warning: selected font does not support 32-bit characters!" << std::endl;
-                return 0;
+                return -1;
             }
             return decode_char_from_cmap4(f->cmap_fmt.fmt_4, (u16) tChar);
         case 12:
@@ -597,7 +597,7 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
             break;
     }
 
-    return 0;
+    return -1;
 }
 
 /**
@@ -610,6 +610,11 @@ u32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
  */
 Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     Glyph res;
+
+    //set to missing char if location is zero
+    if (loc == 0)
+        res.char_id = -1;
+
     if (stream == nullptr || f == nullptr) {
         std::cout << "ttf error: invalid stream or file!" << std::endl;
         return res;
@@ -804,9 +809,18 @@ Glyph ttfParse::ReadTTFGlyph(std::string src, u32 id) {
 
     read_offset_tables(&fStream, &f);
 
-    u32 _id = getUnicodeOffset(&fStream, &f, id);
-    u32 offset = getGlyphOffset(&fStream, &f, _id);
+    i32 _id = getUnicodeOffset(&fStream, &f, id);
+
+    u32 offset;
+
+    if (_id >= 0)
+        offset = getGlyphOffset(&fStream, &f, _id);
+    else
+        offset = 0;
+    
     tGlyph = read_glyph(&fStream, &f, offset);
+
+    tGlyph.char_id = (offset == 0) * -1 + (offset != 0) * (id);
 
     delete[] fBytes.dat;
     fStream.free();
@@ -938,8 +952,13 @@ GlyphSet ttfParse:: GenerateGlyphSet(std::string src, UnicodeRange charRange) {
         gs.nGlyphs += rd.max[r] - rd.min[r];
     }
 
-    gs.glyphs = new Glyph[gs.nGlyphs];
-    ZeroMem(gs.glyphs, gs.nGlyphs);
+    gs.glyphs = new Glyph[gs.nGlyphs+1]; //add one for the missing character glyph
+    ZeroMem(gs.glyphs, gs.nGlyphs+1);
+
+    Glyph glf;
+
+    //add the missing character glyph first
+    gs.glyphs[tg++] = read_glyph(&fStream, &f, 0);
     
     //read in the glyphs
     for (r = 0; r < rd.nRanges; r++) {
@@ -951,9 +970,21 @@ GlyphSet ttfParse:: GenerateGlyphSet(std::string src, UnicodeRange charRange) {
         std::cout << "gn inc: " << gs.nGlyphs << " " << rd.max[r] << " " << rd.min[r] << std::endl;
 
         for (ucode_i = rd.min[r]; ucode_i < rd.max[r]; ucode_i++) {
-            u32 loc = getUnicodeOffset(&fStream, &f, ucode_i);
-            u32 offset = getGlyphOffset(&fStream, &f, loc);
-            gs.glyphs[tg++] = read_glyph(&fStream, &f, offset);
+            i32 loc = getUnicodeOffset(&fStream, &f, ucode_i), offset;
+
+            if (loc >= 0)
+                offset = getGlyphOffset(&fStream, &f, loc);
+            else {
+                gs.glyphs[tg++] = {
+                    .char_id = -1
+                };
+                continue; //dont add the glyph since it is gonna be a missing character anyways
+            }
+
+            glf = read_glyph(&fStream, &f, offset);
+            glf.char_id = ucode_i;
+
+            gs.glyphs[tg++] = glf;
         }
     }
 
