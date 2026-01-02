@@ -199,7 +199,7 @@ gPData cleanGlyphPoints(Glyph& tGlyph) {
     size_t currentContour = 0;
 
     if (!tGlyph.modifiedContourEnds) {
-        std::cout << "generating contour ends!" << std::endl;
+        //std::cout << "generating contour ends!" << std::endl;
         tGlyph.modifiedContourEnds = new i32[tGlyph.nContours];
         in_memcpy(tGlyph.modifiedContourEnds, tGlyph.contourEnds, sizeof(i32) * (tGlyph.nContours));
     }
@@ -239,7 +239,7 @@ gPData cleanGlyphPoints(Glyph& tGlyph) {
 
             currentContour++;
 #ifdef MSFL_TTFRENDER_DEBUG
-            std::cout << "Finished Contour: " << currentContour << " / " << tGlyph.nContours << std::endl;
+            //std::cout << "Finished Contour: " << currentContour << " / " << tGlyph.nContours << std::endl;
 #endif
             continue;
         }
@@ -370,25 +370,34 @@ const inline PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
 PDistInfo EdgePointSignedDist(Point p, Edge& e) {
     if (!e.curves || e.nCurves == 0) return {.d=INFINITY};
 
-    constexpr size_t nCheckSteps = 256;
-    constexpr f64 dt = 1.0f / (f32) nCheckSteps;
+    //constexpr size_t nCheckSteps = 256;
+    //constexpr f64 dt = 1.0f / (f32) nCheckSteps;
 
     PDistInfo d = {
         .d = INFINITY
-    }, d2 = {.d = INFINITY}, pd, pd2;
+    };
 
     Point refPoint;
 
     i32 c,i;
-    f64 t,t2;
 
     f32 roots[5] = {0,1,0,0,0};
     f32 *root_pass = roots + 2;
 
-    for (c = 0; c < e.nCurves; c++) {
+    Point p0,p1,p2;
+    f32 a = -1.0f,b = -1.0f,f = -1.0f,g = -1.0f;
+    f32 alpha,beta,gamma,t2,t2_i;
+    f64 dx,dy,_D;
+
+    f64 dx_best,dy_best,t_best,d_best = INFINITY;
+    i32 best_c = -1;
+
+    const size_t _NC = e.nCurves;
+
+    for (c = 0; c < _NC; c++) {
         BCurve& tCurve = e.curves[c];
 
-        Point p0 = tCurve.p[0], p1 = tCurve.p[1], p2 = tCurve.p[2];
+        p0 = tCurve.p[0]; p1 = tCurve.p[1]; p2 = tCurve.p[2];
 
         if (!tCurve.solve_inf.good) {
             //TODO: compute the a_base, b_base, and c_base
@@ -398,45 +407,81 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
             tCurve.solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
             tCurve.solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
             tCurve.solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
-            tCurve.solve_inf.good = true;
+            //tCurve.solve_inf.good = true;
         }
 
         //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
 
-        f32 a,b,c,e;
-
         const i32 nRoots = solve_re_cubic_32_a(
             a = (tCurve.solve_inf.a_base), 
             b = (tCurve.solve_inf.b_base),
-            c = (tCurve.solve_inf.c_base 
+            f = (tCurve.solve_inf.c_base 
                 - 4.0f * (p0.y*p.y + p0.x*p.x)
                 + 8.0f * (p1.y*p.y + p1.x*p.x)
                 - 4.0f * (p2.y*p.y + p2.x*p.x)),
-            e = (tCurve.solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x) + 4.0f * (p0.y*p.y + p0.x*p.x)),
+            g = (tCurve.solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x) + 4.0f * (p0.y*p.y + p0.x*p.x)),
             root_pass
         );
+
+        if (a != a || b != b || f != f || g != g) { 
+            std::cout << "---------------------\nnan dbg: " << "\n";
+            std::cout << a << " " << b << " " << f << " " << g << "\n";
+            std::cout << p0.x << " " << p0.y << " | " << p1.x << " " << p1.y << " | " << p2.x << " " << p2.y << "\n";
+            std::cout << tCurve.solve_inf.a_base << " " << tCurve.solve_inf.b_base << " " << tCurve.solve_inf.c_base << " " << tCurve.solve_inf.d_base << "|" << p.x << " " << p.y << "\n--------------\n";
+        }
+
+        //std::cout << nRoots << std::endl;
 
         for (i = 2; i < nRoots+2; i++) {
             t2 = (roots[i] > 1.0f) + (roots[i] >= 0.0f && roots[i] <= 1.0f) * roots[i];
 
-            pd = bezier3_point_dist(tCurve, p, t2);
+            //pd = bezier3_point_dist(tCurve, p, t2);
+
+            t2_i = 1.0f - t2;
+            alpha = t2_i * t2_i;
+            beta = 2.0f * t2_i * t2;
+            gamma = t2 * t2;
+
+            dx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p.x;
+            dy = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p.y;
+            _D = dx*dx + dy*dy;
+
+            //std::cout << _D << "\n";
             
-            if (pd.d < d.d) {
-                d = pd;
-                d.p = p;
-                d.t = t2;
-                d.curve = tCurve;
+            if (_D < d_best) {
+                dx_best = dx;
+                dy_best = dy;
+                best_c = c;
+                t_best = t2;
+                d_best = _D;
+
                 in_memcpy(d.root_inf.roots, root_pass, sizeof(f32)*3);
                 d.root_inf.nRoots = nRoots;
             }
         }
     }
 
+    if (_NC == 0 || best_c == -1) {
+        std::cout << _D << " " << d_best << " | " << a << " " << b << " " << f << " " << g << std::endl;
+
+        return {
+            .d = INFINITY
+        };
+    }
+
+    const BCurve bestCurve = e.curves[best_c];
+
+    d.dx = dx_best;
+    d.dy = dy_best;
+    d.t = t_best;
+    d.p = p;
+    d.curve = bestCurve;
+
     //compute the signed distance
     d.d = mu_sign(pointCross(
-        dBdt3(d.curve.p[0],d.curve.p[1],d.curve.p[2],d.t),
-        {d.dx,d.dy}
-    )) * sqrtf(d.d);
+        dBdt3(bestCurve.p[0],bestCurve.p[1],bestCurve.p[2],t_best),
+        {(f32) dx_best, (f32) dy_best}
+    )) * sqrtf(d_best);
 
     return d;
 }
@@ -1225,7 +1270,7 @@ Just kinda conjured it from the depths of my mind
 
 */
 i32 msdf_msd_snake_opt() {
-
+    return 0;
 }
 
 struct Contour {
@@ -1344,8 +1389,17 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
 
     const f32 glyphW = tGlyph.xMax - tGlyph.xMin, glyphH = tGlyph.yMax - tGlyph.yMin;
 
-    const u32 paddingX = paddingLeft + paddingRight,
-              paddingY = paddingTop + paddingBottom;
+    u32 paddingX = paddingLeft + paddingRight,
+        paddingY = paddingTop + paddingBottom;
+
+    while (regionW <= paddingX && paddingX >= 2)
+        paddingX -= 2;
+
+    while (regionH <= paddingY && paddingY >= 2)
+        paddingY -= 2;
+
+    if (regionW <= paddingX || regionH <= paddingY || paddingX < 0 || paddingY < 0)
+        return 1; //no room ;-;
 
     const f32
         wc = glyphW / (f32) (regionW - paddingX),
@@ -1422,7 +1476,7 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
                 }
             }
 
-            auto cmp_dist = MinEdgeDist(p, glyphEdges);
+            //auto cmp_dist = MinEdgeDist(p, glyphEdges);
 
             distIdx = x+y*regionW;
             const size_t mp = distIdx << 2;
@@ -1815,7 +1869,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         Glyph g = gly[i]; //get the current glyph
 
         //detect if it is a missing character
-        std::cout << "Char id: " << g.char_id << std::endl;
         if (g.char_id < 0) {
             font.c_pos[i] = {
                 .x = 0,
@@ -1834,7 +1887,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
         i32 gw = (g.xMax - g.xMin) * scale + padding * 2, gh = (g.yMax - g.yMin) * scale + padding * 2;
 
-        std::cout << "testing " << nRegions << " regions" << std::endl;
+        //std::cout << "testing " << nRegions << " regions" << std::endl;
 
         for (j = 0; j < nRegions; j++) {
             Rn = rgn_stack[j];
@@ -1872,7 +1925,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             continue;
         }
 
-        std::cout << "T Region: " << target_rgn.x << " " << target_rgn.y << std::endl;
+        //std::cout << "T Region: " << target_rgn.x << " " << target_rgn.y << std::endl;
 
         font.c_pos[i] = {
             .x = (u32) target_rgn.x,
@@ -1915,7 +1968,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             };
             rgn_stack.push_back(r2); //add 2 new regions
         }
-        std::cout << "Computed Glyph: " << i << " | " << gw << "x" << gh << std::endl;
+        //std::cout << "Computed Glyph: " << i << " | " << gw << "x" << gh << std::endl;
 
         i++;
     }
@@ -1942,7 +1995,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             r_pos.x, r_pos.y, r_pos.w, r_pos.h, 
             padding, padding, padding, padding
         );
-        std::cout << "Generated Glyph: " << i << std::endl;
+        //std::cout << "Generated Glyph: " << i << std::endl;
     }
 
     //memory management
