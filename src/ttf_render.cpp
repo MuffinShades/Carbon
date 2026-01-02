@@ -288,6 +288,11 @@ f32 pointVecBetweenTheta(Point a, Point b) {
     return (a.x * b.x + a.y * b.y) / (sqrtf(a.x * a.x + a.y * a.y) * sqrtf(b.x * b.x + b.y * b.y));
 }
 
+struct CurveBounds {
+    Point center;
+    f32 r = -1;
+};
+
 struct BCurve {
     Point p[3];
     struct {
@@ -297,6 +302,7 @@ struct BCurve {
     struct {
         size_t ttf_relative_point_index[3]; //index of a given point stored in a ttf file
     } src_inf;
+    CurveBounds bounds;
 };
 
 struct Edge {
@@ -305,6 +311,7 @@ struct Edge {
     size_t final_point_index;
     size_t inital_point_index;
     uvec3 color = uvec3(0,0,0);
+    CurveBounds bounds;
 };
 
 struct PDistInfo {
@@ -395,31 +402,31 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
     const size_t _NC = e.nCurves;
 
     for (c = 0; c < _NC; c++) {
-        BCurve& tCurve = e.curves[c];
+        BCurve* tCurve = e.curves + c;
 
-        p0 = tCurve.p[0]; p1 = tCurve.p[1]; p2 = tCurve.p[2];
+        p0 = tCurve->p[0]; p1 = tCurve->p[1]; p2 = tCurve->p[2];
 
-        if (!tCurve.solve_inf.good) {
+        if (!tCurve->solve_inf.good) {
             //TODO: compute the a_base, b_base, and c_base
             // (bases are the terms computed on desmos that dont include the ref points)
             // these terms are grabbed from function I
-            tCurve.solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
-            tCurve.solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
-            tCurve.solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
-            tCurve.solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
-            tCurve.solve_inf.good = true;
+            tCurve->solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.good = true;
         }
 
         //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
 
         const i32 nRoots = solve_re_cubic_32_a(
-            a = (tCurve.solve_inf.a_base), 
-            b = (tCurve.solve_inf.b_base),
-            f = (tCurve.solve_inf.c_base 
+            a = (tCurve->solve_inf.a_base), 
+            b = (tCurve->solve_inf.b_base),
+            f = (tCurve->solve_inf.c_base 
                 - 4.0f * (p0.y*p.y + p0.x*p.x)
                 + 8.0f * (p1.y*p.y + p1.x*p.x)
                 - 4.0f * (p2.y*p.y + p2.x*p.x)),
-            g = (tCurve.solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x) + 4.0f * (p0.y*p.y + p0.x*p.x)),
+            g = (tCurve->solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x) + 4.0f * (p0.y*p.y + p0.x*p.x)),
             root_pass
         );
 
@@ -427,7 +434,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
             std::cout << "---------------------\nnan dbg: " << "\n";
             std::cout << a << " " << b << " " << f << " " << g << "\n";
             std::cout << p0.x << " " << p0.y << " | " << p1.x << " " << p1.y << " | " << p2.x << " " << p2.y << "\n";
-            std::cout << tCurve.solve_inf.a_base << " " << tCurve.solve_inf.b_base << " " << tCurve.solve_inf.c_base << " " << tCurve.solve_inf.d_base << "|" << p.x << " " << p.y << "\n--------------\n";
+            std::cout << tCurve->solve_inf.a_base << " " << tCurve->solve_inf.b_base << " " << tCurve->solve_inf.c_base << " " << tCurve->solve_inf.d_base << "|" << p.x << " " << p.y << "\n--------------\n";
         }
 
         //std::cout << nRoots << std::endl;
@@ -486,12 +493,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
     return d;
 }
 
-struct CurveBounds {
-    Point center;
-    f32 r;
-};
-
-CurveBounds computeCurveBoundingRadius(BCurve& curve) {
+CurveBounds computeCurveBoundingRadius(BCurve& curve, bool add_to_curve = true) {
     Point p0 = curve.p[0], p1 = curve.p[1], p2 = curve.p[2];
 
     const Point centroid = {
@@ -555,10 +557,66 @@ CurveBounds computeCurveBoundingRadius(BCurve& curve) {
     const f32 r2 = sqrtf((centroid.x - p3.x) * (centroid.x - p3.x) + (centroid.y - p3.y) * (centroid.y - p3.y));
 
     //return greatest radius
-    return {
+    CurveBounds b = {
         .center = centroid,
         .r = mu_max(r1, r2)
     };
+
+    if (add_to_curve)
+        curve.bounds = b;
+    
+    return b;
+}
+
+CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
+    f32 csumX = 0.0f, csumY = 0.0f;
+
+    const size_t nc = e.nCurves;
+    BCurve *cu;
+
+    if (!e.curves || nc == 0)
+        return {};\
+
+    i32 c;
+
+    for (c = 0; c < nc; c++) {
+        cu = e.curves + c;
+
+        if (cu->bounds.r < 0)
+            computeCurveBoundingRadius(*cu);
+
+        csumX += cu->bounds.center.x;
+        csumY += cu->bounds.center.y;
+    }
+
+    const f32 is = 1.0f / (f32) nc;
+
+    Point center = {.x = csumX * is, .y = csumY * is};
+
+    CurveBounds b = {
+        .center = center
+    };
+
+    //compute le radius
+    f32 r = 0.0f;
+
+    for (c = 0; c < nc; c++) {
+        cu = e.curves + c;
+
+        r = mu_max(
+            cu->bounds.r + sqrtf(
+                (cu->bounds.center.x - center.x)*(cu->bounds.center.x - center.x)+
+                (cu->bounds.center.y - center.y)*(cu->bounds.center.y - center.y)
+            )
+        , r);
+    }
+
+    b.r = r;
+
+    if (add_to_edge)
+        e.bounds = b;
+
+    return b;
 }
 
 struct EdgeDistInfo {
@@ -1455,6 +1513,9 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
                 cur_color.z = 0;
             }
 
+            //compute edge bounds too
+            computeEdgeBounds(glyphEdges[t_edge]);
+
             edge_i++;
         }
     }
@@ -1497,6 +1558,11 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
 
     size_t distIdx;
 
+    //curve check index buffer
+    BCurve *ccib = nullptr;
+
+    i32 testRadius = -1;
+
     //generate the msdf
     for (y = 0; y < regionH; ++y) {
         for (x = 0; x < regionW; ++x) {
@@ -1506,6 +1572,13 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
             dr.d = dg.d = db.d = INFINITY;
 
             for (Edge e : glyphEdges) {
+                //big optimizing :3
+                /*if (testRadius > -1 &&
+                    (p.x - e.bounds.center.x) * (p.x - e.bounds.center.x) +
+                    (p.y - e.bounds.center.y) * (p.y - e.bounds.center.y)
+                > (testRadius + e.bounds.r) * (testRadius + e.bounds.r))
+                    continue;*/
+
                 d = EdgePointSignedDist(p, e);
 
                 if (e.color.x) {
@@ -1550,6 +1623,8 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
                     }
                 }
             }
+
+            testRadius = mu_max(mu_max(dr.d, dg.d), db.d) + wc;
 
             //auto cmp_dist = MinEdgeDist(p, glyphEdges);
 
@@ -2078,3 +2153,9 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     return font;
 }
+
+/*
+
+It's weird how the faster my code gets the more lines it takes
+
+*/
