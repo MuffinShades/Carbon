@@ -1573,11 +1573,11 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
 
             for (Edge e : glyphEdges) {
                 //big optimizing :3
-                /*if (testRadius > -1 &&
+                if (testRadius > -1 &&
                     (p.x - e.bounds.center.x) * (p.x - e.bounds.center.x) +
                     (p.y - e.bounds.center.y) * (p.y - e.bounds.center.y)
                 > (testRadius + e.bounds.r) * (testRadius + e.bounds.r))
-                    continue;*/
+                    continue;
 
                 d = EdgePointSignedDist(p, e);
 
