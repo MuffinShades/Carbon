@@ -407,7 +407,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
             tCurve.solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
             tCurve.solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
             tCurve.solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
-            //tCurve.solve_inf.good = true;
+            tCurve.solve_inf.good = true;
         }
 
         //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
@@ -484,6 +484,81 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
     )) * sqrtf(d_best);
 
     return d;
+}
+
+struct CurveBounds {
+    Point center;
+    f32 r;
+};
+
+CurveBounds computeCurveBoundingRadius(BCurve& curve) {
+    Point p0 = curve.p[0], p1 = curve.p[1], p2 = curve.p[2];
+
+    const Point centroid = {
+        .x = (p0.x + p2.x) * 0.5f,
+        .y = (p0.y + p2.y) * 0.5f
+    };
+
+    //radius point 1
+    const f32 r1 = sqrtf((centroid.x - p0.x) * (centroid.x - p0.x) + (centroid.y - p0.y) * (centroid.y - p0.y));
+
+    //radius point 2
+    f32 roots[5] = {0,1,0,0,0};
+    f32 *root_pass = roots+2;
+
+    if (!curve.solve_inf.good) {
+        curve.solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
+        curve.solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
+        curve.solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
+        curve.solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+        curve.solve_inf.good = true;
+    }
+    
+    const i32 nRoots = solve_re_cubic_32_a(
+        curve.solve_inf.a_base, 
+        curve.solve_inf.b_base,
+        curve.solve_inf.c_base 
+                - 4.0f * (p0.y*p1.y + p0.x*p1.x)
+                + 8.0f * (p1.y*p1.y + p1.x*p1.x)
+                - 4.0f * (p2.y*p1.y + p2.x*p1.x),
+        curve.solve_inf.d_base - 4.0f * (p1.y*p1.y + p1.x*p1.x) + 4.0f * (p0.y*p1.y + p0.x*p1.x),
+        root_pass
+    );
+
+    f32 min_dist = INFINITY, bx, by, alpha, beta, gamma, t, t_i, _D;
+
+    Point p3 = {
+        .x = (centroid.x + p1.x) * 0.5f,
+        .y = (centroid.y + p1.y) * 0.5f
+    };
+
+    for (i32 n = 0; n < nRoots + 2; n++) {
+        t = roots[n];
+        if (t < 0.0f || t > 1.0f) continue;
+
+        t_i = 1.0f - t;
+        alpha = t_i * t_i;
+        beta = 2.0f * t_i * t;
+        gamma = t * t;
+
+        bx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p1.x;
+        by = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p1.y;
+        _D = bx*bx + by*by;
+
+        if (_D < min_dist) {
+            min_dist = _D;
+            p3.x = bx;
+            p3.y = by;
+        }
+    }
+
+    const f32 r2 = sqrtf((centroid.x - p3.x) * (centroid.x - p3.x) + (centroid.y - p3.y) * (centroid.y - p3.y));
+
+    //return greatest radius
+    return {
+        .center = centroid,
+        .r = mu_max(r1, r2)
+    };
 }
 
 struct EdgeDistInfo {
