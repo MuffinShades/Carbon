@@ -302,7 +302,9 @@ struct BCurve {
     struct {
         size_t ttf_relative_point_index[3]; //index of a given point stored in a ttf file
     } src_inf;
-    CurveBounds bounds;
+    CurveBounds bounds = {
+        .r = -1
+    };
 };
 
 struct Edge {
@@ -315,7 +317,7 @@ struct Edge {
 };
 
 struct PDistInfo {
-    f32 dx = INFINITY,dy = INFINITY,d = INFINITY,t = 0.0f;
+    f32 dx = INFINITY,dy = INFINITY,d = INFINITY,t = 0.0f, true_t = 0.0f;
     BCurve curve;
     Point p;
     struct {
@@ -493,8 +495,143 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e) {
     return d;
 }
 
-CurveBounds computeCurveBoundingRadius(BCurve& curve, bool add_to_curve = true) {
-    Point p0 = curve.p[0], p1 = curve.p[1], p2 = curve.p[2];
+PDistInfo FancyEdgePointSignedDist(Point p, Edge& e, f32 r) {
+    if (!e.curves || e.nCurves == 0) return {.d=INFINITY};
+
+    //constexpr size_t nCheckSteps = 256;
+    //constexpr f64 dt = 1.0f / (f32) nCheckSteps;
+
+    PDistInfo d = {
+        .d = INFINITY
+    };
+
+    Point refPoint;
+
+    i32 c,i;
+
+    f32 roots[5] = {0,1,0,0,0};
+    f32 *root_pass = roots + 2;
+
+    Point p0,p1,p2;
+    f32 a = -1.0f,b = -1.0f,f = -1.0f,g = -1.0f;
+    f32 alpha,beta,gamma,t2,t2_i;
+    f64 dx,dy,_D;
+
+    f64 dx_best,dy_best,t_best,d_best = INFINITY;
+    i32 best_c = -1;
+
+    f32 test_r1, test_r2, test_diff = INFINITY;
+
+    const size_t _NC = e.nCurves;
+
+    for (c = 0; c < _NC; c++) {
+        BCurve* tCurve = e.curves + c;
+
+        if (r > 0 &&
+            (test_r1 = (((p.x - tCurve->bounds.center.x) * (p.x - tCurve->bounds.center.x) +
+            (p.y - tCurve->bounds.center.y) * (p.y - tCurve->bounds.center.y)))) 
+            > (test_r2=((r + tCurve->bounds.r) * (r + tCurve->bounds.r)))
+        ) {
+            if (test_r1 - test_r2 < test_diff)
+                test_diff = test_r1 - test_r2;
+
+            //continue;
+        }
+
+        p0 = tCurve->p[0]; p1 = tCurve->p[1]; p2 = tCurve->p[2];
+
+        if (!tCurve->solve_inf.good) {
+            //TODO: compute the a_base, b_base, and c_base
+            // (bases are the terms computed on desmos that dont include the ref points)
+            // these terms are grabbed from function I
+            tCurve->solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+            tCurve->solve_inf.good = true;
+        }
+
+        //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
+
+        const i32 nRoots = solve_re_cubic_32_a(
+            a = (tCurve->solve_inf.a_base), 
+            b = (tCurve->solve_inf.b_base),
+            f = (tCurve->solve_inf.c_base 
+                - 4.0f * (p0.y*p.y + p0.x*p.x)
+                + 8.0f * (p1.y*p.y + p1.x*p.x)
+                - 4.0f * (p2.y*p.y + p2.x*p.x)),
+            g = (tCurve->solve_inf.d_base - 4.0f * (p1.y*p.y + p1.x*p.x) + 4.0f * (p0.y*p.y + p0.x*p.x)),
+            root_pass
+        );
+
+        if (a != a || b != b || f != f || g != g) { 
+            std::cout << "---------------------\nnan dbg: " << "\n";
+            std::cout << a << " " << b << " " << f << " " << g << "\n";
+            std::cout << p0.x << " " << p0.y << " | " << p1.x << " " << p1.y << " | " << p2.x << " " << p2.y << "\n";
+            std::cout << tCurve->solve_inf.a_base << " " << tCurve->solve_inf.b_base << " " << tCurve->solve_inf.c_base << " " << tCurve->solve_inf.d_base << "|" << p.x << " " << p.y << "\n--------------\n";
+        }
+
+        //std::cout << nRoots << std::endl;
+
+        for (i = 2; i < nRoots+2; i++) {
+            t2 = (roots[i] > 1.0f) + (roots[i] >= 0.0f && roots[i] <= 1.0f) * roots[i];
+
+            //pd = bezier3_point_dist(tCurve, p, t2);
+
+            t2_i = 1.0f - t2;
+            alpha = t2_i * t2_i;
+            beta = 2.0f * t2_i * t2;
+            gamma = t2 * t2;
+
+            dx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p.x;
+            dy = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p.y;
+            _D = dx*dx + dy*dy;
+
+            //std::cout << _D << "\n";
+            
+            if (_D < d_best) {
+                dx_best = dx;
+                dy_best = dy;
+                best_c = c;
+                t_best = t2;
+                d_best = _D;
+
+                in_memcpy(d.root_inf.roots, root_pass, sizeof(f32)*3);
+                d.root_inf.nRoots = nRoots;
+            }
+        }
+    }
+
+    if (_NC == 0 || best_c == -1) {
+
+        std::cout << "test diff: " << test_diff << std::endl;
+
+        //std::cout << _D << " " << d_best << " | " << a << " " << b << " " << f << " " << g << std::endl;
+
+        return {
+            .d = INFINITY
+        };
+    }
+
+    const BCurve bestCurve = e.curves[best_c];
+
+    d.dx = dx_best;
+    d.dy = dy_best;
+    d.t = t_best;
+    d.p = p;
+    d.curve = bestCurve;
+
+    //compute the signed distance
+    d.d = mu_sign(pointCross(
+        dBdt3(bestCurve.p[0],bestCurve.p[1],bestCurve.p[2],t_best),
+        {(f32) dx_best, (f32) dy_best}
+    )) * sqrtf(d_best);
+
+    return d;
+}
+
+CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) {
+    Point p0 = curve->p[0], p1 = curve->p[1], p2 = curve->p[2];
 
     const Point centroid = {
         .x = (p0.x + p2.x) * 0.5f,
@@ -502,28 +639,28 @@ CurveBounds computeCurveBoundingRadius(BCurve& curve, bool add_to_curve = true) 
     };
 
     //radius point 1
-    const f32 r1 = sqrtf((centroid.x - p0.x) * (centroid.x - p0.x) + (centroid.y - p0.y) * (centroid.y - p0.y));
+    //const f32 r1 = sqrtf((centroid.x - p0.x) * (centroid.x - p0.x) + (centroid.y - p0.y) * (centroid.y - p0.y));
 
-    //radius point 2
+    //triangle point 3
     f32 roots[5] = {0,1,0,0,0};
     f32 *root_pass = roots+2;
 
-    if (!curve.solve_inf.good) {
-        curve.solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
-        curve.solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
-        curve.solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
-        curve.solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
-        curve.solve_inf.good = true;
+    if (!curve->solve_inf.good) {
+        curve->solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
+        curve->solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
+        curve->solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
+        curve->solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+        curve->solve_inf.good = true;
     }
     
     const i32 nRoots = solve_re_cubic_32_a(
-        curve.solve_inf.a_base, 
-        curve.solve_inf.b_base,
-        curve.solve_inf.c_base 
+        curve->solve_inf.a_base, 
+        curve->solve_inf.b_base,
+        curve->solve_inf.c_base 
                 - 4.0f * (p0.y*p1.y + p0.x*p1.x)
                 + 8.0f * (p1.y*p1.y + p1.x*p1.x)
                 - 4.0f * (p2.y*p1.y + p2.x*p1.x),
-        curve.solve_inf.d_base - 4.0f * (p1.y*p1.y + p1.x*p1.x) + 4.0f * (p0.y*p1.y + p0.x*p1.x),
+        curve->solve_inf.d_base - 4.0f * (p1.y*p1.y + p1.x*p1.x) + 4.0f * (p0.y*p1.y + p0.x*p1.x),
         root_pass
     );
 
@@ -556,16 +693,53 @@ CurveBounds computeCurveBoundingRadius(BCurve& curve, bool add_to_curve = true) 
 
     const f32 r2 = sqrtf((centroid.x - p3.x) * (centroid.x - p3.x) + (centroid.y - p3.y) * (centroid.y - p3.y));
 
-    //return greatest radius
-    CurveBounds b = {
-        .center = centroid,
-        .r = mu_max(r1, r2)
+    //std::cout << "Radius: " << r2 << " " << r1 << std::endl;
+    const f32 a = sqrtf((p0.x - p3.x) * (p0.x - p3.x) + (p0.y - p3.y) * (p0.y - p3.y)),
+              b = sqrtf((p0.x - p2.x) * (p0.x - p2.x) + (p0.y - p2.y) * (p0.y - p2.y)),
+              c = sqrtf((p2.x - p3.x) * (p2.x - p3.x) + (p2.y - p3.y) * (p2.y - p3.y)),
+              ia = 1.0f / a,
+              ib = 1.0f / b,
+              ic = 1.0f / c;
+
+    vec2 va = vec2(p3.x - p0.x, p3.y - p0.y),
+         vb = vec2(p2.x - p0.x, p2.y - p0.y),
+         vc = vec2(p2.x - p3.x, p2.y - p3.y);
+
+    //TODO: optimize using cross product instead of dot product --> cos(theta) --> cosf(cos(theta)) --> sin(2cosf(cos(theta)))
+    //instead: sin(2a) = 2sin(a)cos(a) --> find sin and cos from cross and dot product
+    const f32 theta = acosf(vec2::DotProd(va, vb) * ia * ib),
+              iota = acosf(vec2::DotProd(va * -1.0f, vc * -1.0f) * ia * ic),
+              kappa = acosf(vec2::DotProd(vb * -1.0f, vc) * ib * ic);
+
+    const f32 sin_2a = sinf(2.0f * theta),
+              sin_2b = sinf(2.0f * iota),
+              sin_2c = sinf(2.0f * kappa),
+              I = 1.0f / (sin_2a + sin_2b + sin_2c);
+
+    std::cout << "SOM: " << theta + iota + kappa << std::endl;
+
+    Point ccenter = {
+        .x = (p0.x * sin_2a + p3.x * sin_2b + p2.x * sin_2c) * I,
+        .y = (p0.y * sin_2a + p3.y * sin_2b + p2.y * sin_2c) * I
     };
 
+    const f32 s = 0.5f * (a + b + c), A = sqrtf(s * (s - a) * (s - b) * (s - c));
+
+    CurveBounds cb = {
+        .center = ccenter,
+        .r = (a * b * c) / (4.0f * A)
+    };
+
+    //return greatest radius
+    /*CurveBounds b = {
+        .center = centroid,
+        .r = mu_min(r1, r2)
+    };*/
+
     if (add_to_curve)
-        curve.bounds = b;
+        curve->bounds = cb;
     
-    return b;
+    return cb;
 }
 
 CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
@@ -575,15 +749,17 @@ CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
     BCurve *cu;
 
     if (!e.curves || nc == 0)
-        return {};\
+        return {};
 
     i32 c;
 
     for (c = 0; c < nc; c++) {
         cu = e.curves + c;
 
-        if (cu->bounds.r < 0)
-            computeCurveBoundingRadius(*cu);
+        //std::cout << "idek " << cu->bounds.r << std::endl;
+
+        if (cu->bounds.r <= 0)
+            computeCurveBoundingRadius(cu);
 
         csumX += cu->bounds.center.x;
         csumY += cu->bounds.center.y;
@@ -592,6 +768,8 @@ CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
     const f32 is = 1.0f / (f32) nc;
 
     Point center = {.x = csumX * is, .y = csumY * is};
+
+    //std::cout << csumX << " " << csumY << std::endl;
 
     CurveBounds b = {
         .center = center
@@ -605,7 +783,7 @@ CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
 
         r = mu_max(
             cu->bounds.r + sqrtf(
-                (cu->bounds.center.x - center.x)*(cu->bounds.center.x - center.x)+
+                (cu->bounds.center.x - center.x)*(cu->bounds.center.x - center.x) +
                 (cu->bounds.center.y - center.y)*(cu->bounds.center.y - center.y)
             )
         , r);
@@ -853,6 +1031,80 @@ PDistInfo EdgePseudoDist(Point p, Edge edge) {
 
     return dist;
 }
+
+PDistInfo EdgePseudoDistFast(Point p, PDistInfo D) {
+    i32 i;
+
+    PDistInfo dist = D;
+
+    if (dist.t > 1.0f) {
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] > 1.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    }
+    else if (dist.t < 0.0f) {
+        f32 gRoot = dist.t;
+
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] < 0.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    }
+
+    return dist;
+}
+
+void EdgeDistToPsuedoDist(PDistInfo& d) {
+    i32 i;
+
+    if (d.t > 1.0f) {
+        PDistInfo pd, gDist = d;
+
+        for (i = 0; i < d.root_inf.nRoots; ++i) {
+            if (d.root_inf.roots[i] > 1.0f) {
+                pd = bezier3_point_dist(d.curve, d.p, d.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        d = gDist;
+    }
+    else if (d.t < 0.0f) {
+        f32 gRoot = d.t;
+
+        PDistInfo pd, gDist = d;
+
+        for (i = 0; i < d.root_inf.nRoots; ++i) {
+            if (d.root_inf.roots[i] < 0.0f) {
+                pd = bezier3_point_dist(d.curve, d.p, d.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        d = gDist;
+    }
+}   
 
 std::vector<Edge> generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoints) {
     std::vector<Edge> glyphEdges;
@@ -1513,6 +1765,8 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
                 cur_color.z = 0;
             }
 
+            //std::cout << "edging: " << glyphEdges[t_edge].bounds.r << std::endl;
+
             //compute edge bounds too
             computeEdgeBounds(glyphEdges[t_edge]);
 
@@ -1571,15 +1825,18 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
             
             dr.d = dg.d = db.d = INFINITY;
 
+            //Edge e = glyphEdges[0];
+
             for (Edge e : glyphEdges) {
                 //big optimizing :3
                 if (testRadius > -1 &&
                     (p.x - e.bounds.center.x) * (p.x - e.bounds.center.x) +
                     (p.y - e.bounds.center.y) * (p.y - e.bounds.center.y)
-                > (testRadius + e.bounds.r) * (testRadius + e.bounds.r))
+                > (testRadius + e.bounds.r) * (testRadius + e.bounds.r)) {
                     continue;
+                }
 
-                d = EdgePointSignedDist(p, e);
+                d = FancyEdgePointSignedDist(p, e, testRadius);
 
                 if (e.color.x) {
                     if (abs(abs(d.d) - abs(dr.d)) <= 0.01f) {
@@ -1624,25 +1881,30 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
                 }
             }
 
-            testRadius = mu_max(mu_max(dr.d, dg.d), db.d) + wc;
-
             //auto cmp_dist = MinEdgeDist(p, glyphEdges);
 
             distIdx = x+y*regionW;
             const size_t mp = distIdx << 2;
 
-            dr.d = EdgePseudoDist(p, er).d;
-            dg.d = EdgePseudoDist(p, eg).d;
-            db.d = EdgePseudoDist(p, eb).d;
+            /*EdgeDistToPsuedoDist(dr);
+            EdgeDistToPsuedoDist(dg);
+            EdgeDistToPsuedoDist(db);*/
+
+            testRadius = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d)) + wc * 1.5f + 0.5f;
+
+            dr = EdgePseudoDist(p, er);
+            dg = EdgePseudoDist(p, eg);
+            db = EdgePseudoDist(p, eb);
+
 
             d_cmp = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d));            
 
             distBuffer[x + y * regionW] = vec3(dr.d,dg.d,db.d);
 
             //this is why i need that damn buffer
-            maxDists.x = mu_max(maxDists.x, abs(dr.d));
-            maxDists.y = mu_max(maxDists.y, abs(dg.d));
-            maxDists.z = mu_max(maxDists.z, abs(db.d));
+            //maxDists.x = mu_max(maxDists.x, abs(dr.d));
+            //maxDists.y = mu_max(maxDists.y, abs(dg.d));
+            //maxDists.z = mu_max(maxDists.z, abs(db.d));
         }
     }
 
@@ -1687,6 +1949,74 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
                 map->data[mp+3] = 255;
         }
     }
+
+    /*for (Edge e : glyphEdges) {
+        for (f32 t = 0.0f; t < mu_pi*2.0f; t += 0.01f) {
+            f32 xaa = e.bounds.center.x + e.bounds.r * cosf(t);
+            f32 yaa = e.bounds.center.y + e.bounds.r * sinf(t);
+            i32 xp = (i32) (xaa * (1.0f / wc));
+            i32 yp = (i32) (yaa * (1.0f / hc));
+
+            //std::cout << xp << " " << yp << std::endl;
+
+            if (xp + regionX < 0 || yp + regionY < 0 || xp + regionX >= map->header.w || yp + regionY >= map->header.h) continue;
+
+            const u32 p = ((xp + regionX) + (yp + regionY) * map->header.w) * nChannels;
+
+            map->data[p+0] = 255;
+            map->data[p+1] = 255;
+            map->data[p+2] = 255;
+
+            if (nChannels == 4)
+                map->data[p+3] = 255;
+        }
+    }*/
+
+    BCurve * bcc;
+
+    //for (Edge e : glyphEdges) {
+    Edge e = glyphEdges[0];
+        for (i32 cc = 0; cc < 1; cc++) {
+            bcc = e.curves + cc;
+            for (f32 t = 0.0f; t < mu_pi*2.0f; t += 0.01f) {
+                f32 xaa = bcc->bounds.center.x + bcc->bounds.r * cosf(t);
+                f32 yaa = bcc->bounds.center.y + bcc->bounds.r * sinf(t);
+                i32 xp = (i32) (xaa * (1.0f / wc));
+                i32 yp = (i32) (yaa * (1.0f / hc));
+
+                //std::cout << xp << " " << yp << std::endl;
+
+                if (xp + regionX < 0 || yp + regionY < 0 || xp + regionX >= map->header.w || yp + regionY >= map->header.h) continue;
+
+                const u32 p = ((xp + regionX) + (yp + regionY) * map->header.w) * nChannels;
+
+                map->data[p+0] = 255;
+                map->data[p+1] = 255;
+                map->data[p+2] = 255;
+
+                if (nChannels == 4)
+                    map->data[p+3] = 255;
+            }
+
+            for (f32 t = 0.0f; t < 1.0f; t += 0.005f) {
+                i32 xp = (i32) (((1.0f - t) * (1.0f - t) * bcc->p[0].x + 2.0f * (1.0f - t) * t * bcc->p[1].x + t * t * bcc->p[2].x) * (1.0f / wc));
+                i32 yp = (i32) (((1.0f - t) * (1.0f - t) * bcc->p[0].y + 2.0f * (1.0f - t) * t * bcc->p[1].y + t * t * bcc->p[2].y) * (1.0f / hc));
+
+                //std::cout << xp << " " << yp << std::endl;
+
+                if (xp + regionX < 0 || yp + regionY < 0 || xp + regionX >= map->header.w || yp + regionY >= map->header.h) continue;
+
+                const u32 p = ((xp + regionX) + (yp + regionY) * map->header.w) * nChannels;
+
+                map->data[p+0] = 255;
+                map->data[p+1] = 128;
+                map->data[p+2] = 0;
+
+                if (nChannels == 4)
+                    map->data[p+3] = 255;
+            }
+        }
+    //}
 
     delete[] distBuffer; //wow!
     _safe_free_a(glyph_contours); //more memory management
