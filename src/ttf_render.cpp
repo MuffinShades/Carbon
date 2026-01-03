@@ -524,18 +524,22 @@ PDistInfo FancyEdgePointSignedDist(Point p, Edge& e, f32 r) {
 
     const size_t _NC = e.nCurves;
 
+    f32 dbx,dby;
+
     for (c = 0; c < _NC; c++) {
         BCurve* tCurve = e.curves + c;
 
+        dbx = p.x - tCurve->bounds.center.x;
+        dby = p.y - tCurve->bounds.center.y;
+
         if (r > 0 &&
-            (test_r1 = (((p.x - tCurve->bounds.center.x) * (p.x - tCurve->bounds.center.x) +
-            (p.y - tCurve->bounds.center.y) * (p.y - tCurve->bounds.center.y)))) 
+            (test_r1 = ((dbx * dbx + dby * dby))) 
             > (test_r2=((r + tCurve->bounds.r) * (r + tCurve->bounds.r)))
         ) {
             if (test_r1 - test_r2 < test_diff)
                 test_diff = test_r1 - test_r2;
 
-            //continue;
+            continue;
         }
 
         p0 = tCurve->p[0]; p1 = tCurve->p[1]; p2 = tCurve->p[2];
@@ -604,7 +608,7 @@ PDistInfo FancyEdgePointSignedDist(Point p, Edge& e, f32 r) {
 
     if (_NC == 0 || best_c == -1) {
 
-        std::cout << "test diff: " << test_diff << std::endl;
+        //std::cout << "test diff: " << test_diff << std::endl;
 
         //std::cout << _D << " " << d_best << " | " << a << " " << b << " " << f << " " << g << std::endl;
 
@@ -639,7 +643,7 @@ CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) 
     };
 
     //radius point 1
-    //const f32 r1 = sqrtf((centroid.x - p0.x) * (centroid.x - p0.x) + (centroid.y - p0.y) * (centroid.y - p0.y));
+    const f32 r1 = sqrtf((centroid.x - p0.x) * (centroid.x - p0.x) + (centroid.y - p0.y) * (centroid.y - p0.y));
 
     //triangle point 3
     f32 roots[5] = {0,1,0,0,0};
@@ -694,16 +698,17 @@ CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) 
     const f32 r2 = sqrtf((centroid.x - p3.x) * (centroid.x - p3.x) + (centroid.y - p3.y) * (centroid.y - p3.y));
 
     //std::cout << "Radius: " << r2 << " " << r1 << std::endl;
-    const f32 a = sqrtf((p0.x - p3.x) * (p0.x - p3.x) + (p0.y - p3.y) * (p0.y - p3.y)),
-              b = sqrtf((p0.x - p2.x) * (p0.x - p2.x) + (p0.y - p2.y) * (p0.y - p2.y)),
-              c = sqrtf((p2.x - p3.x) * (p2.x - p3.x) + (p2.y - p3.y) * (p2.y - p3.y)),
-              ia = 1.0f / a,
-              ib = 1.0f / b,
-              ic = 1.0f / c;
-
     vec2 va = vec2(p3.x - p0.x, p3.y - p0.y),
          vb = vec2(p2.x - p0.x, p2.y - p0.y),
          vc = vec2(p2.x - p3.x, p2.y - p3.y);
+
+
+    const f32 a = sqrtf(va.x * va.x + va.y * va.y),
+              b = sqrtf(vb.x * vb.x + vb.y * vb.y),
+              c = sqrtf(vc.x * vc.x + vc.y * vc.y),
+              ia = 1.0f / a,
+              ib = 1.0f / b,
+              ic = 1.0f / c;
 
     //TODO: optimize using cross product instead of dot product --> cos(theta) --> cosf(cos(theta)) --> sin(2cosf(cos(theta)))
     //instead: sin(2a) = 2sin(a)cos(a) --> find sin and cos from cross and dot product
@@ -716,7 +721,7 @@ CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) 
               sin_2c = sinf(2.0f * kappa),
               I = 1.0f / (sin_2a + sin_2b + sin_2c);
 
-    std::cout << "SOM: " << theta + iota + kappa << std::endl;
+    //std::cout << "SOM: " << theta + iota + kappa << std::endl;
 
     Point ccenter = {
         .x = (p0.x * sin_2a + p3.x * sin_2b + p2.x * sin_2c) * I,
@@ -724,17 +729,20 @@ CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) 
     };
 
     const f32 s = 0.5f * (a + b + c), A = sqrtf(s * (s - a) * (s - b) * (s - c));
+    const f32 r3 = (a * b * c) / (4.0f * A);
 
-    CurveBounds cb = {
-        .center = ccenter,
-        .r = (a * b * c) / (4.0f * A)
-    };
+    const f32 ra = mu_min(r1, r2);
 
-    //return greatest radius
-    /*CurveBounds b = {
-        .center = centroid,
-        .r = mu_min(r1, r2)
-    };*/
+    CurveBounds cb;
+
+    //use the smallest radius bounding circumference
+    if (r3 < ra) {
+        cb.center = ccenter;
+        cb.r = r3;
+    } else {
+        cb.center = centroid;
+        cb.r = ra;
+    }
 
     if (add_to_curve)
         curve->bounds = cb;
@@ -776,7 +784,7 @@ CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
     };
 
     //compute le radius
-    f32 r = 0.0f;
+    f32 r = -1.0f;
 
     for (c = 0; c < nc; c++) {
         cu = e.curves + c;
@@ -1815,11 +1823,13 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
     //curve check index buffer
     BCurve *ccib = nullptr;
 
-    i32 testRadius = -1;
+    f32 testRadius = -1;
 
     //generate the msdf
+    //must snake scan (reason it's called the snake algorithm) since when y ++ things go south
+    i32 xScanMin = 0, xScanMax = regionW, scanDx = 1;
     for (y = 0; y < regionH; ++y) {
-        for (x = 0; x < regionW; ++x) {
+        for (x = xScanMin; abs(xScanMax - x) > 0; x += scanDx) {
             p.x = (((f32)x - paddingLeft) + 0.5f) * wc + (tGlyph.xMin);
             p.y = (((f32)y - paddingTop) + 0.5f) * hc + (tGlyph.yMin);
             
@@ -1829,14 +1839,18 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
 
             for (Edge e : glyphEdges) {
                 //big optimizing :3
-                if (testRadius > -1 &&
+                if (testRadius > 0 &&
                     (p.x - e.bounds.center.x) * (p.x - e.bounds.center.x) +
                     (p.y - e.bounds.center.y) * (p.y - e.bounds.center.y)
                 > (testRadius + e.bounds.r) * (testRadius + e.bounds.r)) {
-                    continue;
+                    //continue;
                 }
 
-                d = FancyEdgePointSignedDist(p, e, testRadius);
+                //d = FancyEdgePointSignedDist(p, e, testRadius);
+                d = EdgePointSignedDist(p,e);
+
+                if (d.d == INFINITY)
+                    continue;
 
                 if (e.color.x) {
                     if (abs(abs(d.d) - abs(dr.d)) <= 0.01f) {
@@ -1889,15 +1903,12 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
             /*EdgeDistToPsuedoDist(dr);
             EdgeDistToPsuedoDist(dg);
             EdgeDistToPsuedoDist(db);*/
-
-            testRadius = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d)) + wc * 1.5f + 0.5f;
+            d_cmp = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d)); 
+            testRadius = d_cmp + wc * 1.5f;
 
             dr = EdgePseudoDist(p, er);
             dg = EdgePseudoDist(p, eg);
-            db = EdgePseudoDist(p, eb);
-
-
-            d_cmp = mu_max(mu_max(abs(dr.d), abs(dg.d)), abs(db.d));            
+            db = EdgePseudoDist(p, eb);           
 
             distBuffer[x + y * regionW] = vec3(dr.d,dg.d,db.d);
 
@@ -1906,6 +1917,13 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
             //maxDists.y = mu_max(maxDists.y, abs(dg.d));
             //maxDists.z = mu_max(maxDists.z, abs(db.d));
         }
+
+        //DO NOT FLIP THE ORDERS OF THESE OR SHIT WILL BREAK
+        scanDx = (2 * !!xScanMin) - 1;
+        xScanMax = regionW * !!xScanMin - 1 * !!xScanMax;
+        xScanMin = regionW * !xScanMin - 1 * !xScanMin;
+
+        //std::cout << xScanMin << " " << xScanMax << " " << scanDx << std::endl;
     }
 
     vec3 dv;
@@ -1972,17 +1990,15 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
         }
     }*/
 
-    BCurve * bcc;
+    /*BCurve * bcc;
 
-    //for (Edge e : glyphEdges) {
-    Edge e = glyphEdges[0];
-        for (i32 cc = 0; cc < 1; cc++) {
-            bcc = e.curves + cc;
-            for (f32 t = 0.0f; t < mu_pi*2.0f; t += 0.01f) {
-                f32 xaa = bcc->bounds.center.x + bcc->bounds.r * cosf(t);
-                f32 yaa = bcc->bounds.center.y + bcc->bounds.r * sinf(t);
-                i32 xp = (i32) (xaa * (1.0f / wc));
-                i32 yp = (i32) (yaa * (1.0f / hc));
+    for (Edge e : glyphEdges) {
+    //Edge e = glyphEdges[0];
+        for (f32 t = 0.0f; t < mu_pi*2.0f; t += 0.01f) {
+                f32 xaa = e.bounds.center.x + e.bounds.r * cosf(t);
+                f32 yaa = e.bounds.center.y + e.bounds.r * sinf(t);
+                i32 xp = (i32) ((xaa) * (1.0f / wc));
+                i32 yp = (i32) ((yaa) * (1.0f / hc));
 
                 //std::cout << xp << " " << yp << std::endl;
 
@@ -1998,6 +2014,10 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
                     map->data[p+3] = 255;
             }
 
+
+        for (i32 cc = 0; cc < e.nCurves; cc++) {
+            bcc = e.curves + cc;
+
             for (f32 t = 0.0f; t < 1.0f; t += 0.005f) {
                 i32 xp = (i32) (((1.0f - t) * (1.0f - t) * bcc->p[0].x + 2.0f * (1.0f - t) * t * bcc->p[1].x + t * t * bcc->p[2].x) * (1.0f / wc));
                 i32 yp = (i32) (((1.0f - t) * (1.0f - t) * bcc->p[0].y + 2.0f * (1.0f - t) * t * bcc->p[1].y + t * t * bcc->p[2].y) * (1.0f / hc));
@@ -2010,13 +2030,13 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
 
                 map->data[p+0] = 255;
                 map->data[p+1] = 128;
-                map->data[p+2] = 0;
+                map->data[p+2] = cc * 32;
 
                 if (nChannels == 4)
                     map->data[p+3] = 255;
             }
         }
-    //}
+    }*/
 
     delete[] distBuffer; //wow!
     _safe_free_a(glyph_contours); //more memory management

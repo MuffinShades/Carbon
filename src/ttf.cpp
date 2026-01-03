@@ -834,7 +834,9 @@ struct _RangeData {
     u32 *min = nullptr;
     u32 *max = nullptr;
     bool good = false;
-} extract_range_data(UnicodeRange charRange) {
+};
+
+_RangeData extract_range_data(UnicodeRange charRange) {
     _RangeData r;
 
     bool found_range = false;
