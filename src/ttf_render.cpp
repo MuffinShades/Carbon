@@ -1830,8 +1830,8 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
     i32 xScanMin = 0, xScanMax = regionW, scanDx = 1;
     for (y = 0; y < regionH; ++y) {
         for (x = xScanMin; abs(xScanMax - x) > 0; x += scanDx) {
-            p.x = (((f32)x - paddingLeft) + 0.5f) * wc + (tGlyph.xMin);
-            p.y = (((f32)y - paddingTop) + 0.5f) * hc + (tGlyph.yMin);
+            p.x = floor(((f32)x - paddingLeft) + 0.5f) * wc + (tGlyph.xMin);
+            p.y = floor(((f32)y - paddingTop) + 0.5f) * hc + (tGlyph.yMin);
             
             dr.d = dg.d = db.d = INFINITY;
 
