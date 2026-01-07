@@ -115,9 +115,13 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
         for (sc = 0; sc < bmp->header.h; sc++) {
             for (x = 0; x < bmp->header.w; x++) {
                 p = (x + sc * bmp->header.w) * by_pp;
-                oStream.writeUInt24(
+
+                oStream.writeByte((b_data[p]));
+                oStream.writeByte((b_data[p+1]));
+                oStream.writeByte(b_data[p+2]);
+                /*oStream.writeUInt24(
                     b_data[p+2] | (b_data[p+1] << 8) | (b_data[p] << 16)
-                );
+                );*/
             }
 
             for (x = 0; x < ppr; x++) oStream.writeByte(0);
