@@ -226,6 +226,8 @@ Shader Shader::LoadShaderFromFile(std::string vert_path, std::string frag_path) 
         return {};
     }
 
+    std::cout << "loading shaders from: " << Path::GetOSPath(vert_path) << " and " << Path::GetOSPath(frag_path) << std::endl;
+
     file v_file = FileWrite::readFromBin(Path::GetOSPath(vert_path)),
          f_file = FileWrite::readFromBin(Path::GetOSPath(frag_path));
 

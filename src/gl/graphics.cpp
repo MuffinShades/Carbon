@@ -41,10 +41,8 @@ void graphics::Load() {
     glBindVertexArray(this->cur_state->vao);
 
     //buffer allocation
-    glGenBuffers(1, &this->cur_state->vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
-    gpu_dynamic_alloc(BATCH_SIZE * sizeof(Vertex));
-    this->vmem_alloc();
+    //glGenBuffers(1, &this->cur_state->vbo);
+    //glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
 
     //define_vattrib_struct(2, Vertex, modColor);
     //define_vattrib_struct(3, Vertex, texId);
@@ -136,7 +134,9 @@ void graphics::push_verts(void *v, size_t n) {
         return;
     if (!cur_state->vmem) {
         std::cout << "Warning vmem is not allocated! Did you call graphics::Load?" << std::endl;
-        this->vmem_alloc();
+
+        if (cur_state->__int_prop.v_obj_sz > 0)
+            this->vmem_alloc(BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
         return;
     }
 
@@ -148,29 +148,43 @@ void graphics::push_verts(void *v, size_t n) {
         return;
     }
 
+    std::cout << "Adding: " << n << " verts" << std::endl;
+
     in_memcpy(
-        ((char*)cur_state->vmem) + (this->_c_vert * vos),
+        ((byte*)cur_state->vmem) + (this->_c_vert * vos),
          v, n * vos
     );
 
     this->_c_vert += n;
 }
 
-void graphics::vmem_alloc() {
-    const size_t vos = this->cur_state->__int_prop.v_obj_sz,
-                 bos = vos * BATCH_SIZE;
+void graphics::vmem_alloc(size_t sz) {
+    if (!cur_state->vbo) {
+        glGenBuffers(1, &cur_state->vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
+        gpu_dynamic_alloc(sz);
+    }
+
     this->free_state();
-    cur_state->vmem = (void*) new byte[BATCH_SIZE * bos];
+    cur_state->vmem = (void*) new byte[sz];
 
     if (!cur_state->vmem) {
         std::cout << "failed to allocate vmemory!" << std::endl;
     }
 
-    ZeroMem<byte>((byte*)cur_state->vmem, BATCH_SIZE*bos);
+    ZeroMem<byte>((byte*)cur_state->vmem, sz);
 }
 
 void graphics::vmem_clear() {
-    ZeroMem(cur_state->vmem, BATCH_SIZE);
+    if (!cur_state->vmem) {
+
+        if (cur_state->__int_prop.v_obj_sz > 0)
+            this->vmem_alloc(BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
+        this->_c_vert = 0;
+        return;
+    }
+
+    ZeroMem(cur_state->vmem, BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
     this->_c_vert = 0;
 }
 
@@ -186,6 +200,8 @@ void graphics::shader_unbind() {
 
 void graphics::render_begin() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (!cur_state->vmem && cur_state->__int_prop.v_obj_sz > 0)
+        this->vmem_alloc(BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
     if (!this->s) return;
     if (!this->shader_bound)
         this->shader_bind();
@@ -245,7 +261,7 @@ void graphics::render_noflush() {
 
     //set program variables
     this->bind_vao();
-    this->s->SetMat4("proj_mat", &this->proj_matrix);
+    //this->s->SetMat4("proj_mat", &this->proj_matrix);
     
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
@@ -437,7 +453,7 @@ void FrameBuffer::delete_tex() {
     
 void FrameBuffer::texAttach(u32 w, u32 h) {
     this->delete_tex();
-            
+
     glGenTextures(1, &this->texHandle);
 
     if (!this->texHandle) {
@@ -460,7 +476,10 @@ void FrameBuffer::texAttach(u32 w, u32 h) {
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->texHandle, 0);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    this->w = w;
+    this->h = h;
 }
 
 void FrameBuffer::depthStencilAttach(u32 w, u32 h) {
@@ -543,12 +562,38 @@ FrameBuffer::FrameBuffer(FrameBuffer::fb_type ty, u32 w, u32 h) {
     }
 }
 
-void graphics::setCurrentFrameBuffer(FrameBuffer *fb) {
-    if (!fb) return;
+void graphics::setOutputDevice(OutputDevice *device) {
+    if (!device) return;
 
-    const u32 fbo = fb->getHandle();
+    u32 fbo;
+    FrameBuffer *fb;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    switch (device->type) {
+    case OutputDevice::FrameBuffer:
+        fb = (FrameBuffer*) device->device;
+
+        if (!fb) {
+            std::cout << "Error, null frame buffer output device!" << std::endl;
+             return;
+        }
+
+        fbo = fb->getHandle();
+
+        std::cout << "bound to fbo: " << fbo << std::endl;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo); 
+
+        if (!fb->texHandle && fb->ty == FrameBuffer::Texture)
+            fb->texAttach(fb->w, fb->h);
+        break;
+    default:
+        std::cout << "Error, cannot bind to unknown output device!" << std::endl;
+        return;
+    }
+}
+
+void graphics::restoreDefaultOutputDevice() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void graphics::vertexStructureDefineBegin(size_t vObjSz) {
@@ -561,6 +606,9 @@ void graphics::vertexStructureDefineBegin(size_t vObjSz) {
     glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
 
     this->cur_state->__int_prop.v_obj_sz = vObjSz;
+
+    if (!cur_state->vmem)
+        this->vmem_alloc(BATCH_SIZE * vObjSz);
 }
 
 void graphics::vertexStructureDefineEnd() {
@@ -570,4 +618,30 @@ void graphics::vertexStructureDefineEnd() {
 void graphics::defineVertexPart(i32 n, __mu_glVInf inf) {
     glEnableVertexAttribArray(n); 
     glVertexAttribPointer(n, inf.p_sz >> 2, 0x1406, 0, inf.sz, (void*)inf.off);
+}
+
+Bitmap FrameBuffer::extractBitmap() {
+    if (!this->handle || this->w == 0 || this->h == 0)
+        return {};
+
+    if (this->ty != FrameBuffer::Texture) {
+        std::cout << "Warning: cannot extract bitmap on non texture framebuffers!" << std::endl;
+        return {};
+    }
+
+    Bitmap bmp;
+
+    bmp.header.fSz = this->w * this->h * 4;
+
+    bmp.data = new byte[bmp.header.fSz];
+
+    ZeroMem(bmp.data, bmp.header.fSz);
+
+    bmp.header.bitsPerPixel = 32;
+    bmp.header.w = this->w;
+    bmp.header.h = this->h;
+
+    glReadPixels(0, 0, this->w, this->h, GL_RGBA, GL_UNSIGNED_BYTE, bmp.data);
+
+    return bmp;
 }

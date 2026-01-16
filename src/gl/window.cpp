@@ -13,6 +13,9 @@ EventHandle Window::AddEventListener(enum EventType ty, void (*fn)(Event)) {
 
 //do glfw or whatever stuff here
 void Window::intCreate() {
+    if (this->invis)
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+
     this->wHandle = glfwCreateWindow(
         this->w, 
         this->h, 
@@ -35,6 +38,8 @@ void Window::intCreate() {
         this->wHandle = nullptr;
         return;
     }
+
+    std::cout << "Win handle: " << this->wHandle << std::endl;
 
     this->running = true;
 }

@@ -4,6 +4,7 @@
 #include "Shader.hpp"
 #include "mesh.hpp"
 #include "vertex.hpp"
+#include "../bitmap.hpp"
 
 #define _CARBONGL_SHADOW_SPECIAL_VAL 0xfb01
 
@@ -25,6 +26,15 @@ extern inline __mu_glVInf __gen_glvinf(size_t sz, size_t off, size_t p_sz) {
 #define vertexFloatBufSelect(v_buf, i, part) \
     v_buf[((sizeof(v_buf) / sizeof(f32)) * (i))]
 
+struct OutputDevice {
+    void *device = nullptr;
+    enum {
+        DefaultOutputDevice,
+        FrameBuffer,
+        Unknown
+    } type;
+};
+
 class FrameBuffer {
 public:
     enum fb_type {
@@ -36,6 +46,7 @@ public:
 protected:
     u32 handle = 0, texHandle = 0, rbo = 0;
     fb_type ty = FrameBuffer::Texture;
+    u32 w = 0, h = 0;
 
     void bind();
     void delete_tex();
@@ -44,8 +55,11 @@ protected:
     void depthStencilAttach(u32 w, u32 h);
     void depthAttach(u32 w, u32 h);
 
+    OutputDevice od;
+
     u64 specialVal = 0; //reserved for derived classes
 public:
+    FrameBuffer() {}
     FrameBuffer(fb_type ty, u32 w, u32 h);
     u32 getHandle() {
         return this->handle;
@@ -54,7 +68,17 @@ public:
         if (this->handle != 0)
             glDeleteFramebuffers(1, &this->handle); 
     }
+    Bitmap extractBitmap();
     friend class graphics;
+
+    OutputDevice *device() {
+        this->od.device = (void*) this;
+        this->od.type = OutputDevice::FrameBuffer;
+
+        return &this->od;
+    }
+
+    u32 getTextureHandle() {return this->texHandle;}
 };
 
 struct graphicsState {
@@ -80,7 +104,7 @@ private:
     mat4 proj_matrix;
     size_t _c_vert = 0, mush_offset = 0;
 
-    void vmem_alloc();
+    void vmem_alloc(size_t sz);
     void vmem_clear();
 
     void bind_vao() {
@@ -127,6 +151,11 @@ public:
         this->winW = this->win->w;
         this->winH = this->win->h;
     }
+
+    graphics() {
+
+    }
+
     void Load();
     void WinResize(const size_t w, const size_t h);
     void render_begin();
@@ -165,8 +194,8 @@ public:
     void useDefaultGraphicsState();
 
     //frame buffers
-    void setCurrentFrameBuffer(FrameBuffer *fb);
-    void restoreDefFrameBuffer();
+    void setOutputDevice(OutputDevice* device);
+    void restoreDefaultOutputDevice();
 
     Shader* getCurrentShader();
     //void DrawImage();

@@ -2504,6 +2504,202 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     return font;
 }
 
+#include "gl/graphics.hpp"
+
+Shader msdf_gen_shader;
+
+i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, Bitmap* map, const i32 regionX, const i32 regionY, const u32 regionW, const u32 regionH, const u32 paddingLeft, const u32 paddingTop, const u32 paddingRight, const u32 paddingBottom) {
+    //simple error / render ability checks
+    if (regionW == 0 || regionH == 0) 
+        return 0;
+
+    if (map->header.w == 0 || map->header.h == 0)
+        return 0;
+
+    if (!map->data) {
+        return 1;
+    }
+
+    //
+    const size_t nChannels = map->header.bitsPerPixel >> 3;
+
+     //clean the glyph up
+    gPData cleanDat = cleanGlyphPoints(tGlyph);
+
+    //get num points
+    const size_t nPoints = cleanDat.p.size();
+
+    //blank glyph so blank sdf
+    if (nPoints == 0)
+        return 0;
+
+    //curve and edge generation, glyph clean up, and more
+
+    std::vector<Edge> glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+
+    //compute conture colors
+    i32 c;
+
+    u32 edge_i = 0;
+    Edge cur_edge, next_edge;
+    bool final_edge = false;
+    size_t ncontour_edges = 0;
+
+    const size_t nGlyphEdges = glyphEdges.size();
+
+    Contour *glyph_contours = new Contour[tGlyph.nContours];
+    u32 cur_min_idx = 0, e_idx = 0;
+
+    for (c = 0; c < tGlyph.nContours; c++) { //oh my fucking god C++???!?!?!?! No way!!! :O
+        Contour *cur_c = glyph_contours + c;
+
+        //compute min and max points
+        cur_c->minPoint = cur_min_idx;
+        cur_c->maxPoint = tGlyph.modifiedContourEnds[c] + cur_c->minPoint;
+
+        cur_min_idx += tGlyph.modifiedContourEnds[c];
+
+        //assign edges
+        e_idx = 0;
+        for (Edge e : glyphEdges) {
+            if (
+                (e.inital_point_index >= cur_c->minPoint && e.inital_point_index < cur_c->maxPoint) ||
+                (e.final_point_index > cur_c->minPoint && e.final_point_index <= cur_c->maxPoint)
+            ) {
+                cur_c->edge_idxs.push_back(e_idx);
+            }
+
+            e_idx++;
+        }
+    }
+
+    //now color le edges
+    i32 i;
+
+    uvec3 cur_color;
+
+    for (c = 0; c < tGlyph.nContours; c++) {
+        Contour ct = glyph_contours[c];
+
+        const size_t ncEdges = ct.edge_idxs.size();
+        u32 t_edge;
+
+        if (ncEdges == 0)
+            continue;
+        else if (ncEdges == 1) {
+            t_edge = ct.edge_idxs[0];
+            glyphEdges[t_edge].color = uvec3(1,1,1);
+            continue;
+        }
+
+        cur_color = uvec3(1,0,1);
+
+        for (i = 0; i < ncEdges; i++) {
+            t_edge = ct.edge_idxs[i];
+
+            glyphEdges[t_edge].color = cur_color;
+
+            if (cur_color.y == 0) {
+                cur_color.y = 1;
+                cur_color.z = 0;
+            } else if (cur_color.x == 1 && cur_color.y == 1) {
+                cur_color.x = 0;
+                cur_color.z = 1;
+            } else {
+                cur_color.x = 1;
+                cur_color.z = 0;
+            }
+
+            //std::cout << "edging: " << glyphEdges[t_edge].bounds.r << std::endl;
+
+            //compute edge bounds too
+            computeEdgeBounds(glyphEdges[t_edge]);
+
+            edge_i++;
+        }
+    }
+
+    //generate multi channel sdf
+    i32 x,y;
+
+    const f32 glyphW = tGlyph.xMax - tGlyph.xMin, glyphH = tGlyph.yMax - tGlyph.yMin;
+
+    u32 paddingX = paddingLeft + paddingRight,
+        paddingY = paddingTop + paddingBottom;
+
+    while (regionW <= paddingX && paddingX >= 2)
+        paddingX -= 2;
+
+    while (regionH <= paddingY && paddingY >= 2)
+        paddingY -= 2;
+
+    if (regionW <= paddingX || regionH <= paddingY || paddingX < 0 || paddingY < 0)
+        return 1; //no room ;-;
+
+    const f32
+        wc = glyphW / (f32) (regionW - paddingX),
+        hc = glyphH / (f32) (regionH - paddingY);
+
+    byte color;
+
+    vec3 *distBuffer = new vec3[regionW * regionH]; //i hate this so much
+
+    f32 maxDist = smol_number; //smol number
+    PDistInfo dr, dg, db;
+    f32 d_cmp;
+    vec3 maxDists;
+
+    PDistInfo d;
+
+    Edge er, eg, eb;
+
+    Point p;
+
+    size_t distIdx;
+
+    //curve check index buffer
+    BCurve *ccib = nullptr;
+
+    f32 testRadius = -1;
+
+    //graphics setup
+    graphics g;
+    FrameBuffer fb = FrameBuffer(FrameBuffer::Texture, map->header.w, map->header.h);
+
+    g.setOutputDevice(fb.device());
+
+    if (!msdf_gen_shader.good())
+        msdf_gen_shader = Shader::LoadShaderFromFile("", "");
+
+    //generate the msdf
+    struct gpu_light_curve {
+        vec2 p0,p1,p2;
+        vec3 chroma;
+        vec4 compute_base;
+    };
+    
+    //params of the curves being sent to the gpu
+    u32 cBuff_handle;
+
+    glGenBuffers(1, &cBuff_handle);
+    //TODO: update to Opengl 4.3
+    glBindBuffer(GL_SHADER_STOARGE_BUFFER, cBuff_handle);
+    //glBufferData(GL_SHADER_STORAGE_BUFFER, )
+
+    //
+
+
+    _safe_free_a(glyph_contours); //more memory management
+
+    //oh look were managing memory :O
+    for (Edge e : glyphEdges) {
+        _safe_free_a(e.curves);
+        e.nCurves = 0;
+    }
+
+    return 0;
+}
+
 /*
 
 It's weird how the faster my code gets the more lines it takes

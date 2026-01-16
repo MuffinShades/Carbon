@@ -37,7 +37,7 @@ private:
     std::vector<_evContainer> _listeners[_eventTypeLen] = {};
     static EventHandle _cHandle;
     void  intCreate();
-    bool running = false;
+    bool running = false, invis = false;;
 public:
     GLFWwindow *wHandle;
     static bool winIni();
@@ -45,7 +45,8 @@ public:
     const char *title;
 
     Window() {}; //default constructor thingy
-    Window(std::string title, i32 w, i32 h) : w(w), h(h), title(title.c_str()) {
+    Window(std::string title, i32 w, i32 h, bool invisible = false) : w(w), h(h), title(title.c_str()) {
+        this->invis = invisible;
         this->intCreate();
     }
     bool Update();
