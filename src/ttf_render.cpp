@@ -2505,10 +2505,55 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 }
 
 #include "gl/graphics.hpp"
+#include "gl/geometry/rect.hpp"
 
 Shader msdf_gen_shader;
 
-i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, Bitmap* map, const i32 regionX, const i32 regionY, const u32 regionW, const u32 regionH, const u32 paddingLeft, const u32 paddingTop, const u32 paddingRight, const u32 paddingBottom) {
+struct msdf_vert {
+    vec3 pos;
+}; 
+
+struct MsdfGpuContext {
+    FrameBuffer fb;
+    graphics g;
+    bool good = false;
+};
+
+MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
+    MsdfGpuContext *ctx = new MsdfGpuContext;
+
+    //load framebuffer
+    ctx->fb = FrameBuffer(FrameBuffer::Texture, w, h);
+
+    //load graphics
+    ctx->g.Load();
+    ctx->g.vertexStructureDefineBegin();
+    ctx->g.defineVertexPart(0, vertexClassPart(msdf_vert, pos));
+    ctx->g.vertexStructureDefineEnd();
+
+    //set output device
+    ctx->g.setOutputDevice(ctx.fb.device());
+
+    ctx->good = true;
+
+    return ctx;
+}
+
+void DeleteMsdfGPUContext(MsdfGpuContext * ctx) {
+    if (!ctx)
+        return;
+
+    delete[] ctx;
+    ctx = nullptr;
+}
+
+i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i32 regionX, const i32 regionY, const u32 regionW, const u32 regionH, const u32 paddingLeft, const u32 paddingTop, const u32 paddingRight, const u32 paddingBottom) {
+    struct gpu_light_curve {
+        vec2 p0,p1,p2;
+        vec3 chroma;
+        vec4 compute_base;
+    };
+    
     //simple error / render ability checks
     if (regionW == 0 || regionH == 0) 
         return 0;
@@ -2574,9 +2619,11 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, Bitmap* map, const i32 regio
     }
 
     //now color le edges
-    i32 i;
+    i32 i, j;
 
     uvec3 cur_color;
+
+    std::vector<gpu_light_curve> gpu_curves;
 
     for (c = 0; c < tGlyph.nContours; c++) {
         Contour ct = glyph_contours[c];
@@ -2610,16 +2657,28 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, Bitmap* map, const i32 regio
                 cur_color.z = 0;
             }
 
-            //std::cout << "edging: " << glyphEdges[t_edge].bounds.r << std::endl;
+            //create the light curves
+            BCurve cu;
 
-            //compute edge bounds too
-            computeEdgeBounds(glyphEdges[t_edge]);
+            for (j = 0; j < glyphEdges[t_edge].nCurves; j++) {
+                cu = glyphEdges[t_edge].curves[j];
+
+                gpu_light_curve lc = {
+                    .p0 = cu.p[0],
+                    .p1 = cu.p[1],
+                    .p2 = cu.p[2],
+                    .chroma = (vec3) glyphEdges[t_edge].color,
+                    .compute_base = vec4(cu.solve_inf.a_base,cu.solve_inf.b_base,cu.solve_inf.c_base,cu.solve_inf.d_base)
+                };
+
+                gpu_curves.push_back(lc); //add the curve
+            }
 
             edge_i++;
         }
     }
 
-    //generate multi channel sdf
+    //compute some dimensions
     i32 x,y;
 
     const f32 glyphW = tGlyph.xMax - tGlyph.xMin, glyphH = tGlyph.yMax - tGlyph.yMin;
@@ -2640,54 +2699,50 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, Bitmap* map, const i32 regio
         wc = glyphW / (f32) (regionW - paddingX),
         hc = glyphH / (f32) (regionH - paddingY);
 
-    byte color;
-
-    vec3 *distBuffer = new vec3[regionW * regionH]; //i hate this so much
-
-    f32 maxDist = smol_number; //smol number
-    PDistInfo dr, dg, db;
-    f32 d_cmp;
-    vec3 maxDists;
-
-    PDistInfo d;
-
-    Edge er, eg, eb;
-
-    Point p;
-
-    size_t distIdx;
-
-    //curve check index buffer
-    BCurve *ccib = nullptr;
-
-    f32 testRadius = -1;
-
     //graphics setup
     graphics g;
-    FrameBuffer fb = FrameBuffer(FrameBuffer::Texture, map->header.w, map->header.h);
 
     g.setOutputDevice(fb.device());
 
     if (!msdf_gen_shader.good())
         msdf_gen_shader = Shader::LoadShaderFromFile("", "");
-
-    //generate the msdf
-    struct gpu_light_curve {
-        vec2 p0,p1,p2;
-        vec3 chroma;
-        vec4 compute_base;
-    };
     
     //params of the curves being sent to the gpu
     u32 cBuff_handle;
 
     glGenBuffers(1, &cBuff_handle);
-    //TODO: update to Opengl 4.3
     glBindBuffer(GL_SHADER_STOARGE_BUFFER, cBuff_handle);
-    //glBufferData(GL_SHADER_STORAGE_BUFFER, )
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gpu_light_curve) * gpu_curves.size(), gpu_curves.data(), GL_READ_BUFFER);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, cBuff_handle);
 
-    //
+    const f32 space_normal_x = 1.0f / fb.w,
+              space_normal_y = 1.0f / fb.h;
 
+    //set le uniforms
+    vec4 padding_vec = vec4(padding_left / regionW, padding_top / regionH, padding_right / regionW, padding_bottom / regionH);
+    vec4 region_vec = vec4(regionX * space_normal_x, regionY * space_normal_y, regionW * space_normal_x, regionH * space_normal_y);
+    vec4 glyph_dim_vec = vec4(tGlyph.xMin, tGlyph.yMin, tGlyph.xMax, tGlyph.yMax);
+
+    msdf_gen_shader.SetInt("nCurves", gpu_curves.size());
+    msdf_gen_shader.SetVec4("padding", &padding_vec);
+    msdf_gen_shader.SetVec4("glyphDim", &glyph_dim_vec);
+    msdf_gen_shader.SetVec4("region", &region_vec);
+
+    //render
+
+    g.Load();
+
+    g.vertexStructureDefineBegin();
+    g.defineVertexPart(0, vertexClassPart(msdf_vert, pos));
+    g.vertexStructureDefineEnd();
+
+    msdf_vert out_rect = {
+
+    };
+
+    g.render_begin();
+    g.push_verts();
+    g.render_flush();
 
     _safe_free_a(glyph_contours); //more memory management
 
