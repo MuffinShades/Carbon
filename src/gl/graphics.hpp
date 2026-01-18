@@ -46,7 +46,6 @@ public:
 protected:
     u32 handle = 0, texHandle = 0, rbo = 0;
     fb_type ty = FrameBuffer::Texture;
-    u32 w = 0, h = 0;
 
     void bind();
     void delete_tex();
@@ -59,6 +58,8 @@ protected:
 
     u64 specialVal = 0; //reserved for derived classes
 public:
+    u32 w = 0, h = 0;
+
     FrameBuffer() {}
     FrameBuffer(fb_type ty, u32 w, u32 h);
     u32 getHandle() {
@@ -83,6 +84,7 @@ public:
 
 struct graphicsState {
     u32 vao, vbo, ibo;
+    bool vbo_alloc = false;
     Shader *s = nullptr;
     size_t nv = 0;
     void *vmem = nullptr, *vstore = nullptr;

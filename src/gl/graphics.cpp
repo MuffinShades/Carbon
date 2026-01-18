@@ -39,6 +39,7 @@ void graphics::Load() {
     //vertex array
     vao_create(this->cur_state->vao);
     glBindVertexArray(this->cur_state->vao);
+    
 
     //buffer allocation
     //glGenBuffers(1, &this->cur_state->vbo);
@@ -159,10 +160,13 @@ void graphics::push_verts(void *v, size_t n) {
 }
 
 void graphics::vmem_alloc(size_t sz) {
-    if (!cur_state->vbo) {
-        glGenBuffers(1, &cur_state->vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
+    if (!cur_state->vbo_alloc) {
+        if (!cur_state->vbo) {
+            glGenBuffers(1, &cur_state->vbo);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
         gpu_dynamic_alloc(sz);
+        cur_state->vbo_alloc = true;
     }
 
     this->free_state();
@@ -602,6 +606,13 @@ void graphics::vertexStructureDefineBegin(size_t vObjSz) {
         return;
     }
 
+    if (!cur_state->vbo) {
+        glGenBuffers(1, &cur_state->vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
+        this->vmem_alloc(vObjSz * BATCH_SIZE);
+    } else
+        glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
+
     glBindVertexArray(this->cur_state->vao);
     glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
 
@@ -617,7 +628,7 @@ void graphics::vertexStructureDefineEnd() {
 
 void graphics::defineVertexPart(i32 n, __mu_glVInf inf) {
     glEnableVertexAttribArray(n); 
-    glVertexAttribPointer(n, inf.p_sz >> 2, 0x1406, 0, inf.sz, (void*)inf.off);
+    glVertexAttribPointer(n, inf.p_sz >> 2, GL_FLOAT, 0, inf.sz, (void*)inf.off);
 }
 
 Bitmap FrameBuffer::extractBitmap() {

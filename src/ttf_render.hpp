@@ -93,7 +93,7 @@ public:
     //MSFL_EXP static i32 RenderGlyphMSFGToBitMap(Glyph tGlyph, Bitmap* bmp, size_t glyphW, size_t glyphH);
     MSFL_EXP static i32 RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
     MSFL_EXP static i32 RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
-    MSFL_EXP static FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size);
+    MSFL_EXP static FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size, bool accel = false);
 
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size);
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap_gpuAccel(Glyph tGlyph, Bitmap* bmp, sdf_dim size);
