@@ -628,7 +628,7 @@ void graphics::vertexStructureDefineEnd() {
 
 void graphics::defineVertexPart(i32 n, __mu_glVInf inf) {
     glEnableVertexAttribArray(n); 
-    glVertexAttribPointer(n, inf.p_sz >> 2, GL_FLOAT, 0, inf.sz, (void*)inf.off);
+    glVertexAttribPointer(n, inf.p_sz / sizeof(f32), GL_FLOAT, 0, inf.sz, (void*)inf.off);
 }
 
 Bitmap FrameBuffer::extractBitmap() {
@@ -653,6 +653,8 @@ Bitmap FrameBuffer::extractBitmap() {
     bmp.header.h = this->h;
 
     glReadPixels(0, 0, this->w, this->h, GL_RGBA, GL_UNSIGNED_BYTE, bmp.data);
+
+    std::cout << "reading: " << this->w << " " << this->h << std::endl;
 
     return bmp;
 }

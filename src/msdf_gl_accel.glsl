@@ -53,44 +53,58 @@ const float one_third = 1.0 / 3.0;
 const float i9 = 1.0 / 9.0, i54 = 1.0 / 54.0;
 const float mu_pi = 3.14159265358979323846;
 
+struct root_sln {
+    int n;
+    float roots[3];
+};
+
 //TODO: check cube root
 float cube_root_32(float v) {
     if (v < 0.0)
         return -pow(-v, one_third);
     else
-        return pow(-v, one_third);
+        return pow(v, one_third);
 }
 
-int solve_linear_32(float a, float b, float roots[3]) {
-    roots[0] = -b/a;
-    return 1;
+root_sln solve_linear_32(float a, float b) {
+    root_sln res;
+    res.n = 1;
+    res.roots[0] = -b/a;
+    return res;
 }
 
-int solve_re_quadratic_32(float a, float b, float c, float re_roots[3]) {
+root_sln solve_re_quadratic_32(float a, float b, float c) {
     if (a == 0)
-        return solve_linear_32(b, c, re_roots);
+        return solve_linear_32(b, c);
+
+    root_sln res;
 
     const float i = b*b - 4.0*a*c;
 
-    if (i < 0.0)
-        return 0;
+    if (i < 0.0) {
+        res.n = 0;
+        return res;
+    }
     
     if (i == 0.0) {
-        re_roots[1] = -b / (2.0*a);
-        return 1;
+        res.roots[1] = -b / (2.0*a);
+        res.n = 1;
+        return res;
     }
 
     const float r = sqrt(i);
     const float i2a = 1.0 / (2.0 * a);
 
-    re_roots[0] = (-b + r) * i2a;
-    re_roots[1] = (-b - r) * i2a;
-
-    return 2;
+    res.roots[0] = (-b + r) * i2a;
+    res.roots[1] = (-b - r) * i2a;
+    res.n = 2;
+    return res;
 }
 
-int solve_re_cubic_32_a(float a, float b, float c, float d, float re_roots[3]) {
-    if (a == 0.0) return solve_re_quadratic_32(b, c, d, re_roots);
+root_sln solve_re_cubic_32_a(float a, float b, float c, float d) {
+    if (a == 0.0) return solve_re_quadratic_32(b, c, d);
+
+    root_sln res;
 
     const float ia = 1.0 / a;
 
@@ -110,20 +124,21 @@ int solve_re_cubic_32_a(float a, float b, float c, float d, float re_roots[3]) {
         float s = cube_root_32(r + root_dis);
         float t = cube_root_32(r - root_dis);
 
-        re_roots[0] = -xi + s + t;
-        re_roots[1] = 0.0;
-        re_roots[2] = 0.0;
-
-        return 1;
+        res.roots[0] = -xi + s + t;
+        res.roots[1] = 0.0;
+        res.roots[2] = 0.0;
+        res.n = 1;
+        return res;
     }
 
     if (dis == 0.0) {
         const float crt_r = cube_root_32(r);
-        re_roots[0] = -xi + 2.0 * crt_r;
-        re_roots[2] = (re_roots[1] = (
+        res.roots[0] = -xi + 2.0 * crt_r;
+        res.roots[2] = (res.roots[1] = (
             -(crt_r + xi)
         ));
-        return 2;
+        res.n = 2;
+        return res;
     }
 
     q *= -1.0;
@@ -134,11 +149,12 @@ int solve_re_cubic_32_a(float a, float b, float c, float d, float re_roots[3]) {
     const float rot_1 = 2.0 * mu_pi * one_third,
               rot_2 = 4.0 * mu_pi * one_third;
 
-    re_roots[0] = -xi + r13*cos(eta + 0);
-    re_roots[1] = -xi + r13*cos(eta + rot_1);
-    re_roots[2] = -xi + r13*cos(eta + rot_2);
+    res.roots[0] = -xi + r13*cos(eta + 0);
+    res.roots[1] = -xi + r13*cos(eta + rot_1);
+    res.roots[2] = -xi + r13*cos(eta + rot_2);
+    res.n = 3;
 
-    return 3;
+    return res;
 }
 
 /*
@@ -156,13 +172,11 @@ struct c_dist {
 };
 
 c_dist CurvePointSignedDist(vec2 p, Curve c) {
-    float roots[3];
-
     vec2 p0 = c.p0, p1 = c.p1, p2 = c.p2;
 
     vec4 computeBase = c.compute_base;
 
-    const int nRoots = solve_re_cubic_32_a(
+    const root_sln roots = solve_re_cubic_32_a(
             computeBase.x, 
             computeBase.y,
             computeBase.z 
@@ -171,8 +185,7 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
                 - 4.0 * (p2.y*p.y + p2.x*p.x),
             computeBase.w 
                 - 4.0 * (p1.y*p.y + p1.x*p.x) 
-                + 4.0 * (p0.y*p.y + p0.x*p.x),
-            roots
+                + 4.0 * (p0.y*p.y + p0.x*p.x)
     );
 
     c_dist rd;
@@ -180,8 +193,8 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
     //check the roots
     int j;
     float t, t_i, alpha, beta, gamma, dx, dy, D, d_best = f_inf, dx_best, dy_best, t_best;
-    for (j = 0; j < nRoots; j++) {
-        t = roots[j];
+    for (j = 0; j < roots.n; j++) {
+        t = roots.roots[j];
 
         if (t > 1.0 || t < 0.0) {
             rd.extT[rd.nExtT++] = t;
@@ -340,10 +353,22 @@ void main() {
 
     float blend_amount = 1.0;
  
-    FragColor = vec4(
-        (((dr.d) / blend_amount) * 0.5 + 0.5),
+    /*FragColor = vec4(
+       (((dr.d) / blend_amount) * 0.5 + 0.5),
         (((dg.d) / blend_amount) * 0.5 + 0.5),
         (((db.d) / blend_amount) * 0.5 + 0.5),
         1.0
-    );
+    );*/
+
+
+    /*vec4 colors[] = {
+        vec4(1.0, 0.0, 0.0, 1.0),
+        vec4(0.0, 1.0, 0.0, 1.0),
+        vec4(0.0, 0.0, 1.0, 1.0),
+        vec4(1.0, 1.0, 0.0, 1.0)
+    };
+
+    root_sln dbg_sln = solve_re_cubic_32_a(17, 2, 12, 15);
+
+    FragColor = vec4(abs(dbg_sln.roots[0]), 1.0, 1.0, 1.0);*/
 }

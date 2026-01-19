@@ -1,6 +1,7 @@
 #pragma once
 #include "ttf.hpp"
 #include "bitmap.hpp"
+#include "gl/graphics.hpp"
 
 /**
  * 
@@ -73,6 +74,13 @@ extern "C" {
 #endif
 #endif
 
+struct MsdfGpuContext {
+    FrameBuffer fb;
+    graphics g;
+    bool good = false;
+};
+
+
 struct CharSpritePos {
     u32 x, y, w, h;
 };
@@ -81,6 +89,7 @@ struct FontInst {
     Bitmap sheet;
     UnicodeRange range;
     CharSpritePos *c_pos = nullptr;
+    MsdfGpuContext *dbg_ctx;
     bool good = false;
 };
 
@@ -94,6 +103,9 @@ public:
     MSFL_EXP static i32 RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
     MSFL_EXP static i32 RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
     MSFL_EXP static FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size, bool accel = false);
+
+
+    MSFL_EXP static void _msdfRenderDebug(Glyph g, MsdfGpuContext** ctx);
 
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size);
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap_gpuAccel(Glyph tGlyph, Bitmap* bmp, sdf_dim size);

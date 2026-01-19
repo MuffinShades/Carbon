@@ -55,11 +55,14 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
 
     datStream.int_mode = IntFormat_LittleEndian;
 
-    const size_t by_pp = bmp->header.bitsPerPixel >> 3;
-    const size_t nPix= (bmp->header.w * bmp->header.h),
+    const size_t true_bpp = mu_min(bmp->header.bitsPerPixel, 24);
+    const size_t ppr = ((true_bpp >> 3) * bmp->header.w) % 4;
+
+    const size_t by_pp = true_bpp >> 3;
+    const size_t nPix = (bmp->header.w * bmp->header.h),
                  nPixBytes = nPix * by_pp;
 
-    bmp->header.fSz = nPix * (mu_min(bmp->header.bitsPerPixel, 24) >> 3);
+    bmp->header.fSz = nPix * (true_bpp >> 3) + ppr * bmp->header.h;
 
     write_bmp_header(bmp, &datStream);
 
@@ -89,8 +92,8 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
 
     //stupid ass rule in bmp specification
     //formula stolen from wikipedia and optimized with fucked up bitshifts by yours truley
-    const size_t ndword_based_bytes = (((bmp->header.bitsPerPixel * bmp->header.w) + 31) >> 5) << 2;
-    const size_t ppr = ndword_based_bytes - (bmp->header.bitsPerPixel >> 3) * bmp->header.w;
+    //const size_t ndword_based_bytes = (((true_bpp * bmp->header.w) + 31) >> 5) << 2;
+    //const size_t ppr = ndword_based_bytes - (true_bpp >> 3) * bmp->header.w;
 
     size_t sc, x;
 
@@ -132,9 +135,10 @@ i32 BitmapParse::WriteToFile(std::string src, Bitmap* bmp) {
         for (sc = 0; sc < bmp->header.h; sc++) {
             for (x = 0; x < bmp->header.w; x++) {
                 p = (x + sc * bmp->header.w) * by_pp;
-                oStream.writeUInt24(
-                    b_data[p+2] | (b_data[p+1] << 8) | (b_data[p] << 16)
-                );
+
+                oStream.writeByte((b_data[p]));
+                oStream.writeByte((b_data[p+1]));
+                oStream.writeByte(b_data[p+2]);
             }
 
             for (x = 0; x < ppr; x++) oStream.writeByte(0);

@@ -24,14 +24,8 @@ constexpr f32 smol_number = 1.175e-38f; //number that is smol
 static Shader msdf_gen_shader;
 
 struct msdf_vert {
-    vec3 pos;
+    f32 pos[3];
 }; 
-
-struct MsdfGpuContext {
-    FrameBuffer fb;
-    graphics g;
-    bool good = false;
-};
 
 MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     MsdfGpuContext *ctx = new MsdfGpuContext;
@@ -46,7 +40,27 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     //set output device
     ctx->fb = FrameBuffer(FrameBuffer::Texture, w, h);
 
+    std::cout << "Creating context: " << w << " " << h << std::endl;
+
     ctx->g.setOutputDevice(ctx->fb.device());
+
+    ctx->good = true;
+
+    return ctx;
+}
+
+MsdfGpuContext *CreateMsdfGPUAccelerationContext_Dynamic(u32 w, u32 h) {
+    MsdfGpuContext *ctx = new MsdfGpuContext;
+
+    //load graphics
+    ctx->g.Load();
+
+    ctx->g.vertexStructureDefineBegin(sizeof(msdf_vert));
+    ctx->g.defineVertexPart(0, vertexClassPart(msdf_vert, pos));
+    ctx->g.vertexStructureDefineEnd();
+
+    ctx->fb.w = w;
+    ctx->fb.h = h;
 
     ctx->good = true;
 
@@ -2313,6 +2327,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
         return 0;
 
     if (!ctx) {
+        std::cout << "error invalid context" << std::endl;
         return 1;
     }
 
@@ -2457,7 +2472,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     //graphics setup
 
     if (!msdf_gen_shader.good())
-        msdf_gen_shader = Shader::LoadShaderFromFile("../src/msdf_gl_accel_vert.glsl", "../src/msdf_gl_accel.glsl");
+        msdf_gen_shader = Shader::LoadShaderFromFile("../../src/msdf_gl_accel_vert.glsl", "../../src/msdf_gl_accel.glsl");
 
     if (!ctx->good)
         std::cout << "warning bad context!" << std::endl;
@@ -2467,15 +2482,11 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     //params of the curves being sent to the gpu
     u32 cBuff_handle;
 
-    std::cout << "generating ssbo..." << std::endl;
     glGenBuffers(1, &cBuff_handle);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, cBuff_handle);
     glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gpu_light_curve) * gpu_curves.size(), gpu_curves.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, cBuff_handle);
 
-    std::cout << "generated ssbo!" << std::endl;
-
-    std::cout << "Added " << gpu_curves.size() << " curves!" << std::endl;
 
     const f32 space_normal_x = 1.0f / ctx->fb.w,
               space_normal_y = 1.0f / ctx->fb.h;
@@ -2492,8 +2503,6 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
 
     //render
     msdf_vert out_rect[] = RECT_VERTS(region_vec.x, region_vec.y, region_vec.z, region_vec.w, 0.0);
-
-    std::cout << (uintptr_t) out_rect << " <-- vert ptr" << std::endl;
 
     ctx->g.render_begin();
     ctx->g.push_verts(out_rect, sizeof(out_rect) / sizeof(msdf_vert));
@@ -2780,10 +2789,28 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     if (accel)
         font.sheet = a_ctx->fb.extractBitmap();
 
+    font.dbg_ctx = a_ctx;
+
     //memory management
     _safe_free_a(gly);
 
     return font;
+}
+
+void ttfRender::_msdfRenderDebug(Glyph g, MsdfGpuContext** ctx) {
+    CharSpritePos r_pos;
+
+    if (!*ctx) {
+        std::cout << "Creating context!" << std::endl;
+        *ctx = CreateMsdfGPUAccelerationContext_Dynamic(256, 256);
+    }
+
+    render_positioned_msdf_gpu_accel(
+        g, 
+        *ctx, 
+        0, 0, 256, 256, 
+        0, 0, 0, 0
+    );
 }
 
 /*

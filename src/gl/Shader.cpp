@@ -226,10 +226,13 @@ Shader Shader::LoadShaderFromFile(std::string vert_path, std::string frag_path) 
         return {};
     }
 
-    std::cout << "loading shaders from: " << Path::GetOSPath(vert_path) << " and " << Path::GetOSPath(frag_path) << std::endl;
+    std::cout << "loading shaders from: " << vert_path << " and " << frag_path << std::endl;
 
-    file v_file = FileWrite::readFromBin(Path::GetOSPath(vert_path)),
-         f_file = FileWrite::readFromBin(Path::GetOSPath(frag_path));
+    //file v_file = FileWrite::readFromBin(Path::GetOSPath(vert_path)),
+    //     f_file = FileWrite::readFromBin(Path::GetOSPath(frag_path));
+
+    file v_file = FileWrite::readFromBin(vert_path),
+         f_file = FileWrite::readFromBin(frag_path);
 
     if (v_file.len == 0 || f_file.len == 0 || !v_file.dat || !f_file.dat) {
         std::cout << "Failed to read shader file! Likely invalid path!" << std::endl;
