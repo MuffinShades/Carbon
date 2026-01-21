@@ -1157,6 +1157,14 @@ PDistInfo EdgePseudoDistFast(Point p, PDistInfo D) {
     return dist;
 }
 
+void ConvertDistToPseudo(PDistInfo& dist, Point p, ) {
+    if (dist.d < 0.0f) {
+
+    } else if (dist.d > 1.0f) {
+        
+    }
+}
+
 void EdgeDistToPsuedoDist(PDistInfo& d) {
     i32 i;
 
