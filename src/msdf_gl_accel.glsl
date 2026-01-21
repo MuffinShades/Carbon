@@ -1,5 +1,15 @@
 #version 430 core
 
+/*
+
+MSDF generation excelerated with le gpu
+
+This took forever to write
+
+Programmed by muffinshades 2026
+
+*/
+
 struct Curve {
     vec2 p0;
     int padd0[2];
@@ -392,60 +402,6 @@ void main() {
     db = ConvertToPseudoDist(db, glyph_curves[cb], p);
 
     float blend_amount = 1.0;
-
-    c_dist test_dos = CurvePointSignedDist(p, glyph_curves[1]);
-
-    float h = abs(d_test.d) / 1000.0;
-    //FragColor = vec4(d_test.t,d_test.t,d_test.t,1.0);
-
-    /*if (d_test.d > 0.0)
-        h = 1.0;
-    else 
-        h = 0.0;
-        */
-    FragColor = vec4(h,h,h,1.0);
-
-    //vec3 tRoots = vec3(0.0,0.0,0.0);
-
-    //Curve c = glyph_curves[0];
-
-    //vec2 p0 = c.p0, p1 = c.p1, p2 = c.p2;
-
-    //vec4 computeBase = c.compute_base;
-
-    /*float a = computeBase.x, b = computeBase.y, q = computeBase.z 
-                - 4.0 * (p0.y*p.y + p0.x*p.x)
-                + 8.0 * (p1.y*p.y + p1.x*p.x)
-                - 4.0 * (p2.y*p.y + p2.x*p.x), 
-            d = computeBase.w 
-                - 4.0 * (p1.y*p.y + p1.x*p.x) 
-                + 4.0 * (p0.y*p.y + p0.x*p.x);*/
-
-    //float a = computeBase.x, b = computeBase.y, q = computeBase.z, d = computeBase.w;
-
-    //const int nRoots = solve_re_cubic_32_a(
-           // a, 
-           // b,
-           // q,
-           // d,
-           // tRoots
-    //);
-
-    //float FFFFF = max(a + b, max(q, d));
-
-    //float FFFFF = max(a, max(b, q));
-
-    //FragColor = vec4(q / FFFFF, b / FFFFF, a / FFFFF, 1.0);
-
-    //tRoots.x = abs(tRoots.x);
-    //tRoots.y = abs(tRoots.y);
-    //tRoots.z = abs(tRoots.z);
-
-    //FragColor = vec4(min(1.0,tRoots.z),min(1.0,tRoots.y),min(1.0,tRoots.x),1.0);
-
-
-    //FragColor = colors[nRoots];
-
  
     FragColor = vec4(
         dr.d > 0 ? (((dr.d) / blend_amount) * 0.5 + 0.5) : 0,
