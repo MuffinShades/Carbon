@@ -1,12 +1,18 @@
 #version 430 core
 
 struct Curve {
-    vec2 p0, p1, p2;
+    vec2 p0;
+    int padd0[2];
+    vec2 p1;
+    int padd1[2];
+    vec2 p2;
+    int padd2[2];
     vec3 chroma;
+    int padd3;
     vec4 compute_base;
 };
 
-layout (std140, binding = 0) buffer GlyphCurves {
+layout (std430, binding = 0) buffer GlyphCurves {
     Curve glyph_curves[];
 };
 
@@ -32,11 +38,22 @@ vec2 dBdt3(vec2 p0, vec2 p1, vec2 p2, float t) {
     );
 }
 
-float curveOrtho(Curve c, vec2 p, float t) {
-    const vec2 b = vec2(
-        (1.0 * t) * (1.0 - t) * c.p0.x + 2.0 * (1.0 - t) * t * c.p1.x + t * t * c.p2.x,
-        (1.0 * t) * (1.0 - t) * c.p0.y + 2.0 * (1.0 - t) * t * c.p1.y + t * t * c.p2.y
+vec2 lerp(vec2 a, vec2 b, float t) {
+    return vec2(
+        a.x + t * (b.x - a.x),
+        a.y + t * (b.y - a.y)
     );
+}
+
+vec2 bz3(vec2 p0, vec2 p1, vec2 p2, float t) {
+    vec2 i0 = lerp(p0, p1, t),
+         i1 = lerp(p1, p2, t);
+
+    return lerp(i0, i1, t);
+}
+
+float curveOrtho(Curve c, vec2 p, float t) {
+    const vec2 b = bz3(c.p0, c.p1, c.p2, t);
     return abs(cross2(normalize(
         dBdt3(c.p0, c.p1, c.p2, t)
     ), normalize(
@@ -51,72 +68,57 @@ Cubic solver functions
 */
 const float one_third = 1.0 / 3.0;
 const float i9 = 1.0 / 9.0, i54 = 1.0 / 54.0;
-const float mu_pi = 3.14159265358979323846;
+const float mu_pi = 3.1415926;
 
-struct root_sln {
-    int n;
-    float roots[3];
-};
-
-//TODO: check cube root
 float cube_root_32(float v) {
-    if (v < 0.0)
-        return -pow(-v, one_third);
-    else
-        return pow(v, one_third);
+    return sign(v) * pow(abs(v), 1.0/3.0);
 }
 
-root_sln solve_linear_32(float a, float b) {
-    root_sln res;
-    res.n = 1;
-    res.roots[0] = -b/a;
-    return res;
+int solve_linear_32(float a, float b, out vec3 roots) {
+    roots.x = -b/a;
+    roots.y = 0;
+    roots.z = 0;
+    return 1;
 }
 
-root_sln solve_re_quadratic_32(float a, float b, float c) {
+int solve_re_quadratic_32(float a, float b, float c, out vec3 roots) {
     if (a == 0)
-        return solve_linear_32(b, c);
-
-    root_sln res;
+        return solve_linear_32(b, c, roots);
 
     const float i = b*b - 4.0*a*c;
 
-    if (i < 0.0) {
-        res.n = 0;
-        return res;
-    }
+    if (i < 0.0)
+        return 0;
     
     if (i == 0.0) {
-        res.roots[1] = -b / (2.0*a);
-        res.n = 1;
-        return res;
+        roots.x = -b / (2.0*a);
+        roots.y = 0;
+        roots.z = 0;
+        return 1;
     }
 
     const float r = sqrt(i);
-    const float i2a = 1.0 / (2.0 * a);
+    const float A = (2.0 * a);
 
-    res.roots[0] = (-b + r) * i2a;
-    res.roots[1] = (-b - r) * i2a;
-    res.n = 2;
-    return res;
+    roots.x = (-b + r) / A;
+    roots.y = (-b - r) / A;
+    roots.z = 0;
+
+    return 2;
 }
 
-root_sln solve_re_cubic_32_a(float a, float b, float c, float d) {
-    if (a == 0.0) return solve_re_quadratic_32(b, c, d);
+int solve_re_cubic_32_a(float a, float b, float c, float d, out vec3 roots) {
+    if (a == 0.0) return solve_re_quadratic_32(b, c, d, roots);
 
-    root_sln res;
-
-    const float ia = 1.0 / a;
-
-    b *= ia; c *= ia; d *= ia;
+    b /= a; c /= a; d /= a;
 
     float bs = b * b, 
-            q = (3.0 * c - bs) * i9,
-            r = (-(27.0 * d) + b * (9.0 * c - 2.0 * bs)) * i54,
+            q = (3.0 * c - bs) / 9.0,
+            r = (-(27.0 * d) + b * (9.0 * c - 2.0 * bs)) / 54.0,
             q3 = q*q*q,
             dis = q3 + r*r;
 
-    const float xi = (b * one_third);
+    const float xi = (b / 3.0);
 
     if (dis > 0) {
         const float root_dis = sqrt(dis);
@@ -124,21 +126,19 @@ root_sln solve_re_cubic_32_a(float a, float b, float c, float d) {
         float s = cube_root_32(r + root_dis);
         float t = cube_root_32(r - root_dis);
 
-        res.roots[0] = -xi + s + t;
-        res.roots[1] = 0.0;
-        res.roots[2] = 0.0;
-        res.n = 1;
-        return res;
+        roots.x = -xi + s + t;
+        roots.y = 0;
+        roots.z = 0;
+
+        return 1;
     }
 
     if (dis == 0.0) {
         const float crt_r = cube_root_32(r);
-        res.roots[0] = -xi + 2.0 * crt_r;
-        res.roots[2] = (res.roots[1] = (
-            -(crt_r + xi)
-        ));
-        res.n = 2;
-        return res;
+        roots.x = -xi + 2.0 * crt_r;
+        roots.y = -(crt_r + xi);
+        roots.z = roots.y;
+        return 2;
     }
 
     q *= -1.0;
@@ -149,12 +149,11 @@ root_sln solve_re_cubic_32_a(float a, float b, float c, float d) {
     const float rot_1 = 2.0 * mu_pi * one_third,
               rot_2 = 4.0 * mu_pi * one_third;
 
-    res.roots[0] = -xi + r13*cos(eta + 0);
-    res.roots[1] = -xi + r13*cos(eta + rot_1);
-    res.roots[2] = -xi + r13*cos(eta + rot_2);
-    res.n = 3;
+    roots.x = -xi + r13*cos(eta + 0);
+    roots.y = -xi + r13*cos(eta + rot_1);
+    roots.z = -xi + r13*cos(eta + rot_2);
 
-    return res;
+    return 3;
 }
 
 /*
@@ -167,8 +166,8 @@ EdgePointSignedDist but with curves cause yeah
 struct c_dist {
     float d;
     float t;
-    float extT[3];
-    int nExtT;
+    float roots[3];
+    int nroots;
 };
 
 c_dist CurvePointSignedDist(vec2 p, Curve c) {
@@ -176,7 +175,9 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
 
     vec4 computeBase = c.compute_base;
 
-    const root_sln roots = solve_re_cubic_32_a(
+    vec3 root_vec = vec3(0,0,0);
+
+    const int nRoots = solve_re_cubic_32_a(
             computeBase.x, 
             computeBase.y,
             computeBase.z 
@@ -185,21 +186,52 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
                 - 4.0 * (p2.y*p.y + p2.x*p.x),
             computeBase.w 
                 - 4.0 * (p1.y*p.y + p1.x*p.x) 
-                + 4.0 * (p0.y*p.y + p0.x*p.x)
+                + 4.0 * (p0.y*p.y + p0.x*p.x),
+            root_vec
     );
+
+    float roots[3] = {root_vec.x, root_vec.y, root_vec.z};
 
     c_dist rd;
 
+    rd.roots = roots;
+    rd.nroots = nRoots;
+    //rd.nExtT = 0;
+
     //check the roots
     int j;
-    float t, t_i, alpha, beta, gamma, dx, dy, D, d_best = f_inf, dx_best, dy_best, t_best;
-    for (j = 0; j < roots.n; j++) {
-        t = roots.roots[j];
+    float t, t_i, alpha, beta, gamma, dx, dy, D, d_best, t_best, t_out;
+    vec2 d_vec;
 
-        if (t > 1.0 || t < 0.0) {
-            rd.extT[rd.nExtT++] = t;
+    //check endpoints
+    //basically just computes the time for the end pionts based on a pseudo dist and the dist based on normal dist
+    vec2 ip = c.p0 - p, fp = c.p2 - p, d0 = dBdt3(c.p0, c.p1, c.p2, 0.0), d1 = dBdt3(c.p0, c.p1, c.p2, 1.0), 
+         ese0 = d0 - c.p0, ese1 = c.p2 - d1;
+    
+    //t = 0
+    //this works by just finding the perpendicular to a line segment going from p0 to p0  + derivative of curve at t = 0
+    //if t < 0 then we know it is a pseudo distance, the exact value of t doesnt matter in this case rather it is just used as a sign
+    d_best = dot(ip,ip);
+    t_out = -dot(ip, ese0) / dot(ese0, ese0);
+    t_best = 0.0;
+    d_vec = ip;
+
+    //t = 1
+    //same thing goes as previous but instead it's a curve / line segment defined from p2 - its derivative -> p2
+    //this time checking for t > 1.0 since if it is greater than 1 than it is again a pseudo distance
+    float eDist = dot(fp, fp);
+    if (eDist < d_best) {
+        d_best = eDist;
+        t_best = 1.0;
+        t_out = dot(fp, ese1) / dot(ese1, ese1);
+        d_vec = fp;
+    }
+
+    for (j = 0; j < nRoots; j++) {
+        t = roots[j];
+
+        if (t > 1.0 || t < 0.0)
             continue;
-        }
 
         //check root compatibility
         t_i = 1.0 - t;
@@ -212,70 +244,61 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
 
         if (D < d_best) {
             d_best = D;
-            dx_best = dx;
-            dy_best = dy;
+            d_vec = vec2(dx, dy);
             t_best = t;
-        }
-    }
-
-    //check le endpoints
-    const float ePoints[2] = {0.0, 1.0};
-
-    for (j = 0; j < 2; j++) {
-        t = ePoints[j];
-        t_i = 1.0 - t;
-        alpha = t_i * t_i;
-        beta = 2.0 * t_i * t;
-        gamma = t * t;
-        dx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p.x;
-        dy = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p.y;
-        D = dx*dx + dy*dy;
-
-        if (D < d_best) {
-            d_best = D;
-            dx_best = dx;
-            dy_best = dy;
-            t_best = t;
+            t_out = t;
         }
     }
 
     //return computed distance
-    float s_dist = sign(cross2(dBdt3(c.p0, c.p1, c.p2, t_best), vec2(dx_best, dy_best))) * sqrt(d_best);
-
+    float s_dist = sign(cross2(dBdt3(c.p0, c.p1, c.p2, t_best), d_vec)) * sqrt(d_best);
+    
     rd.d = s_dist;
-    rd.t = t_best;
+    rd.t = t_out;
 
     return rd;
 }
 
 c_dist ConvertToPseudoDist(c_dist d, Curve c, vec2 p) {
-    if (d.nExtT <= 0) return d;
+    //p0
+    //basically extend using ray method and find distance
+    //checks for the weird t values from the CurvePointSignedDist then solves for the actual time and distance from point to extended curve instead of a end point
+    //TODO: optimize ts
+    if (d.t < 0.0) {
+        //derivative is p1, p0 is p0
+        vec2 dr = dBdt3(c.p0, c.p1, c.p2, 0.0);
+        vec2 p1 = c.p0 + dr;
+        vec2 p0 = c.p0;
+        vec2 e = p1 - p0;
+        float t = -dot(p - p0, e) / dot(e, e);
 
-    if (d.nExtT > 3) d.nExtT = 3;
+        if (t < 0.0) {
+            float pd = abs(cross2(p, e) - cross2(p0, p1)) / e.length();
 
-    float t, t_i, alpha, beta, gamma, dx, dy, D, d_best = d.d * d.d, dx_best, dy_best, t_best;
+            if (pd < abs(d.d)) {
+                d.d = sign(cross2(e, (p0 + dr * t) - p)) * pd;
+                d.t = t;
+            }
+        }
+    } 
+    //p1
+    else if (d.t > 1.0) {
+        //derivative is p0, p2 is p1
+        vec2 dr = dBdt3(c.p0, c.p1, c.p2, 0.0);
+        vec2 p0 = c.p2 - dr;
+        vec2 p1 = c.p2;
+        vec2 e = p1 - p0;
+        float t = -dot(p - p0, e) / dot(e, e);
 
-    for (int i = 0; i < d.nExtT; i++) {
-        t_i = 1.0 - t;
-        alpha = t_i * t_i;
-        beta = 2.0 * t_i * t;
-        gamma = t * t;
-        dx = (alpha * c.p0.x + beta * c.p1.x + gamma * c.p2.x) - p.x;
-        dy = (alpha * c.p0.y + beta * c.p1.y + gamma * c.p2.y) - p.y;
-        D = dx*dx + dy*dy;
+        if (t > 1.0) {
+            float pd = abs(cross2(p, e) - cross2(p0, p1)) / e.length();
 
-        if (D < d_best) {
-            d_best = D;
-            dx_best = dx;
-            dy_best = dy;
-            t_best = t;
+            if (pd < abs(d.d)) {
+                d.d = sign(cross2(e, (p0 + dr * t) - p)) * pd;
+                d.t = t;
+            }
         }
     }
-
-    float s_dist = sign(cross2(dBdt3(c.p0, c.p1, c.p2, t_best), vec2(dx_best, dy_best))) * sqrt(d_best);
-
-    d.d = s_dist;
-    d.t = t_best;
 
     return d;
 }
@@ -292,16 +315,22 @@ void main() {
     vec2 padd_const = vec2(1.0 + padding.x + padding.z, 1.0 + padding.y + padding.w);
 
     vec2 p = vec2(
-        (posf.x - padding.x - region.x) * (gw * padd_const.x) + glyphDim.x,
-        (posf.y - padding.y - region.y) * (gh * padd_const.y) + glyphDim.y
+        (posf.x - padding.x - region.x) / (region.z - region.x) * (gw * padd_const.x) + glyphDim.x,
+        (posf.y - padding.y - region.y) / (region.w - region.y) * (gh * padd_const.y) + glyphDim.y
+    );
+
+    p = vec2(
+        (posf.x - region.x) / (region.z - region.x) * gw + glyphDim.x,
+        (posf.y - region.y) / (region.w - region.y) * gh + glyphDim.y
     );
 
     int i;
 
-    c_dist dr,dg,db;
+    c_dist dr,dg,db, d_test;
     dr.d = f_inf;
     dg.d = f_inf;
     db.d = f_inf;
+    d_test.d = f_inf;
 
     int cr, cg, cb;
 
@@ -313,12 +342,12 @@ void main() {
         tCurve = glyph_curves[i];
         c_dist d = CurvePointSignedDist(p, tCurve);
 
-        float ddr = d.d - dr.d, ddg = d.d - dg.d, ddb = d.d - db.d;
+        float ddr = abs(d.d) - abs(dr.d), ddg = abs(d.d) - abs(dg.d), ddb = abs(d.d) - abs(db.d), ddd = abs(d.d) - abs(d_test.d);
 
         if (tCurve.chroma.x != 0 && (
                 ddr < -mu_epsil ||
                 (ddr > -mu_epsil && ddr < mu_epsil && 
-                    curveOrtho(tCurve, p, d.t) > curveOrtho(tCurve, p, dr.t)
+                    curveOrtho(tCurve, p, d.t) > curveOrtho(glyph_curves[cr], p, dr.t)
                 )
         )) {
             dr = d;
@@ -328,7 +357,7 @@ void main() {
         if (tCurve.chroma.y != 0 && (
                 ddg < -mu_epsil ||
                 (ddg > -mu_epsil && ddg < mu_epsil && 
-                    curveOrtho(tCurve, p, d.t) > curveOrtho(tCurve, p, dg.t)
+                    curveOrtho(tCurve, p, d.t) > curveOrtho(glyph_curves[cg], p, dg.t)
                 )
         )) {
             dg = d;
@@ -338,13 +367,24 @@ void main() {
         if (tCurve.chroma.z != 0 && (
                 ddb < -mu_epsil ||
                 (ddb > -mu_epsil && ddb < mu_epsil && 
-                    curveOrtho(tCurve, p, d.t) > curveOrtho(tCurve, p, db.t)
+                    curveOrtho(tCurve, p, d.t) > curveOrtho(glyph_curves[cb], p, db.t)
                 )
         )) {
             db = d;
             cb = i;
         }
+
+        if (ddd < -mu_epsil) {
+            d_test = d;
+        }
     }
+
+    vec4 colors[] = {
+        vec4(1.0, 0.0, 0.0, 1.0),
+        vec4(0.0, 1.0, 0.0, 1.0),
+        vec4(0.0, 0.0, 1.0, 1.0),
+        vec4(1.0, 1.0, 0.0, 1.0)
+    };
 
     //now compute the final color and output it
     dr = ConvertToPseudoDist(dr, glyph_curves[cr], p);
@@ -352,23 +392,65 @@ void main() {
     db = ConvertToPseudoDist(db, glyph_curves[cb], p);
 
     float blend_amount = 1.0;
+
+    c_dist test_dos = CurvePointSignedDist(p, glyph_curves[1]);
+
+    float h = abs(d_test.d) / 1000.0;
+    //FragColor = vec4(d_test.t,d_test.t,d_test.t,1.0);
+
+    /*if (d_test.d > 0.0)
+        h = 1.0;
+    else 
+        h = 0.0;
+        */
+    FragColor = vec4(h,h,h,1.0);
+
+    //vec3 tRoots = vec3(0.0,0.0,0.0);
+
+    //Curve c = glyph_curves[0];
+
+    //vec2 p0 = c.p0, p1 = c.p1, p2 = c.p2;
+
+    //vec4 computeBase = c.compute_base;
+
+    /*float a = computeBase.x, b = computeBase.y, q = computeBase.z 
+                - 4.0 * (p0.y*p.y + p0.x*p.x)
+                + 8.0 * (p1.y*p.y + p1.x*p.x)
+                - 4.0 * (p2.y*p.y + p2.x*p.x), 
+            d = computeBase.w 
+                - 4.0 * (p1.y*p.y + p1.x*p.x) 
+                + 4.0 * (p0.y*p.y + p0.x*p.x);*/
+
+    //float a = computeBase.x, b = computeBase.y, q = computeBase.z, d = computeBase.w;
+
+    //const int nRoots = solve_re_cubic_32_a(
+           // a, 
+           // b,
+           // q,
+           // d,
+           // tRoots
+    //);
+
+    //float FFFFF = max(a + b, max(q, d));
+
+    //float FFFFF = max(a, max(b, q));
+
+    //FragColor = vec4(q / FFFFF, b / FFFFF, a / FFFFF, 1.0);
+
+    //tRoots.x = abs(tRoots.x);
+    //tRoots.y = abs(tRoots.y);
+    //tRoots.z = abs(tRoots.z);
+
+    //FragColor = vec4(min(1.0,tRoots.z),min(1.0,tRoots.y),min(1.0,tRoots.x),1.0);
+
+
+    //FragColor = colors[nRoots];
+
  
-    /*FragColor = vec4(
-       (((dr.d) / blend_amount) * 0.5 + 0.5),
-        (((dg.d) / blend_amount) * 0.5 + 0.5),
-        (((db.d) / blend_amount) * 0.5 + 0.5),
+    FragColor = vec4(
+        dr.d > 0 ? (((dr.d) / blend_amount) * 0.5 + 0.5) : 0,
+        dg.d > 0 ? (((dg.d) / blend_amount) * 0.5 + 0.5) : 0,
+        db.d > 0 ? (((db.d) / blend_amount) * 0.5 + 0.5) : 0,
         1.0
-    );*/
-
-
-    /*vec4 colors[] = {
-        vec4(1.0, 0.0, 0.0, 1.0),
-        vec4(0.0, 1.0, 0.0, 1.0),
-        vec4(0.0, 0.0, 1.0, 1.0),
-        vec4(1.0, 1.0, 0.0, 1.0)
-    };
-
-    root_sln dbg_sln = solve_re_cubic_32_a(17, 2, 12, 15);
-
-    FragColor = vec4(abs(dbg_sln.roots[0]), 1.0, 1.0, 1.0);*/
+    );
 }

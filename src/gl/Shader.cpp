@@ -54,7 +54,9 @@ Shader::Shader(const char *vertex_data, const char *fragment_data) {
 	glLinkProgram(this->PGRM);
 	//check errors
 	__error_check(this->PGRM, ShaderType::program);
+    
 
+    std::cout << "Shader gen done" << std::endl;
 	//delete shaders since were done
 	//glDeleteShader(vertex);
 	//glDeleteShader(fragment);
@@ -91,8 +93,8 @@ i32 Shader::SetVec4(std::string label, vec4 *v) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform4f(loc, v->x, v->y, v->z, v->w);
 

@@ -77,6 +77,7 @@ extern "C" {
 struct MsdfGpuContext {
     FrameBuffer fb;
     graphics g;
+    u32 curveBuffer = 0;
     bool good = false;
 };
 

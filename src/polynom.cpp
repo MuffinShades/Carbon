@@ -80,7 +80,7 @@ i32 solve_re_quadratic_32(f32 a, f32 b, f32 c, f32 re_roots[2]) {
         return 0;
     
     if (i == 0.0f) {
-        re_roots[1] = -b / (2.0f*a);
+        re_roots[0] = -b / (2.0f*a);
         return 1;
     }
 

@@ -149,7 +149,7 @@ void graphics::push_verts(void *v, size_t n) {
         return;
     }
 
-    std::cout << "Adding: " << n << " verts" << std::endl;
+    //std::cout << "Adding: " << n << " verts" << std::endl;
 
     in_memcpy(
         ((byte*)cur_state->vmem) + (this->_c_vert * vos),
