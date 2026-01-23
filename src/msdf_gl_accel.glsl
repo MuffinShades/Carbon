@@ -48,18 +48,11 @@ vec2 dBdt3(vec2 p0, vec2 p1, vec2 p2, float t) {
     );
 }
 
-vec2 lerp(vec2 a, vec2 b, float t) {
-    return vec2(
-        a.x + t * (b.x - a.x),
-        a.y + t * (b.y - a.y)
-    );
-}
-
 vec2 bz3(vec2 p0, vec2 p1, vec2 p2, float t) {
-    vec2 i0 = lerp(p0, p1, t),
-         i1 = lerp(p1, p2, t);
+    vec2 i0 = mix(p0, p1, t),
+         i1 = mix(p1, p2, t);
 
-    return lerp(i0, i1, t);
+    return mix(i0, i1, t);
 }
 
 float curveOrtho(Curve c, vec2 p, float t) {
@@ -191,12 +184,12 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
             computeBase.x, 
             computeBase.y,
             computeBase.z 
-                - 4.0 * (p0.y*p.y + p0.x*p.x)
-                + 8.0 * (p1.y*p.y + p1.x*p.x)
-                - 4.0 * (p2.y*p.y + p2.x*p.x),
+                - 4.0 * dot(p0, p)
+                + 8.0 * dot(p1, p)
+                - 4.0 * dot(p2, p),
             computeBase.w 
-                - 4.0 * (p1.y*p.y + p1.x*p.x) 
-                + 4.0 * (p0.y*p.y + p0.x*p.x),
+                - 4.0 * dot(p1, p) 
+                + 4.0 * dot(p0, p),
             root_vec
     );
 
@@ -210,8 +203,8 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
 
     //check the roots
     int j;
-    float t, t_i, alpha, beta, gamma, dx, dy, D, d_best, t_best, t_out;
-    vec2 d_vec;
+    float t, t_i, alpha, beta, gamma, D, d_best, t_best, t_out;
+    vec2 d_vec, m;
 
     //check endpoints
     //basically just computes the time for the end pionts based on a pseudo dist and the dist based on normal dist
@@ -248,13 +241,15 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
         alpha = t_i * t_i;
         beta = 2.0 * t_i * t;
         gamma = t * t;
-        dx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p.x;
-        dy = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p.y;
-        D = dx*dx + dy*dy;
+        //dx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p.x;
+        //dy = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p.y;
+        m = alpha * p0 + beta * p1 + gamma * p2 - p;
+        //D = dx*dx + dy*dy;
+        D = dot(m,m);
 
         if (D < d_best) {
             d_best = D;
-            d_vec = vec2(dx, dy);
+            d_vec = m;
             t_best = t;
             t_out = t;
         }

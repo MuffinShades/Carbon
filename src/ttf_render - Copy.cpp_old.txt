@@ -338,22 +338,6 @@ f32 pointCross(Point a, Point b) {
     return a.x * b.y - a.y * b.x; 
 }
 
-f32 pointDot(Point a, Point b) {
-    return a.x * b.x + a.y * b.y;
-}
-
-Point pointAdd(Point a, Point b) {
-    return Point(a.x + b.x, a.y + b.y);
-}
-
-Point pointSub(Point a, Point b) {
-    return Point(a.x - b.x, a.y - b.y);
-}
-
-Point pointScale(Point a, f32 s) {
-    return Point(a.x * s, a.y * s);
-}
-
 f32 pointCrossNormal(Point a, Point b) {
     return (a.x * b.y - a.y * b.x) / (sqrtf(a.x * a.x + a.y * a.y) * sqrtf(b.x * b.x + b.y * b.y));
 }
@@ -394,6 +378,13 @@ struct PDistInfo {
     f32 dx = INFINITY,dy = INFINITY,d = INFINITY,t = 0.0f, true_t = 0.0f;
     BCurve curve;
     Point p;
+    struct {
+        f32 roots[3];
+        size_t nRoots;
+    } root_inf;
+    struct {
+        f32 a,b,c,d;
+    } cubic_dbg;
 };
 
 const PDistInfo pSquareDist(Point p0, Point p1) {
@@ -446,6 +437,9 @@ const inline PDistInfo bezier3_point_dist(BCurve b, Point p, f32 t) {
 PDistInfo EdgePointSignedDist(Point p, Edge& e, i32 maxCurvesTest = -1) {
     if (!e.curves || e.nCurves == 0) return {.d=INFINITY};
 
+    //constexpr size_t nCheckSteps = 256;
+    //constexpr f64 dt = 1.0f / (f32) nCheckSteps;
+
     PDistInfo d = {
         .d = INFINITY
     };
@@ -454,7 +448,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e, i32 maxCurvesTest = -1) {
 
     i32 c,i;
 
-    f32 roots[3] = {0,0,0};
+    f32 roots[5] = {0,1,0,0,0};
     f32 *root_pass = roots + 2;
 
     Point p0,p1,p2;
@@ -462,7 +456,7 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e, i32 maxCurvesTest = -1) {
     f32 alpha,beta,gamma,t2,t2_i;
     f64 dx,dy,_D;
 
-    f64 dx_best,dy_best,t_best,t_out,d_best = INFINITY;
+    f64 dx_best,dy_best,t_best,d_best = INFINITY;
     i32 best_c = -1;
 
     size_t _NC = e.nCurves;
@@ -475,10 +469,17 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e, i32 maxCurvesTest = -1) {
         p0 = tCurve->p[0]; p1 = tCurve->p[1]; p2 = tCurve->p[2];
 
         if (!tCurve->solve_inf.good) {
+            //TODO: compute the a_base, b_base, and c_base
+            // (bases are the terms computed on desmos that dont include the ref points)
+            // these terms are grabbed from function I
             tCurve->solve_inf.a_base = compute_a_base_coord(p0.x, p1.x, p2.x) + compute_a_base_coord(p0.y, p1.y, p2.y);
             tCurve->solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
             tCurve->solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
             tCurve->solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+
+            std::cout << "solve inf: " << tCurve->solve_inf.a_base << " " << tCurve->solve_inf.b_base << 
+            " " << tCurve->solve_inf.c_base << " " << tCurve->solve_inf.d_base; 
+            std::cout << std::endl;
             tCurve->solve_inf.good = true;
         }
 
@@ -502,30 +503,12 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e, i32 maxCurvesTest = -1) {
             std::cout << tCurve->solve_inf.a_base << " " << tCurve->solve_inf.b_base << " " << tCurve->solve_inf.c_base << " " << tCurve->solve_inf.d_base << "|" << p.x << " " << p.y << "\n--------------\n";
         }
 
-        const Point ip = pointSub(p0, p), fp = pointSub(p2, p), d0 = dBdt3(p0, p1, p2, 0.0f), d1 = dBdt3(p0, p1, p2, 1.0f), 
-              ese0 = pointSub(d0, p0), ese1 = pointSub(p2, d1);
+        //std::cout << nRoots << std::endl;
 
-        //t = 0
-        d_best = pointDot(ip, ip);
-        t_best = 0.0f;
-        t_out = -pointDot(ip, ese0) / pointDot(ese0, ese0);
-        dx_best = ip.x; dy_best = ip.y;
+        for (i = 2; i < nRoots+2; i++) {
+            t2 = (roots[i] > 1.0f) + (roots[i] >= 0.0f && roots[i] <= 1.0f) * roots[i];
 
-        //t = 1
-        f32 eDist = pointDot(fp, fp);
-
-        if (eDist < d_best) {
-            d_best = eDist;
-            t_best = 1.0;
-            t_out = pointDot(fp, ese1) / pointDot(ese1, ese1);
-            dx_best = fp.x;
-            dy_best = fp.y;
-        }
-
-        for (i = 0; i < nRoots; i++) {
-            t2 = roots[i];
-
-            if (t2 < 0.0f || t2 > 1.0f) continue;
+            //pd = bezier3_point_dist(tCurve, p, t2);
 
             t2_i = 1.0f - t2;
             alpha = t2_i * t2_i;
@@ -535,18 +518,25 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e, i32 maxCurvesTest = -1) {
             dx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p.x;
             dy = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p.y;
             _D = dx*dx + dy*dy;
+
+            //std::cout << _D << "\n";
             
             if (_D < d_best) {
                 dx_best = dx;
                 dy_best = dy;
                 best_c = c;
-                t_best = (t_out = t2);
+                t_best = t2;
                 d_best = _D;
+
+                in_memcpy(d.root_inf.roots, root_pass, sizeof(f32)*3);
+                d.root_inf.nRoots = nRoots;
             }
         }
     }
 
     if (_NC == 0 || best_c == -1) {
+        std::cout << _D << " " << d_best << " | " << a << " " << b << " " << f << " " << g << std::endl;
+
         return {
             .d = INFINITY
         };
@@ -556,13 +546,13 @@ PDistInfo EdgePointSignedDist(Point p, Edge& e, i32 maxCurvesTest = -1) {
 
     d.dx = dx_best;
     d.dy = dy_best;
-    d.t = t_out;
+    d.t = t_best;
     d.p = p;
     d.curve = bestCurve;
 
     //compute the signed distance
     d.d = mu_sign(pointCross(
-        dBdt3(bestCurve.p[0],bestCurve.p[1],bestCurve.p[2], t_best),
+        dBdt3(bestCurve.p[0],bestCurve.p[1],bestCurve.p[2],t_best),
         {(f32) dx_best, (f32) dy_best}
     )) * sqrtf(d_best);
 
@@ -626,6 +616,11 @@ PDistInfo FancyEdgePointSignedDist(Point p, Edge& e, f32 r) {
             tCurve->solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
             tCurve->solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
             tCurve->solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+
+            std::cout << "solve inf: " << tCurve->solve_inf.a_base << " " << tCurve->solve_inf.b_base << 
+            " " << tCurve->solve_inf.c_base << " " << tCurve->solve_inf.d_base; 
+            std::cout << std::endl;
+
             tCurve->solve_inf.good = true;
         }
 
@@ -649,8 +644,12 @@ PDistInfo FancyEdgePointSignedDist(Point p, Edge& e, f32 r) {
             std::cout << tCurve->solve_inf.a_base << " " << tCurve->solve_inf.b_base << " " << tCurve->solve_inf.c_base << " " << tCurve->solve_inf.d_base << "|" << p.x << " " << p.y << "\n--------------\n";
         }
 
+        //std::cout << nRoots << std::endl;
+
         for (i = 2; i < nRoots+2; i++) {
             t2 = (roots[i] > 1.0f) + (roots[i] >= 0.0f && roots[i] <= 1.0f) * roots[i];
+
+            //pd = bezier3_point_dist(tCurve, p, t2);
 
             t2_i = 1.0f - t2;
             alpha = t2_i * t2_i;
@@ -669,11 +668,19 @@ PDistInfo FancyEdgePointSignedDist(Point p, Edge& e, f32 r) {
                 best_c = c;
                 t_best = t2;
                 d_best = _D;
+
+                in_memcpy(d.root_inf.roots, root_pass, sizeof(f32)*3);
+                d.root_inf.nRoots = nRoots;
             }
         }
     }
 
     if (_NC == 0 || best_c == -1) {
+
+        //std::cout << "test diff: " << test_diff << std::endl;
+
+        //std::cout << _D << " " << d_best << " | " << a << " " << b << " " << f << " " << g << std::endl;
+
         return {
             .d = INFINITY
         };
@@ -716,6 +723,15 @@ CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) 
         curve->solve_inf.b_base = compute_b_base_coord(p0.x, p1.x, p2.x) + compute_b_base_coord(p0.y, p1.y, p2.y);
         curve->solve_inf.c_base = compute_c_base_coord(p0.x, p1.x, p2.x) + compute_c_base_coord(p0.y, p1.y, p2.y);
         curve->solve_inf.d_base = compute_d_base_coord(p0.x, p1.x, p2.x) + compute_d_base_coord(p0.y, p1.y, p2.y);
+
+        std::cout << "solve inf: " << curve->solve_inf.a_base << " " << curve->solve_inf.b_base << 
+            " " << curve->solve_inf.c_base << " " << curve->solve_inf.d_base; 
+            std::cout << std::endl;
+        std::cout << "curve data: (" 
+        << curve->p[0].x << ", " << curve->p[0].y << ") | (" 
+        << curve->p[1].x << ", " << curve->p[1].y << ") | ("
+        << curve->p[2].x << ", " << curve->p[2].y << ")" << std::endl;
+        std::cout << std::endl;
         curve->solve_inf.good = true;
     }
     
@@ -952,39 +968,229 @@ EdgeDistInfo MinEdgeDist(Point p, std::vector<Edge>& edges) {
     return inf;
 }
 
-void ConvertToPseudoDist(PDistInfo& d, Point p, BCurve c) {
-    if (d.t < 0.0f) {
-        Point dr = dBdt3(c.p[0], c.p[1], c.p[2], 0.0f);
-        Point p1 = pointAdd(c.p[0], dr);
-        Point p0 = c.p[0];
-        Point e = pointSub(p1, p0);
-        f32 em = pointDot(e,e), t = -pointDot(pointSub(p, p0), e) / em;
-        
-        if (t < 0.0f) {
-            f32 pd = fabs(pointCross(p, e) - pointCross(p0, p1)) / sqrtf(em);
+EdgeDistInfo MinEdgeChromaDist(Point p, std::vector<Edge> edges, uvec3 chroma_select) {
+    EdgeDistInfo inf = {
+        .signedDist = INFINITY
+    };
 
-            if (pd < fabs(d.d)) {
-                d.d = mu_sign(pointCross(e, pointSub((pointAdd(p0, pointScale(dr, t))),p))) * pd;
-                d.t = t;
-            }
+    f32 minAbsDist = INFINITY;
+    f32 sd, ad;
+    PDistInfo sdInf;
+    i32 eIdx = 0;
+
+    //TODO: turn this into just like a static buffer or something that is shared between all calls to MinEdgedist
+    //this takes up 11% of the execution time!!!
+    std::vector<EdgeDistInfo> duplicateEdges;
+
+    for (Edge e : edges) {
+        if (e.color.x * chroma_select.x + e.color.y * chroma_select.y + e.color.z * chroma_select.z == 0)
+            continue;
+
+        sdInf = EdgePointSignedDist(p, e);
+        sd = sdInf.d;
+        ad = abs(sd);
+
+        if (abs(ad - minAbsDist) <= 0.01f) {
+            EdgeDistInfo dInf = {
+                .tEdge = e,
+                .edgeIdx = (size_t) eIdx,
+                .signedDist = sdInf
+            };
+
+            duplicateEdges.push_back(dInf);
+        } else if (ad < minAbsDist) {
+            inf.tEdge = e;
+            inf.edgeIdx = eIdx;
+            inf.signedDist = sdInf;
+            minAbsDist = ad;
+            duplicateEdges.clear();
         }
-    } else if (d.t > 1.0f) {
-        Point dr = dBdt3(c.p[0], c.p[1], c.p[2], 0.0f);
-        Point p1 = pointAdd(c.p[2], dr);
-        Point p0 = c.p[2];
-        Point e = pointSub(p1, p0);
-        f32 em = pointDot(e,e), t = -pointDot(pointSub(p, p0), e) / em;
-        
-        if (t < 0.0f) {
-            f32 pd = fabs(pointCross(p, e) - pointCross(p0, p1)) / sqrtf(em);
 
-            if (pd < fabs(d.d)) {
-                d.d = mu_sign(pointCross(e, pointSub((pointAdd(p0, pointScale(dr, t))),p))) * pd;
-                d.t = t;
+        eIdx++;
+    }
+
+    const size_t nDuplicates = duplicateEdges.size();
+
+    //if there are duplicate distances then we need to maximize orthogonality between edges
+    if (nDuplicates > 0) {
+        f32 maxOrtho = curveOrtho(inf.signedDist.curve, p, inf.signedDist.t), eOrtho;
+
+        for (EdgeDistInfo e : duplicateEdges) {
+            eOrtho = curveOrtho(e.signedDist.curve, p, e.signedDist.t);
+
+            if (eOrtho > maxOrtho){
+                inf = e;
+                maxOrtho = eOrtho;
             }
         }
     }
+
+    if (nDuplicates > 0) inf.dbgVal = 1;
+
+    return inf;
 }
+
+EdgeDistInfo MinEdgePseudoDist(Point p, std::vector<Edge> edges) {
+    EdgeDistInfo e = MinEdgeDist(p, edges);
+
+    //compute the pseudo distance
+    PDistInfo dist = e.signedDist;
+
+    i32 i;
+
+    //recompute with high derivative
+    if (dist.t >= 1.0f) {
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] > 1.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    } 
+    //recompute with lower derivative
+    else if (dist.t <= 0.0f) {
+        f32 gRoot = dist.t;
+
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] < 0.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    }
+
+    e.signedDist = dist;
+
+    return e;
+}
+
+
+PDistInfo EdgePseudoDist(Point p, Edge edge) {
+    PDistInfo dist = EdgePointSignedDist(p, edge);
+
+    i32 i;
+
+    //recompute with high derivative
+    if (dist.t >= 1.0f) {
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] > 1.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    } 
+    //recompute with lower derivative
+    else if (dist.t <= 0.0f) {
+        f32 gRoot = dist.t;
+
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] < 0.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    }
+
+    return dist;
+}
+
+PDistInfo EdgePseudoDistFast(Point p, PDistInfo D) {
+    i32 i;
+
+    PDistInfo dist = D;
+
+    if (dist.t > 1.0f) {
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] > 1.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    }
+    else if (dist.t < 0.0f) {
+        f32 gRoot = dist.t;
+
+        PDistInfo pd, gDist = dist;
+
+        for (i = 0; i < dist.root_inf.nRoots; ++i) {
+            if (dist.root_inf.roots[i] < 0.0f) {
+                pd = bezier3_point_dist(dist.curve, p, dist.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        dist = gDist;
+    }
+
+    return dist;
+}
+
+void EdgeDistToPsuedoDist(PDistInfo& d) {
+    i32 i;
+
+    if (d.t > 1.0f) {
+        PDistInfo pd, gDist = d;
+
+        for (i = 0; i < d.root_inf.nRoots; ++i) {
+            if (d.root_inf.roots[i] > 1.0f) {
+                pd = bezier3_point_dist(d.curve, d.p, d.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        d = gDist;
+    }
+    else if (d.t < 0.0f) {
+        f32 gRoot = d.t;
+
+        PDistInfo pd, gDist = d;
+
+        for (i = 0; i < d.root_inf.nRoots; ++i) {
+            if (d.root_inf.roots[i] < 0.0f) {
+                pd = bezier3_point_dist(d.curve, d.p, d.root_inf.roots[i]);
+
+                if (pd.d < gDist.d)
+                    gDist = pd;
+            }
+        }
+
+        d = gDist;
+    }
+}   
 
 std::vector<Edge> generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoints) {
     std::vector<Edge> glyphEdges;
@@ -1405,6 +1611,122 @@ i32 ttfRender::RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
 
             bmp->data[p+by_pp-1] = 0xff;        
         }
+    }
+
+    return 0;
+}
+
+i32 ttfRender::RenderGlyphPseudoSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
+    if (!map)
+        return 1;
+
+    //do some dimension calculations
+    u32 sdfW = 0, sdfH = 0;
+
+    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
+              glyphH = tGlyph.yMax - tGlyph.yMin,
+              glyphYxRatio = glyphH / glyphW;
+
+    switch (size.slc) {
+    case sdf_dim_ty::Width:
+        map->header.w = (sdfW = size.m.w);
+        map->header.h = (sdfH = (size_t) ceil(sdfW * glyphYxRatio));
+        break;
+    case sdf_dim_ty::Height:
+        map->header.h = (sdfH = size.m.h);
+        map->header.w = (sdfW = (size_t) ceil(sdfH / glyphYxRatio));
+        break;
+    case sdf_dim_ty::Scale:
+        map->header.h = (sdfH = size.m.scale * glyphH);
+        map->header.w = (sdfW = size.m.scale * glyphW);
+        break;
+    }
+
+    //clean the glyph up
+    gPData cleanDat = cleanGlyphPoints(tGlyph);
+
+    //get num points
+    const size_t nPoints = cleanDat.p.size();
+
+    map->header.bitsPerPixel = 32;
+    map->header.fSz = map->header.h * map->header.w * 4;
+
+    byte *bmpData = new byte[map->header.fSz];
+    ZeroMem(bmpData, map->header.fSz);
+
+    //blank glyph so blank sdf
+    if (nPoints == 0)
+        return 0;
+
+    map->data = bmpData;
+
+    //curve and edge generation, glyph clean up, and more
+
+    std::vector<Edge> glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+
+    //generate single channel sdf
+    i32 x,y;
+
+    const f32
+        wc = glyphW / (f32) sdfW,
+        hc = glyphH / (f32) sdfH;
+        //maxPossibleDist = sqrtf(glyphW*glyphW + glyphH*glyphH);
+
+    byte color;
+
+    f32 *distBuffer = new f32[sdfW * sdfH]; //i hate this so much
+
+    f32 maxDist = smol_number; //smol number
+    f32 d;
+
+    Point p;
+
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
+            p.x = (((f32)x) + 0.5f) * wc + tGlyph.xMin;
+            p.y = (((f32)y) + 0.5f) * hc + tGlyph.yMin;
+
+            EdgeDistInfo fieldDist = MinEdgePseudoDist(p, glyphEdges);
+
+            distBuffer[x + y * sdfW] = (d = fieldDist.signedDist.d);
+
+            //this is why i need that damn buffer
+            d = abs(d);
+            maxDist = mu_max(maxDist, d);
+        }
+    }
+
+    size_t distIdx;
+
+    //i dont want to do it again but maxPossibleDist is being a bitch
+    for (y = 0; y < sdfH; ++y) {
+        for (x = 0; x < sdfW; ++x) {
+            distIdx = x+y*sdfW;
+            d = distBuffer[distIdx];
+
+            color = mu_min(
+                mu_max(
+                    (d / /*maxPossibleDist*/ (maxDist*2)) * 128.0f + 127, 0),
+            255);
+
+            const size_t mp = distIdx << 2;
+
+            if (mp + 3 >= map->header.fSz)
+                continue;
+
+            map->data[mp+0] = color;
+            map->data[mp+1] = color;
+            map->data[mp+2] = color;
+            map->data[mp+3] = 255;
+        }
+    }
+
+    delete[] distBuffer; //wow!
+
+    //oh look were managing memory :O
+    for (Edge e : glyphEdges) {
+        _safe_free_a(e.curves);
+        e.nCurves = 0;
     }
 
     return 0;
