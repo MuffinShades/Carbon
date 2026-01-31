@@ -27,13 +27,11 @@ layout (std430, binding = 0) buffer GlyphCurves {
 };
 
 uniform int nCurves;
-uniform vec4 padding;
-uniform vec4 region;
-uniform vec4 glyphDim;
 
 out vec4 FragColor;
 
 in vec2 posf;
+in ivec2 curve_range;
 
 const float f_inf = 1.0 / 0.0;
 
@@ -169,8 +167,6 @@ EdgePointSignedDist but with curves cause yeah
 struct c_dist {
     float d;
     float t;
-    float roots[3];
-    int nroots;
 };
 
 c_dist CurvePointSignedDist(vec2 p, Curve c) {
@@ -196,9 +192,6 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
     float roots[3] = {root_vec.x, root_vec.y, root_vec.z};
 
     c_dist rd;
-
-    rd.roots = roots;
-    rd.nroots = nRoots;
     //rd.nExtT = 0;
 
     //check the roots
@@ -314,7 +307,7 @@ Compute the stuff here
 
 */
 void main() {
-    const float gw = glyphDim.z - glyphDim.x,
+    /*const float gw = glyphDim.z - glyphDim.x,
                 gh = glyphDim.w - glyphDim.y;
 
     vec2 padd_const = vec2(1.0 + padding.x + padding.z, 1.0 + padding.y + padding.w);
@@ -327,7 +320,9 @@ void main() {
     p = vec2(
         (posf.x - region.x) / (region.z - region.x) * gw + glyphDim.x,
         (posf.y - region.y) / (region.w - region.y) * gh + glyphDim.y
-    );
+    );*/
+
+    const vec2 p = posf;
 
     int i;
 
@@ -343,7 +338,7 @@ void main() {
 
     Curve tCurve;
 
-    for (i = 0; i < nCurves; i++) {
+    for (i = curve_range.x; i < curve_range.y; i++) {
         tCurve = glyph_curves[i];
         c_dist d = CurvePointSignedDist(p, tCurve);
 

@@ -631,6 +631,11 @@ void graphics::defineVertexPart(i32 n, __mu_glVInf inf) {
     glVertexAttribPointer(n, inf.p_sz / sizeof(f32), GL_FLOAT, 0, inf.sz, (void*)inf.off);
 }
 
+void graphics::defineIntegerVertexPart(i32 n, __mu_glVInf inf) {
+    glEnableVertexAttribArray(n); 
+    glVertexAttribIPointer(n, inf.p_sz / sizeof(i32), GL_INT, inf.sz, (void*)inf.off);
+}
+
 Bitmap FrameBuffer::extractBitmap() {
     if (!this->handle || this->w == 0 || this->h == 0)
         return {};
@@ -657,4 +662,39 @@ Bitmap FrameBuffer::extractBitmap() {
     std::cout << "reading: " << this->w << " " << this->h << std::endl;
 
     return bmp;
+}
+
+void FrameBuffer::extractToBitmap(Bitmap *map) {
+    if (!map ) return;
+
+    const size_t readW = mu_min(this->w, map->header.w), readH = mu_min(this->h, map->header.h);
+
+    if (!map->data) {
+        map->header.w = this->w;
+        map->header.h = this->h;
+        map->header.bitsPerPixel = 32;
+
+        map->data = new byte[this->w * this->h * 4];
+
+        glReadPixels(0, 0, this->w, this->h, GL_RGBA, GL_UNSIGNED_BYTE, map->data);
+    } else {
+        if (map->header.w == 0 || map->header.h == 0) return;
+
+        switch (map->header.bitsPerPixel) {
+        case 8:
+            glReadPixels(0, 0, readW, readH, GL_R, GL_UNSIGNED_BYTE, map->data);
+            break;
+        case 16:
+            glReadPixels(0, 0, readW, readH, GL_RG, GL_UNSIGNED_BYTE, map->data);
+            break;
+        case 24:
+            glReadPixels(0, 0, readW, readH, GL_RGB, GL_UNSIGNED_BYTE, map->data);
+            break;
+        case 32:
+            glReadPixels(0, 0, readW, readH, GL_RGBA, GL_UNSIGNED_BYTE, map->data);
+            break;
+        default:
+            std::cout << "Failed to write framebuffer to bitmap! Strange bit depth: " << map->header.bitsPerPixel << std::endl;
+        }
+    }
 }

@@ -110,7 +110,7 @@ public:
 
     MSFL_EXP static void _msdfRenderDebug(Glyph g, MsdfGpuContext** ctx);
 
-    MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size, );
+    MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size, bool accel = false);
 };
 
 #ifdef MSFL_DLL

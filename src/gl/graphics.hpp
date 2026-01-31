@@ -70,6 +70,7 @@ public:
             glDeleteFramebuffers(1, &this->handle); 
     }
     Bitmap extractBitmap();
+    void extractToBitmap(Bitmap *map);
     friend class graphics;
 
     OutputDevice *device() {
@@ -176,6 +177,7 @@ public:
 
     void vertexStructureDefineBegin(size_t vObjSz);
     void defineVertexPart(i32 n, __mu_glVInf inf);
+    void defineIntegerVertexPart(i32 n, __mu_glVInf inf);
     void vertexStructureDefineEnd();
 
     void enableIndicies();
