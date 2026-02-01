@@ -1591,7 +1591,11 @@ MsdfCurve BtoMsdfCurve(BCurve c, uvec3 color) {
     mc.p[2] = c.p[2];
 
     mc.bounds = c.bounds;
-    mc.solve_inf = c.solve_inf;
+    mc.solve_inf.a_base = c.solve_inf.a_base;
+    mc.solve_inf.b_base = c.solve_inf.b_base;
+    mc.solve_inf.c_base = c.solve_inf.c_base;
+    mc.solve_inf.d_base = c.solve_inf.d_base;
+    mc.solve_inf.good = c.solve_inf.good;
 
     return mc;
 }
