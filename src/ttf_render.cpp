@@ -10,6 +10,7 @@
 #include <vector>
 
 #define MSFL_TTFRENDER_DEBUG
+#define COMMA ,
 
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 
@@ -2640,7 +2641,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     msdf_gen_shader.SetVec4("glyphDim", &glyph_dim_vec);
 
     //render
-    msdf_vert out_rect[] = RECT_VERTS(region_vec.x, region_vec.y, region_vec.z, region_vec.w, 0.0);
+    msdf_vert out_rect[] = RECT_VERTS(region_vec.x, region_vec.y, region_vec.z, region_vec.w, 0.0 COMMA glyph_dim_vec.x COMMA glyph_dim_vec.y COMMA glyph_dim_vec.x COMMA glyph_dim_vec.w);
 
     ctx->g.render_begin();
     ctx->g.push_verts(out_rect, sizeof(out_rect) / sizeof(msdf_vert));
@@ -2676,16 +2677,31 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
     const size_t nChannels = 4;
 
     Glyph tg;
+    CharSpritePos g_pos;
+    f32 gw,gh;
 
     i32 i;
 
     size_t dat_collect;
 
+    ctx->g.render_begin();
+
     for (i = 0; i < nGlyphs; i++) {
+        if (/*vert space check*/) {
+            ctx->g.render_flush();
+            ctx->g.render_begin();
+        }
+
+        tg = tGlyphs[i];
+        g_pos = pos[i];
+
+        gw = tg.xMax - tg.xMin;
+        gh = tg.yMax - tg.yMin;
+
         MsdfGenContext g_ctx = CreateMsdfGenContext(tg, true);
 
         //clean the glyph up
-    
+
 
         //compute some dimensions
         i32 x,y;
@@ -2695,18 +2711,14 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
         u32 paddingX = padding * 2,
             paddingY = paddingX;
 
-        while (regionW <= paddingX && paddingX >= 2)
+        while (g_pos.w <= paddingX && paddingX >= 2)
             paddingX -= 2;
 
-        while (regionH <= paddingY && paddingY >= 2)
+        while (g_pos.h <= paddingY && paddingY >= 2)
             paddingY -= 2;
 
-        if (regionW <= paddingX || regionH <= paddingY || paddingX < 0 || paddingY < 0)
-            return 1; //no room ;-;
-
-        const f32
-            wc = glyphW / (f32) (regionW - paddingX),
-            hc = glyphH / (f32) (regionH - paddingY);
+        if (g_pos.w <= paddingX || g_pos.h <= paddingY || paddingX < 0 || paddingY < 0)
+            continue; //no room ;-;
 
         //graphics setup
 
@@ -2731,21 +2743,18 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
               space_normal_y = 1.0f / ctx->fb.h;
 
         //set le uniforms
-        vec4 padding_vec = vec4(padding / regionW, padding / regionH, padding / regionW, padding / regionH);
-        vec4 region_vec = vec4(regionX * space_normal_x, regionY * space_normal_y, regionW * space_normal_x, regionH * space_normal_y);
-        vec4 glyph_dim_vec = vec4(tGlyph.xMin, tGlyph.yMin, tGlyph.xMax, tGlyph.yMax);
+        vec4 region_vec = vec4(g_pos.x * space_normal_x, g_pos.y * space_normal_y, g_pos.w * space_normal_x, g_pos.h * space_normal_y);
+        vec4 scan_rgn = vec4(tg.xMin, tg.yMin, tg.xMax, tg.yMax);
 
         msdf_gen_shader.SetInt("nCurves", g_ctx.nCurves);
-        msdf_gen_shader.SetVec4("padding", &padding_vec);
-        msdf_gen_shader.SetVec4("region", &region_vec);
-        msdf_gen_shader.SetVec4("glyphDim", &glyph_dim_vec);
 
         //render
-        msdf_vert out_rect[] = RECT_VERTS(region_vec.x, region_vec.y, region_vec.z, region_vec.w, 0.0);
+        msdf_vert out_rect[] = RECT_VERTS(
+            region_vec.x, region_vec.y, region_vec.z, region_vec.w, 
+            0.0 COMMA
+            scan_rgn.x COMMA scan_rgn.y COMMA scan_rgn.z COMMA scan_rgn.w);
 
-        ctx->g.render_begin();
-        ctx->g.push_verts(out_rect, sizeof(out_rect) / sizeof(msdf_vert));
-        ctx->g.render_flush();
+        ctx->g.push_verts(out_rect, sizeof(out_rect) / sizeof(msdf_vert))
 
         DeleteMsdfGenContext(&g_ctx);
     }
