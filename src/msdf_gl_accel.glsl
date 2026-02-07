@@ -26,12 +26,10 @@ layout (std430, binding = 0) buffer GlyphCurves {
     Curve glyph_curves[];
 };
 
-uniform int nCurves;
-
 out vec4 FragColor;
 
 in vec2 posf;
-in ivec2 curve_range;
+in flat ivec2 curve_range;
 
 const float f_inf = 1.0 / 0.0;
 
@@ -332,7 +330,7 @@ void main() {
     db.d = f_inf;
     d_test.d = f_inf;
 
-    int cr, cg, cb;
+    int cr = 0, cg = 0, cb = 0;
 
     const float mu_epsil = 0.01;
 

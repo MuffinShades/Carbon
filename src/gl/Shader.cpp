@@ -5,6 +5,8 @@ void Shader::__error_check(u32 shader, ShaderType type) {
 	i32 s = 0;
 	char infLog[1024];
 
+    std::cout << "Checking shader errors..." << std::endl;
+
 	if (type != ShaderType::program) {
 		glGetShaderiv(shader, GL_LINK_STATUS, &s);
 
@@ -252,6 +254,8 @@ Shader Shader::LoadShaderFromFile(std::string vert_path, std::string frag_path) 
         if (fragCode) _safe_free_a(fragCode);
         return {};
     }
+
+    std::cout << "E" << std::endl;
 
     Shader s = Shader(
         vertCode,

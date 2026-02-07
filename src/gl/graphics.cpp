@@ -159,6 +159,11 @@ void graphics::push_verts(void *v, size_t n) {
     this->_c_vert += n;
 }
 
+size_t graphics::vert_space() {
+    const size_t vos = this->cur_state->__int_prop.v_obj_sz;
+    return (BATCH_SIZE - this->_c_vert * vos) / vos + 1;
+}
+
 void graphics::vmem_alloc(size_t sz) {
     if (!cur_state->vbo_alloc) {
         if (!cur_state->vbo) {

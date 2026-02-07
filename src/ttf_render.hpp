@@ -91,6 +91,7 @@ struct FontInst {
     UnicodeRange range;
     CharSpritePos *c_pos = nullptr;
     MsdfGpuContext *dbg_ctx;
+    FrameBuffer fb;
     bool good = false;
 };
 
@@ -109,6 +110,7 @@ public:
     MSFL_EXP static FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size, bool accel = false);
 
     MSFL_EXP static void _msdfRenderDebug(Glyph g, MsdfGpuContext** ctx);
+    MSFL_EXP static void _msdfRenderDebug2(Glyph g, MsdfGpuContext** ctx);
 
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size, bool accel = false);
 };

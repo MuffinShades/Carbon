@@ -5,7 +5,7 @@ layout(location = 1) in vec2 region_pos;
 layout(location = 2) in ivec2 t_curves;
 
 out vec2 posf;
-out ivec2 curve_range;
+out flat ivec2 curve_range;
 
 void main() {
     posf = region_pos.xy;

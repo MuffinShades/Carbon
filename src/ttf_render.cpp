@@ -1623,7 +1623,7 @@ gpu_light_curve BtoLightCurve(BCurve c, uvec3 color) {
     return gc;
 }
 
-MsdfGenContext CreateMsdfGenContext(Glyph& tGlyph, bool accel = false) {
+MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, bool accel = false) {
     MsdfGenContext ctx = {
         .curves = nullptr,
         .nCurves = 0
@@ -1722,6 +1722,9 @@ MsdfGenContext CreateMsdfGenContext(Glyph& tGlyph, bool accel = false) {
             t_edge = ct.edge_idxs[i];
             E = glyphEdges[t_edge];
 
+            if (!E.curves)
+                continue;
+
             //add new curves
             for (j = 0; j < E.nCurves; j++) {
                 qu = E.curves[j];
@@ -1737,9 +1740,9 @@ MsdfGenContext CreateMsdfGenContext(Glyph& tGlyph, bool accel = false) {
                     lc_buff[cpi++] = BtoLightCurve(qu, cur_color);
                 else
                     nc_buff[cpi++] = BtoMsdfCurve(qu, cur_color);
-                
-                _safe_free_a(E.curves);
             }
+
+            //_safe_free_a(E.curves);
 
             if (cur_color.y == 0) {
                 cur_color.y = 1;
@@ -1755,6 +1758,10 @@ MsdfGenContext CreateMsdfGenContext(Glyph& tGlyph, bool accel = false) {
     }
 
     _safe_free_a(glyph_contours);
+
+    std::cout << "done creating le context" << std::endl;
+
+    return ctx;
 }
 
 /*i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const i32 regionY, const u32 regionW, const u32 regionH, const u32 paddingLeft, const u32 paddingTop, const u32 paddingRight, const u32 paddingBottom) {
@@ -2220,228 +2227,6 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
     return 0;
 }
 
-void WriteGPUContextToBitmap(MsdfGpuContext *ctx, Bitmap *map) {
-    if (!ctx || !map) return;
-
-    FrameBuffer fb = ctx->fb;
-    fb.extractToBitmap(map);
-}
-
-i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size, bool accel) {
-    if (!map)
-        return 1;
-
-    //do some dimension calculations
-    u32 sdfW = 0, sdfH = 0, sdfTrueW = 0, sdfTrueH = 0;
-
-    const u32 padding = 4;
-
-    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
-              glyphH = tGlyph.yMax - tGlyph.yMin,
-              glyphYxRatio = glyphH / glyphW;
-
-    switch (size.slc) {
-    case sdf_dim_ty::Width:
-        sdfW = size.m.w;
-        sdfH = (size_t) ceil(sdfW * glyphYxRatio);
-        break;
-    case sdf_dim_ty::Height:
-        sdfH = size.m.h;
-        sdfW = (size_t) ceil(sdfH / glyphYxRatio);
-        break;
-    case sdf_dim_ty::Scale:
-        sdfH = size.m.scale * glyphH;
-        sdfW = size.m.scale * glyphW;
-        break;
-    }
-
-    sdfTrueW = sdfW + (padding << 1);
-    sdfTrueH = sdfH + (padding << 1);
-
-    map->header.h = sdfTrueH;
-    map->header.w = sdfTrueW;
-
-    const size_t nChannels = 3;
-
-    map->header.bitsPerPixel = (nChannels << 3);
-    map->header.fSz = (map->header.h * map->header.w) * nChannels;
-
-    map->data = new byte[map->header.fSz];
-    ZeroMem(map->data, map->header.fSz);
-
-    //render the msdf to the canvas
-    if (accel) {
-        MsdfGpuContext* ctx = CreateMsdfGPUAccelerationContext_Dynamic(sdfTrueW, sdfTrueH);
-
-        if (!ctx) {
-            return 1;
-        }
-
-        i32 stat = render_positioned_msdf_gpu_accel(tGlyph, ctx, 0, 0, sdfTrueW, sdfTrueH, 0, 0, 0, 0);
-
-        WriteGPUContextToBitmap(ctx, map);
-
-        _safe_free_a(ctx);
-        return stat;
-    } else
-        return render_positioned_msdf(tGlyph, map, 0, 0, sdfTrueW, sdfTrueH, 0, 0, 0, 0);
-}
-
-f32 median(f32 a, f32 b, f32 c) {
-    return mu_max(mu_min(a,b), mu_min(mu_max(a,b),c));
-}
-
-i32 ttfRender::RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
-    if (!sdf || !bmp) return 1;
-
-    Bitmap::Free(bmp);
-
-    if (!sdf->data) return 2;
-    if (sdf->header.bitsPerPixel < 24) return 3;
-
-    bmp->header = sdf->header;
-
-    u32 outW = 0, outH = 0;
-
-    const f32 yxr = (f32) sdf->header.h / (f32) sdf->header.w;
-
-    switch (res_size.slc) {
-    case sdf_dim_ty::Width:
-        bmp->header.w = (outW = res_size.m.w);
-        bmp->header.h = (outH = (size_t) ceil(outW * yxr));
-        break;
-    case sdf_dim_ty::Height:
-        bmp->header.h = (outH = res_size.m.h);
-        bmp->header.w = (outW = (size_t) ceil(outH / yxr));
-        break;
-    case sdf_dim_ty::Scale:
-        bmp->header.h = (outH = res_size.m.scale * sdf->header.h);
-        bmp->header.w = (outW = res_size.m.scale * sdf->header.w);
-        break;
-    }
-
-
-    const size_t by_pp = sdf->header.bitsPerPixel >> 3;
-
-    bmp->header.fSz = bmp->header.w * bmp->header.h * by_pp;
-    bmp->data = new byte[bmp->header.fSz];
-    ZeroMem(bmp->data, bmp->header.fSz);
-
-    i32 x, y;
-    size_t p;
-
-    byte samp[4] = {0,0,0,0};
-
-    for (y = 0; y < outH; ++y) {
-        for (x = 0; x < outW; ++x) {
-            p = (x + y * outW) * by_pp;
-
-                
-            //do the bilinear sampling here
-            sampleBilinear(sdf->data, samp, sdf->header.bitsPerPixel >> 3, sdf->header.w, sdf->header.h, 
-                ((f32) x + 0.5f) / (f32) outW,
-                ((f32) y + 0.5f) / (f32) outH
-            );
-
-            f32 g = median(samp[0], samp[1], samp[2]) / 255.0f - 0.5f;
-
-            if (g > 0.0f)
-                bmp->data[p] = 0xff;
-            //else
-                //bmp->data[p+1] = samp[0];
-
-            bmp->data[p+by_pp-1] = 0xff;        
-        }
-    }
-
-    return 0;
-}
-
-i32 ttfRender::RenderGlyphOutlineToBitmap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
-    if (!map)
-        return 1;
-
-    //do some dimension calculations
-    u32 sdfW = 0, sdfH = 0, sdfTrueW = 0, sdfTrueH = 0;
-
-    const u32 padding = 0;
-
-    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
-              glyphH = tGlyph.yMax - tGlyph.yMin,
-              glyphYxRatio = glyphH / glyphW;
-
-    switch (size.slc) {
-    case sdf_dim_ty::Width:
-        map->header.w = (sdfW = size.m.w);
-        map->header.h = (sdfH = (size_t) ceil(sdfW * glyphYxRatio));
-        break;
-    case sdf_dim_ty::Height:
-        map->header.h = (sdfH = size.m.h);
-        map->header.w = (sdfW = (size_t) ceil(sdfH / glyphYxRatio));
-        break;
-    case sdf_dim_ty::Scale:
-        map->header.h = (sdfH = size.m.scale * glyphH);
-        map->header.w = (sdfW = size.m.scale * glyphW);
-        break;
-    }
-
-    sdfTrueW = sdfW + (padding << 1);
-    sdfTrueH = sdfH + (padding << 1);
-
-    std::cout << "padding extra: " << (sdfTrueW - sdfW) << " | " << (padding << 1) << " | " << sdfTrueW << " " << sdfW << std::endl;
-
-    map->header.h = sdfTrueH;
-
-    //clean the glyph up
-    gPData cleanDat = cleanGlyphPoints(tGlyph);
-
-    //get num points
-    const size_t nPoints = cleanDat.p.size();
-
-    map->header.bitsPerPixel = 32;
-    map->header.fSz = (map->header.h * map->header.w) * 4;
-
-    map->data = new byte[map->header.fSz];
-    ZeroMem(map->data, map->header.fSz);
-
-    //blank glyph so blank sdf
-    if (nPoints == 0)
-        return 0;
-
-    //curve and edge generation, glyph clean up, and more
-
-    std::vector<Edge> glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
-
-    f32 t;
-
-    const f32
-        wc = glyphW / (f32) sdfTrueW,
-        hc = glyphH / (f32) sdfTrueH;
-
-    u32 pos;
-
-    for (Edge e : glyphEdges) {
-        for (i32 c = 0; c < e.nCurves; c++) {
-            for (t = 0.0f; t < 1.0f; t += 0.005f) {
-                Point p = bezier3(e.curves[c].p[0],e.curves[c].p[1],e.curves[c].p[2],t);
-                p.x = (p.x - tGlyph.xMin) * (1.0f/wc);
-                p.y = (p.y - tGlyph.yMin) * (1.0f/hc);
-
-                if (p.x < 0 || p.y < 0 || p.x >= map->header.w || p.y >= map->header.h) continue;
-
-                pos = ((u32)p.x + (u32)p.y * map->header.w) * 4;
-
-                map->data[pos] = 255;
-                map->data[pos+1] = 255;
-                map->data[pos+2] = 255;
-                map->data[pos+3] = 255;
-            }
-        }
-    }
-
-    return 0;
-}
-
 /*
 
 Accelerated version of msdf gen
@@ -2684,10 +2469,23 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
 
     size_t dat_collect;
 
+    if (!msdf_gen_shader.good())
+        msdf_gen_shader = Shader::LoadShaderFromFile("../../src/msdf_gl_accel_vert.glsl", "../../src/msdf_gl_accel.glsl");
+
+    std::cout << "loading shader..." << std::endl;
+
+    ctx->g.setCurrentShader(&msdf_gen_shader);
+
     ctx->g.render_begin();
 
+    constexpr size_t N_RECT_VERTS = 6;
+
+    MsdfGenContext g_ctx;
+
     for (i = 0; i < nGlyphs; i++) {
-        if (/*vert space check*/) {
+        std::cout << "Index: " << i << " / " << nGlyphs << std::endl;
+
+        if (/*vert space check*/ctx->g.vert_space() < N_RECT_VERTS) {
             ctx->g.render_flush();
             ctx->g.render_begin();
         }
@@ -2698,10 +2496,10 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
         gw = tg.xMax - tg.xMin;
         gh = tg.yMax - tg.yMin;
 
-        MsdfGenContext g_ctx = CreateMsdfGenContext(tg, true);
+        //generate the glpyh context
+        std::cout << "AAAAAA: " << tg.char_id << std::endl;
 
-        //clean the glyph up
-
+        g_ctx = CreateMsdfGenContext(tg, true);
 
         //compute some dimensions
         i32 x,y;
@@ -2721,14 +2519,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
             continue; //no room ;-;
 
         //graphics setup
-
-        if (!msdf_gen_shader.good())
-            msdf_gen_shader = Shader::LoadShaderFromFile("../../src/msdf_gl_accel_vert.glsl", "../../src/msdf_gl_accel.glsl");
-
         if (!ctx->good)
             std::cout << "warning bad context!" << std::endl;
-
-        ctx->g.setCurrentShader(&msdf_gen_shader);
     
         //params of the curves being sent to the gpu
         if (!ctx->curveBuffer)
@@ -2746,7 +2538,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
         vec4 region_vec = vec4(g_pos.x * space_normal_x, g_pos.y * space_normal_y, g_pos.w * space_normal_x, g_pos.h * space_normal_y);
         vec4 scan_rgn = vec4(tg.xMin, tg.yMin, tg.xMax, tg.yMax);
 
-        msdf_gen_shader.SetInt("nCurves", g_ctx.nCurves);
+        //msdf_gen_shader.SetInt("nCurves", g_ctx.nCurves);
 
         //render
         msdf_vert out_rect[] = RECT_VERTS(
@@ -2754,7 +2546,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
             0.0 COMMA
             scan_rgn.x COMMA scan_rgn.y COMMA scan_rgn.z COMMA scan_rgn.w);
 
-        ctx->g.push_verts(out_rect, sizeof(out_rect) / sizeof(msdf_vert))
+        ctx->g.push_verts(out_rect, sizeof(out_rect) / sizeof(msdf_vert));
 
         DeleteMsdfGenContext(&g_ctx);
     }
@@ -2765,6 +2557,228 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
 ///////////////////////
 ///////////////////////
 ///////////////////////
+
+void WriteGPUContextToBitmap(MsdfGpuContext *ctx, Bitmap *map) {
+    if (!ctx || !map) return;
+
+    FrameBuffer fb = ctx->fb;
+    fb.extractToBitmap(map);
+}
+
+i32 ttfRender::RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size, bool accel) {
+    if (!map)
+        return 1;
+
+    //do some dimension calculations
+    u32 sdfW = 0, sdfH = 0, sdfTrueW = 0, sdfTrueH = 0;
+
+    const u32 padding = 4;
+
+    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
+              glyphH = tGlyph.yMax - tGlyph.yMin,
+              glyphYxRatio = glyphH / glyphW;
+
+    switch (size.slc) {
+    case sdf_dim_ty::Width:
+        sdfW = size.m.w;
+        sdfH = (size_t) ceil(sdfW * glyphYxRatio);
+        break;
+    case sdf_dim_ty::Height:
+        sdfH = size.m.h;
+        sdfW = (size_t) ceil(sdfH / glyphYxRatio);
+        break;
+    case sdf_dim_ty::Scale:
+        sdfH = size.m.scale * glyphH;
+        sdfW = size.m.scale * glyphW;
+        break;
+    }
+
+    sdfTrueW = sdfW + (padding << 1);
+    sdfTrueH = sdfH + (padding << 1);
+
+    map->header.h = sdfTrueH;
+    map->header.w = sdfTrueW;
+
+    const size_t nChannels = 3;
+
+    map->header.bitsPerPixel = (nChannels << 3);
+    map->header.fSz = (map->header.h * map->header.w) * nChannels;
+
+    map->data = new byte[map->header.fSz];
+    ZeroMem(map->data, map->header.fSz);
+
+    //render the msdf to the canvas
+    if (accel) {
+        MsdfGpuContext* ctx = CreateMsdfGPUAccelerationContext_Dynamic(sdfTrueW, sdfTrueH);
+
+        if (!ctx) {
+            return 1;
+        }
+
+        i32 stat = render_positioned_msdf_gpu_accel(tGlyph, ctx, 0, 0, sdfTrueW, sdfTrueH, 0, 0, 0, 0);
+
+        WriteGPUContextToBitmap(ctx, map);
+
+        _safe_free_a(ctx);
+        return stat;
+    } else
+        return render_positioned_msdf(tGlyph, map, 0, 0, sdfTrueW, sdfTrueH, 0, 0, 0, 0);
+}
+
+f32 median(f32 a, f32 b, f32 c) {
+    return mu_max(mu_min(a,b), mu_min(mu_max(a,b),c));
+}
+
+i32 ttfRender::RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size) {
+    if (!sdf || !bmp) return 1;
+
+    Bitmap::Free(bmp);
+
+    if (!sdf->data) return 2;
+    if (sdf->header.bitsPerPixel < 24) return 3;
+
+    bmp->header = sdf->header;
+
+    u32 outW = 0, outH = 0;
+
+    const f32 yxr = (f32) sdf->header.h / (f32) sdf->header.w;
+
+    switch (res_size.slc) {
+    case sdf_dim_ty::Width:
+        bmp->header.w = (outW = res_size.m.w);
+        bmp->header.h = (outH = (size_t) ceil(outW * yxr));
+        break;
+    case sdf_dim_ty::Height:
+        bmp->header.h = (outH = res_size.m.h);
+        bmp->header.w = (outW = (size_t) ceil(outH / yxr));
+        break;
+    case sdf_dim_ty::Scale:
+        bmp->header.h = (outH = res_size.m.scale * sdf->header.h);
+        bmp->header.w = (outW = res_size.m.scale * sdf->header.w);
+        break;
+    }
+
+
+    const size_t by_pp = sdf->header.bitsPerPixel >> 3;
+
+    bmp->header.fSz = bmp->header.w * bmp->header.h * by_pp;
+    bmp->data = new byte[bmp->header.fSz];
+    ZeroMem(bmp->data, bmp->header.fSz);
+
+    i32 x, y;
+    size_t p;
+
+    byte samp[4] = {0,0,0,0};
+
+    for (y = 0; y < outH; ++y) {
+        for (x = 0; x < outW; ++x) {
+            p = (x + y * outW) * by_pp;
+
+                
+            //do the bilinear sampling here
+            sampleBilinear(sdf->data, samp, sdf->header.bitsPerPixel >> 3, sdf->header.w, sdf->header.h, 
+                ((f32) x + 0.5f) / (f32) outW,
+                ((f32) y + 0.5f) / (f32) outH
+            );
+
+            f32 g = median(samp[0], samp[1], samp[2]) / 255.0f - 0.5f;
+
+            if (g > 0.0f)
+                bmp->data[p] = 0xff;
+            //else
+                //bmp->data[p+1] = samp[0];
+
+            bmp->data[p+by_pp-1] = 0xff;        
+        }
+    }
+
+    return 0;
+}
+
+i32 ttfRender::RenderGlyphOutlineToBitmap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
+    if (!map)
+        return 1;
+
+    //do some dimension calculations
+    u32 sdfW = 0, sdfH = 0, sdfTrueW = 0, sdfTrueH = 0;
+
+    const u32 padding = 0;
+
+    const f32 glyphW = tGlyph.xMax - tGlyph.xMin,
+              glyphH = tGlyph.yMax - tGlyph.yMin,
+              glyphYxRatio = glyphH / glyphW;
+
+    switch (size.slc) {
+    case sdf_dim_ty::Width:
+        map->header.w = (sdfW = size.m.w);
+        map->header.h = (sdfH = (size_t) ceil(sdfW * glyphYxRatio));
+        break;
+    case sdf_dim_ty::Height:
+        map->header.h = (sdfH = size.m.h);
+        map->header.w = (sdfW = (size_t) ceil(sdfH / glyphYxRatio));
+        break;
+    case sdf_dim_ty::Scale:
+        map->header.h = (sdfH = size.m.scale * glyphH);
+        map->header.w = (sdfW = size.m.scale * glyphW);
+        break;
+    }
+
+    sdfTrueW = sdfW + (padding << 1);
+    sdfTrueH = sdfH + (padding << 1);
+
+    std::cout << "padding extra: " << (sdfTrueW - sdfW) << " | " << (padding << 1) << " | " << sdfTrueW << " " << sdfW << std::endl;
+
+    map->header.h = sdfTrueH;
+
+    //clean the glyph up
+    gPData cleanDat = cleanGlyphPoints(tGlyph);
+
+    //get num points
+    const size_t nPoints = cleanDat.p.size();
+
+    map->header.bitsPerPixel = 32;
+    map->header.fSz = (map->header.h * map->header.w) * 4;
+
+    map->data = new byte[map->header.fSz];
+    ZeroMem(map->data, map->header.fSz);
+
+    //blank glyph so blank sdf
+    if (nPoints == 0)
+        return 0;
+
+    //curve and edge generation, glyph clean up, and more
+
+    std::vector<Edge> glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+
+    f32 t;
+
+    const f32
+        wc = glyphW / (f32) sdfTrueW,
+        hc = glyphH / (f32) sdfTrueH;
+
+    u32 pos;
+
+    for (Edge e : glyphEdges) {
+        for (i32 c = 0; c < e.nCurves; c++) {
+            for (t = 0.0f; t < 1.0f; t += 0.005f) {
+                Point p = bezier3(e.curves[c].p[0],e.curves[c].p[1],e.curves[c].p[2],t);
+                p.x = (p.x - tGlyph.xMin) * (1.0f/wc);
+                p.y = (p.y - tGlyph.yMin) * (1.0f/hc);
+
+                if (p.x < 0 || p.y < 0 || p.x >= map->header.w || p.y >= map->header.h) continue;
+
+                pos = ((u32)p.x + (u32)p.y * map->header.w) * 4;
+
+                map->data[pos] = 255;
+                map->data[pos+1] = 255;
+                map->data[pos+2] = 255;
+                map->data[pos+3] = 255;
+            }
+        }
+    }
+
+    return 0;
+}
 
 template<class _Ty> void mu_swap(_Ty *a, _Ty *b) {
     _Ty temp = *a;
@@ -3000,34 +3014,29 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     MsdfGpuContext *a_ctx = nullptr;
 
-    if (accel)
+    if (accel) {
         a_ctx = CreateMsdfGPUAccelerationContext(sheet_w, sheet_h);
+        render_multi_positioned_msdf_gpu_accel(gly, font.c_pos, glyphs.nGlyphs, a_ctx, padding);
+    } else {
+        for (i = 0; i < glyphs.nGlyphs; i++) {
+            r_pos = font.c_pos[i];
 
-    for (i = 0; i < glyphs.nGlyphs; i++) {
-        r_pos = font.c_pos[i];
+            if (r_pos.w <= 0 || r_pos.h <= 0)
+                continue;
 
-        if (r_pos.w <= 0 || r_pos.h <= 0)
-            continue;
-
-        //use gpu acceleration if needed
-        //TODO: add memory management for the frame buffer and delete the buffer
-        if (accel) {
-            render_positioned_msdf_gpu_accel(
-                gly[i], 
-                a_ctx, 
-                r_pos.x, r_pos.y, r_pos.w, r_pos.h, 
-                padding, padding, padding, padding
-            );
-        } else {
+            //use gpu acceleration if needed
+            //TODO: add memory management for the frame buffer and delete the buffer
             render_positioned_msdf(
                 gly[i], 
                 &font.sheet, 
                 r_pos.x, r_pos.y, r_pos.w, r_pos.h, 
                 padding, padding, padding, padding
             );
+            //std::cout << "Generated Glyph: " << i << std::endl;
         }
-        //std::cout << "Generated Glyph: " << i << std::endl;
     }
+
+    font.fb = a_ctx->fb;
 
     if (accel)
         font.sheet = a_ctx->fb.extractBitmap();

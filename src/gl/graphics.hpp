@@ -190,6 +190,7 @@ public:
     void push_verts(void *v, size_t n);
     void set_verts(void *v, size_t n);
     void clear_verts();
+    size_t vert_space();
 
     //graphics states
     void iniStaticGraphicsState();
