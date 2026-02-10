@@ -207,8 +207,11 @@ void graphics::shader_unbind() {
     glUseProgram(0);
 }
 
-void graphics::render_begin() {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+void graphics::render_begin(bool clear) {
+    if (this->using_default_device && clear)
+        glViewport(0, 0, this->winW, this->winH);
+    if (clear)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (!cur_state->vmem && cur_state->__int_prop.v_obj_sz > 0)
         this->vmem_alloc(BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
     if (!this->s) return;
@@ -591,9 +594,12 @@ void graphics::setOutputDevice(OutputDevice *device) {
         std::cout << "bound to fbo: " << fbo << std::endl;
 
         glBindFramebuffer(GL_FRAMEBUFFER, fbo); 
+        glViewport(0, 0, fb->w, fb->h);
 
         if (!fb->texHandle && fb->ty == FrameBuffer::Texture)
             fb->texAttach(fb->w, fb->h);
+
+        this->using_default_device = false;
         break;
     default:
         std::cout << "Error, cannot bind to unknown output device!" << std::endl;
@@ -603,6 +609,8 @@ void graphics::setOutputDevice(OutputDevice *device) {
 
 void graphics::restoreDefaultOutputDevice() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, this->winW, this->winH);
+    this->using_default_device = true;
 }
 
 void graphics::vertexStructureDefineBegin(size_t vObjSz) {
@@ -658,11 +666,11 @@ Bitmap FrameBuffer::extractBitmap() {
 
     ZeroMem(bmp.data, bmp.header.fSz);
 
-    bmp.header.bitsPerPixel = 32;
+    bmp.header.bitsPerPixel = 24;
     bmp.header.w = this->w;
     bmp.header.h = this->h;
 
-    glReadPixels(0, 0, this->w, this->h, GL_RGBA, GL_UNSIGNED_BYTE, bmp.data);
+    glReadPixels(0, 0, this->w, this->h, GL_RGB, GL_UNSIGNED_BYTE, bmp.data);
 
     std::cout << "reading: " << this->w << " " << this->h << std::endl;
 

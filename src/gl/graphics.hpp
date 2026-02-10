@@ -133,6 +133,7 @@ private:
     bool using_foreign_gs = false;
     bool using_indicies = false;
     bool shader_bound = false;
+    bool using_default_device = true;
 
     void shader_bind();
     void shader_unbind();
@@ -161,7 +162,7 @@ public:
 
     void Load();
     void WinResize(const size_t w, const size_t h);
-    void render_begin();
+    void render_begin(bool clear = true);
     void render_flush();
     void render_noflush();
     void render_no_geo_update();

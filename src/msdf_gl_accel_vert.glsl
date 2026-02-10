@@ -10,5 +10,5 @@ out flat ivec2 curve_range;
 void main() {
     posf = region_pos.xy;
     curve_range = t_curves;
-    gl_Position = vec4(m_pos, 1.0);
+    gl_Position = vec4(m_pos.xy, 0.0, 1.0);
 }

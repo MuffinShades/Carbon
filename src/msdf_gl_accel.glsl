@@ -397,4 +397,6 @@ void main() {
         db.d > 0 ? (((db.d) / blend_amount) * 0.5 + 0.5) : 0,
         1.0
     );
+
+    //FragColor = vec4(p.x / 1000,p.y / 1000,0,1);
 }
