@@ -1,4 +1,5 @@
 #include "ttf.hpp"
+#include "hash_map.hpp"
 
 constexpr u32 ttf_magic = 0x5f0f3cf5;
 constexpr f32 compound_thresh = 33.0f / 65536.0f; //0.00050354003f
@@ -1051,6 +1052,15 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     std::vector<Glyph> cc; //glyph compound components
 
+    //TODO: use this thing to search through glyph locations
+    //that have already been saved so we don't accidentally 
+    //double encode simple glyphs
+    //for example: "a" is a simple glyph part so we need this
+    //look up table thing to switch a from a component to a glpyh
+    //if it gets encoded as a component first since a compound glyph
+    //like the a with 2 dots on top gets encoded first
+    SimpleHashMap e_glyph_mabobidfk;
+
     i32 k;
     
     //read in the glyphs
@@ -1106,7 +1116,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                     if (copy)
                         continue;
 
-                    for ()
+                    
 
                     Glyph co_glf = read_glyph(&fStream, &f, co.idx);
                     co_glf.char_id = co.idx;
