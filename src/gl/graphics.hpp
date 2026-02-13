@@ -84,7 +84,7 @@ public:
 };
 
 struct graphicsState {
-    u32 vao, vbo, ibo;
+    u32 vao = 0, vbo = 0, ibo = 0;
     bool vbo_alloc = false;
     Shader *s = nullptr;
     size_t nv = 0;
@@ -157,7 +157,8 @@ public:
     }
 
     graphics() {
-
+        this->winW = 0;
+        this->winH = 0;
     }
 
     void Load();

@@ -5,7 +5,7 @@
 #define gpu_dynamic_alloc(sz) glBufferData(GL_ARRAY_BUFFER, sz, nullptr, GL_DYNAMIC_DRAW)
 
 #define BATCH_NQUADS 0xffff
-#define BATCH_SIZE 0x8fffff
+#define BATCH_SIZE 0xfffff
 
 #define define_vattrib_struct(i, type, target) \
     glEnableVertexAttribArray(i); \
@@ -298,8 +298,10 @@ void graphics::render_no_geo_update() {
 }
 
 void graphics::flush() {
-    if (!this->using_foreign_gs)
-        this->vmem_clear();
+    //if (!this->using_foreign_gs)
+    //    this->vmem_clear();
+
+    this->_c_vert = 0;
 }
 
 const size_t graphics::getEstimatedMemoryUsage() {

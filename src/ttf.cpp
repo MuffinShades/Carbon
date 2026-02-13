@@ -1,6 +1,7 @@
 #include "ttf.hpp"
 
 constexpr u32 ttf_magic = 0x5f0f3cf5;
+constexpr f32 compound_thresh = 33.0f / 65536.0f; //0.00050354003f
 
 const std::string iTableTags[] = {
     "glyf",
@@ -35,37 +36,37 @@ Range Conglomeration Flag set to false -->
 */
 
 const u8 uncode_range_decode[] = {
-    0b00000000, 0x01, 0x00, 0xff, //simple alphabet
+    0b00010000, 0x01, 0x00, 0x00, 0x0f, 0xff, //simple alphabet
     0b00000000, 0x01, 0x00, 0xff, //utf-8
-    0b00100000, 0x01, 0x00, 0x00, 0xff, 0xff, //utf-16
+    0b00010000, 0x01, 0x00, 0x00, 0xff, 0xff, //utf-16
     0b00000000, 0x01, 0x20, 0x7f, //Latin Basic
     0b00000000, 0x01, 0xa0, 0xff, //Latin-1 Sup
-    0b00100000, 0x01, 0x01, 0x00, 0x01, 0x7f, // Latin Ext-a
-    0b00100000, 0x01, 0x01, 0x80, 0x02, 0x4f, // Latin Ext-b
+    0b00010000, 0x01, 0x01, 0x00, 0x01, 0x7f, // Latin Ext-a
+    0b00010000, 0x01, 0x01, 0x80, 0x02, 0x4f, // Latin Ext-b
     0b10000000, 0x04, 0x02, 0x03, 0x04, 0x05, // Latin Full
-    0b00100000, 0x01, 0x02, 0x50, 0x02, 0xaf, //IPA Ext
-    0b00100000, 0x01, 0x02, 0xb0, 0x02, 0xff, //spacing mod letters
-    0b00100000, 0x01, 0x03, 0x00, 0x03, 0x6f, //diacritical marks
-    0b00100000, 0x01, 0x03, 0x70, 0x03, 0xff, //greeek and coptic
-    0b00100000, 0x01, 0x04, 0x00, 0x04, 0xff, //cryillic
-    0b00100000, 0x01, 0x05, 0x00, 0x05, 0x2f, //cryillic sup
-    0b00100000, 0x01, 0x05, 0x30, 0x05, 0x8f, //armenian
-    0b00100000, 0x01, 0x05, 0x90, 0x05, 0xff, //hebrew
-    0b00100000, 0x01, 0x06, 0x00, 0x06, 0xff, //arabic
-    0b00100000, 0x01, 0x07, 0x00, 0x07, 0x4f, //syriac
-    0b00100000, 0x01, 0x07, 0x80, 0x07, 0xbf, //thaana
-    0b00100000, 0x01, 0x09, 0x00, 0x09, 0x7f, //Devanagari
-    0b00100000, 0x01, 0x09, 0x80, 0x09, 0xff, //Bengali
-    0b00100000, 0x01, 0x0a, 0x00, 0x0a, 0x7f, //Gurmukhi
-    0b00100000, 0x01, 0x0a, 0x80, 0x0a, 0xff, //Gujarati
-    0b00100000, 0x01, 0x0b, 0x00, 0x0b, 0x7f, //Oriya
-    0b00100000, 0x01, 0x0b, 0x80, 0x0b, 0xff, //Tamil
-    0b00100000, 0x01, 0x0c, 0x00, 0x0c, 0x7f, //Telugu
-    0b00100000, 0x01, 0x0c, 0x80, 0x0c, 0xff, //Kannada
-    0b00100000, 0x01, 0x0d, 0x00, 0x0d, 0x7f, //Malayalam
-    0b00100000, 0x01, 0x0d, 0x80, 0x0d, 0xff, //Sinhala
-    0b00100000, 0x01, 0x0e, 0x00, 0x0e, 0x7f, //Thai
-    0b00100000, 0x01, 0x0e, 0x80, 0x0e, 0xff, //Lao
+    0b00010000, 0x01, 0x02, 0x50, 0x02, 0xaf, //IPA Ext
+    0b00010000, 0x01, 0x02, 0xb0, 0x02, 0xff, //spacing mod letters
+    0b00010000, 0x01, 0x03, 0x00, 0x03, 0x6f, //diacritical marks
+    0b00010000, 0x01, 0x03, 0x70, 0x03, 0xff, //greeek and coptic
+    0b00010000, 0x01, 0x04, 0x00, 0x04, 0xff, //cryillic
+    0b00010000, 0x01, 0x05, 0x00, 0x05, 0x2f, //cryillic sup
+    0b00010000, 0x01, 0x05, 0x30, 0x05, 0x8f, //armenian
+    0b00010000, 0x01, 0x05, 0x90, 0x05, 0xff, //hebrew
+    0b00010000, 0x01, 0x06, 0x00, 0x06, 0xff, //arabic
+    0b00010000, 0x01, 0x07, 0x00, 0x07, 0x4f, //syriac
+    0b00010000, 0x01, 0x07, 0x80, 0x07, 0xbf, //thaana
+    0b00010000, 0x01, 0x09, 0x00, 0x09, 0x7f, //Devanagari
+    0b00010000, 0x01, 0x09, 0x80, 0x09, 0xff, //Bengali
+    0b00010000, 0x01, 0x0a, 0x00, 0x0a, 0x7f, //Gurmukhi
+    0b00010000, 0x01, 0x0a, 0x80, 0x0a, 0xff, //Gujarati
+    0b00010000, 0x01, 0x0b, 0x00, 0x0b, 0x7f, //Oriya
+    0b00010000, 0x01, 0x0b, 0x80, 0x0b, 0xff, //Tamil
+    0b00010000, 0x01, 0x0c, 0x00, 0x0c, 0x7f, //Telugu
+    0b00010000, 0x01, 0x0c, 0x80, 0x0c, 0xff, //Kannada
+    0b00010000, 0x01, 0x0d, 0x00, 0x0d, 0x7f, //Malayalam
+    0b00010000, 0x01, 0x0d, 0x80, 0x0d, 0xff, //Sinhala
+    0b00010000, 0x01, 0x0e, 0x00, 0x0e, 0x7f, //Thai
+    0b00010000, 0x01, 0x0e, 0x80, 0x0e, 0xff, //Lao
     0b00100000, 0x01, 0x0f, 0x00, 0x0f, 0xff, //Tibetan
     0b00100000, 0x01, 0x10, 0x00, 0x10, 0x9f, //myanmar
     0b00100000, 0x01, 0x10, 0xa0, 0x10, 0xff, //georgian
@@ -247,8 +248,6 @@ void read_offset_tables(ttfStream* stream, ttfFile* f) {
     f->entrySelector = stream->readUInt16();
     f->rangeShift = stream->readUInt16();
 
-    std::cout << "Found " << nTables << " tables!!" << std::endl;
-
     std::vector<offsetTable> res;
 
     //read the offset tables
@@ -351,7 +350,7 @@ i32 decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
     }
 
     if (table.startCode[c_idx] > w_char) {
-        std::cout << "Character "<< w_char <<" not present in ttf!" << std::endl;
+        //std::cout << "Character "<< w_char <<" not present in ttf!" << std::endl;
         return -1;
     }
 
@@ -363,7 +362,7 @@ i32 decode_char_from_cmap4(cmap_format_4 table, u16 w_char) {
     } else {
         size_t loc = (c_idx + (table.idRangeOffset[c_idx] >> 1)) + (w_char - table.startCode[c_idx]);
         if (loc >= table.segBlockSz) {
-            std::cout << "tff error: failed to map glyph (cmap 4): out of range!" << std::endl;
+            //std::cout << "tff error: failed to map glyph (cmap 4): out of range!" << std::endl;
             return -1;
         }
         glyphIndex = *(table.idRangeOffset + loc + table.idDelta[c_idx]) % 0x10000;
@@ -386,10 +385,6 @@ cmap_format_4 cmap_4(ttfStream *stream) {
         .entrySelector = stream->readUInt16(),
         .rangeShift = stream->readUInt16()
     };
-
-    /*std::cout << "table len: " << table.table_len << std::endl;
-    std::cout << "table lang: " << table.lang << std::endl;
-    std::cout << "table seg Count: " << table.segCount << std::endl;*/
 
     if (table.segCount == 0) {
         std::cout << "ttf error: failed to read cmap4, not enough segments!" << std::endl;
@@ -560,9 +555,7 @@ i32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
         f->encodingId = stream->readUInt16();
 
         const u32 off = stream->readUInt32();
-        std::cout << "Cmap Offset: " << off << std::endl;
         size_t cm_pos = stream->tell() + (off - 12);
-        std::cout << "Cmap Pos: " << cm_pos << std::endl;
         stream->seek(cm_pos);
         const u16 cmap_format = stream->readUInt16();
 
@@ -593,11 +586,113 @@ i32 getUnicodeOffset(ttfStream* stream, ttfFile* f, u32 tChar) {
         case 12:
             return decode_char_from_cmap12(f->cmap_fmt.fmt_12, tChar);
         default:
-            std::cout << "ttf error: failed to find cmap!" << std::endl;
+            std::cout << "ttf error: unsupported cmap!" << std::endl;
             break;
     }
 
     return -1;
+}
+
+Glyph read_compound_glyph(ttfStream* stream, ttfFile* f) {
+    Glyph g;
+
+    g.compound = true;
+
+    if (!stream || !f)
+        return g;
+    
+    bool more;
+
+    std::vector<GlyphPart> gp;
+
+    do {
+        GlyphPart part;
+
+        const u16 flags = stream->readUInt16(),
+                  index = stream->readUInt16();
+
+        bool arg_16 = flags & 1;
+
+        i16 arg_1 = 0, arg_2 = 0;
+
+        if (arg_16) {
+            arg_1 = stream->readInt16();
+            arg_2 = stream->readInt16();
+
+            if ((flags >> 1) & 1) {
+                part.pos_mat.e = arg_1;
+                part.pos_mat.f = arg_2;
+            } else {
+
+            }
+        } else {
+            arg_1 = (i8) stream->readByte();
+            arg_2 = (i8) stream->readByte();
+        }
+
+        if ((flags >> 1) & 1) {
+            part.pos_mat.e = arg_1;
+            part.pos_mat.f = arg_2;
+        } else {
+            std::cout << "Yeah idk how to compute this offset thing with the points lol!" << std::endl;
+        }
+
+        //general scale factor
+        if ((flags >> 3) & 1) {
+            const f32 scale = stream->readF2Dot14();
+
+            part.pos_mat.a = scale;
+            part.pos_mat.b = 0.0f;
+            part.pos_mat.c = 0.0f;
+            part.pos_mat.d = scale;
+        }
+        //x and y scaling 
+        else if ((flags >> 6) & 1) {
+            const f32 scale_x = stream->readF2Dot14(),
+                      scale_y = stream->readF2Dot14();
+
+            part.pos_mat.a = scale_x;
+            part.pos_mat.b = 0.0f;
+            part.pos_mat.c = 0.0f;
+            part.pos_mat.d = scale_y;
+        }
+        //2x2 matrix based scaling 
+        else if ((flags >> 7) & 1) {
+            part.pos_mat.a = stream->readF2Dot14();
+            part.pos_mat.b = stream->readF2Dot14();
+            part.pos_mat.c = stream->readF2Dot14();
+            part.pos_mat.d = stream->readF2Dot14();
+        }
+        //no scaling based transformation 
+        else {
+            part.pos_mat.a = 1.0f;
+            part.pos_mat.b = 0.0f;
+            part.pos_mat.c = 0.0f;
+            part.pos_mat.d = 1.0f;
+        }
+
+        //compute m and n
+        part.pos_mat.m = mu_max(fabs(part.pos_mat.a), fabs(part.pos_mat.b));
+        part.pos_mat.n = mu_max(fabs(part.pos_mat.c), fabs(part.pos_mat.d));
+
+        if (fabs(fabs(part.pos_mat.a) - fabs(part.pos_mat.c)) <= compound_thresh)
+            part.pos_mat.m *= 2.0f;
+
+        if (fabs(fabs(part.pos_mat.b) - fabs(part.pos_mat.d)) <= compound_thresh)
+            part.pos_mat.n *= 2.0f;
+
+        part.idx = index;
+
+        gp.push_back(part);
+
+        more = (flags >> 5) & 1;
+    } while (more);
+
+    g.compound_inf.nGlyphParts = gp.size();
+    g.compound_inf.glyph_parts = new GlyphPart[g.compound_inf.nGlyphParts];
+    in_memcpy(g.compound_inf.glyph_parts, gp.data(), g.compound_inf.nGlyphParts * sizeof(GlyphPart));
+
+    return g;
 }
 
 /**
@@ -629,17 +724,13 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     res.xMax = stream->readFWord();
     res.yMax = stream->readFWord();
 
-    std::cout << "Min Y: " << res.yMin << std::endl;
-    std::cout << "Max Y: " << res.yMax << std::endl;
-
     if (res.nContours == 0) {
         std::cout << "ttf warning: found no contours!" << std::endl;
         return res;
     }
 
     if (res.nContours < 0) {
-        std::cout << "ttf warning: compound glyph!" << std::endl;
-        return read_glyph(stream, f, 0);
+        return read_compound_glyph(stream, f);
     }
 
     //for now we can only read simple glyphs
@@ -844,8 +935,6 @@ _RangeData extract_range_data(UnicodeRange charRange) {
 
     constexpr size_t bMax = sizeof(uncode_range_decode) / sizeof(u8);
 
-    std::cout << "Max: " << bMax << std::endl;
-
     i32 i, j;
 
     do {
@@ -873,8 +962,6 @@ _RangeData extract_range_data(UnicodeRange charRange) {
                 continue;
             }
 
-            std::cout << "n ranges: " << n  << " | " << nb_per_pos << std::endl;
-
             found_range = true;
 
             r.nRanges = n;
@@ -894,13 +981,11 @@ _RangeData extract_range_data(UnicodeRange charRange) {
 
                 //decode min
                 for (j = nb_per_pos - 1; j >= 0; j--)
-                    r.min[i] |= (uncode_range_decode[b++] << (j << 3)) & 0xff;
+                    r.min[i] |= (uncode_range_decode[b++] << (j << 3));
 
                 //decode max
                 for (j = nb_per_pos - 1; j >= 0; j--)
-                    r.max[i] |= (uncode_range_decode[b++] << (j << 3)) & 0xff;
-
-                std::cout << "Range: " << r.min[i] << " --> " << r.max[i] << std::endl;
+                    r.max[i] |= (uncode_range_decode[b++] << (j << 3));
             }
         }
     } while (cur_range_id != (u32) charRange);
@@ -912,12 +997,10 @@ _RangeData extract_range_data(UnicodeRange charRange) {
 
     r.good = true;
 
-    std::cout << "N: " << r.nRanges << std::endl; 
-
     return r;
 }
 
-GlyphSet ttfParse:: GenerateGlyphSet(std::string src, UnicodeRange charRange) {
+GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     GlyphSet gs = {
         .rangeId = charRange
     };
@@ -945,22 +1028,30 @@ GlyphSet ttfParse:: GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     read_offset_tables(&fStream, &f);
 
     i32 r, ucode_i, tg = 0;
-    gs.nGlyphs = 0;
+    gs.nCharacters = 0;
 
     gs.rangeLocations = new _rLoc[rd.nRanges];
     ZeroMem(gs.rangeLocations, rd.nRanges);
 
     for (r = 0; r < rd.nRanges; r++) {
-        gs.nGlyphs += rd.max[r] - rd.min[r];
+        std::cout << "glyph range: " << rd.max[r] << " " << rd.min[r] << std::endl;
+        std::cout << "d glyph: " << (rd.max[r] - rd.min[r]) << " | " << gs.nCharacters << std::endl;
+        gs.nCharacters += rd.max[r] - rd.min[r];
     }
 
-    gs.glyphs = new Glyph[gs.nGlyphs+1]; //add one for the missing character glyph
-    ZeroMem(gs.glyphs, gs.nGlyphs+1);
+    gs.glyphs = new Glyph[gs.nCharacters+1]; //add one for the missing character glyph
+    ZeroMem(gs.glyphs, gs.nCharacters+1);
+
+    bool added_null_glyph = false;
 
     Glyph glf;
 
     //add the missing character glyph first
     gs.glyphs[tg++] = read_glyph(&fStream, &f, 0);
+
+    std::vector<Glyph> cc; //glyph compound components
+
+    i32 k;
     
     //read in the glyphs
     for (r = 0; r < rd.nRanges; r++) {
@@ -969,14 +1060,22 @@ GlyphSet ttfParse:: GenerateGlyphSet(std::string src, UnicodeRange charRange) {
             .i = (u32) tg
         };
         
-        std::cout << "gn inc: " << gs.nGlyphs << " " << rd.max[r] << " " << rd.min[r] << std::endl;
+        std::cout << "gn inc: " << gs.nCharacters << " " << rd.max[r] << " " << rd.min[r] << std::endl;
 
         for (ucode_i = rd.min[r]; ucode_i < rd.max[r]; ucode_i++) {
             i32 loc = getUnicodeOffset(&fStream, &f, ucode_i), offset;
 
-            if (loc >= 0)
+            if (loc >= 0) {
                 offset = getGlyphOffset(&fStream, &f, loc);
-            else {
+
+                if (offset == 0) {
+                    if (added_null_glyph)
+                        goto _nuyll_glph;
+                    else
+                        added_null_glyph = true;
+                }
+            } else {
+            _nuyll_glph:
                 gs.glyphs[tg++] = {
                     .char_id = -1
                 };
@@ -985,10 +1084,50 @@ GlyphSet ttfParse:: GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
             glf = read_glyph(&fStream, &f, offset);
             glf.char_id = ucode_i;
-
+            glf.loc = loc;
             gs.glyphs[tg++] = glf;
+
+            //handle compound glyphs
+            if (glf.compound) {
+                GlyphPart co;
+
+                for (k = 0; k < glf.compound_inf.nGlyphParts; k++) {
+                    co = glf.compound_inf.glyph_parts[k];
+
+                    bool copy = false;
+
+                    for (Glyph cg : cc) {
+                        if (co.idx == cg.loc) {
+                            copy = true;
+                            break;
+                        }
+                    }
+
+                    if (copy)
+                        continue;
+
+                    for ()
+
+                    Glyph co_glf = read_glyph(&fStream, &f, co.idx);
+                    co_glf.char_id = co.idx;
+                    co_glf.component = true;
+                    cc.push_back(co_glf);
+                }
+            }
         }
     }
+
+    //combine glyph buffers
+    Glyph *o_gs_glyphs = gs.glyphs;
+    size_t n_o_glyphs = tg + 1;
+
+    gs.nGlyphs = cc.size() + n_o_glyphs;
+    gs.glyphs = new Glyph[gs.nGlyphs];
+
+    in_memcpy(gs.glyphs, o_gs_glyphs, n_o_glyphs * sizeof(Glyph));
+    in_memcpy(gs.glyphs + n_o_glyphs, cc.data(), cc.size() * sizeof(Glyph));
+
+    _safe_free_a(o_gs_glyphs);
 
     return gs;
 }

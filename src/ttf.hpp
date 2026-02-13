@@ -96,8 +96,15 @@ public:
     }
 };
 
+struct GlyphPart {
+    u32 idx;
+    struct {
+        f32 a, b, c, d, e, f, m, n;
+    } pos_mat;
+};
+
 struct Glyph {
-    i32 char_id = -1; //-1 is a placeholder character for the missing character glyph
+    i32 char_id = -1, loc = 0; //-1 is a placeholder character for the missing character glyph
     i16 nContours;
     float xMin, yMin, xMax, yMax;
     Point* points = nullptr;
@@ -105,6 +112,11 @@ struct Glyph {
     i32* contourEnds = nullptr;
     size_t nPoints;
     i32* modifiedContourEnds = nullptr;
+    bool compound = false, component = false;
+    struct {
+        GlyphPart *glyph_parts = nullptr;
+        size_t nGlyphParts = 0;
+    } compound_inf;
 };
 
 enum CMapMode {
@@ -220,8 +232,17 @@ struct _rLoc {
 
 struct GlyphSet {
     UnicodeRange rangeId;
+    /*
+    
+    FORMAT OF GLYPHS
+    
+    0 --> (nCharacters-1) --> the Glyph objects for all normal and compound glyphgs
+    nCharacters --> end --> the Compound Glyph Components
+    
+    */
     Glyph *glyphs = nullptr;
     size_t nGlyphs = 0;
+    size_t nCharacters = 0;
     _rLoc* rangeLocations = nullptr;
     size_t nRanges = 0;
 };

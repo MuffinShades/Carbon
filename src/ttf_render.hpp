@@ -1,7 +1,7 @@
 #pragma once
 #include "ttf.hpp"
 #include "bitmap.hpp"
-#include "gl/graphics.hpp"
+#include "gl/graphics.hpp"   
 
 /**
  * 
@@ -11,8 +11,26 @@
  * 
  * written by muffinshades 2024-2025
  * 
- * Stil working on this ;-;
+ * 3,000+ lines of code of adhd-induced speed. Can render ttf glyphs in numerous ways
  * 
+ * ------------------------------------
+ * 
+ * 1. MSDF Rendering
+ * 
+ * Can generate msdf for many glyphs in a small-compact sprite sheet.
+ * 4 Generation Modes
+ * - No-Acceleration (cpu) (slowest)
+ * - Multi-Threaded (cpu)
+ * - GPU-Accel (cpu+gpu)
+ * - GPU-Thread-Accel (cpu+gpu) (fastest)
+ * 
+ * ------------------------------------
+ * 
+ * Regardless of method program will return a Font Instance object which can
+ * then be passed to render strings will various effects depeding on method 
+ * chosen and whatever the hell I feel like actually adding cause holy shit
+ * this is taking way longer than I thought and has become one of the most
+ * complicated pieces of software I have ever written.
  * 
  */
 
@@ -84,14 +102,52 @@ struct MsdfGpuContext {
 
 struct CharSpritePos {
     u32 x, y, w, h;
+    bool rotate = false;
+};
+
+enum class MsdfMode {
+    Bitmap,
+    GL_Texture
+};
+
+enum class FontMode {
+    Unknown,
+    Bitmap,
+    MSDF,
+    SDF
+};
+
+struct Character {
+    union {
+        struct {
+            i32 x,y,w,h;
+            bool rotate_90 = false; //is the glyph rotated 90deg counter clockwise in the sheet (optinal thing when generating sheet since it can save space)
+        } loc;
+    } sprite;
+
+    bool compound = false;
+    u32 val;
 };
 
 struct FontInst {
-    Bitmap sheet;
     UnicodeRange range;
-    CharSpritePos *c_pos = nullptr;
-    MsdfGpuContext *dbg_ctx;
-    FrameBuffer fb;
+    Character *map = nullptr;
+    union {
+        struct {
+            union {
+                Bitmap bitmap;
+                Texture gl_texture;
+            } MSDF;
+            struct {
+                size_t w = 0, h = 0;
+            } dim;
+            MsdfGpuContext *_dbg_ctx;
+        } msdf_dat;
+        struct {
+            Bitmap bmp;
+        } bitmap_dat;
+    };
+    FontMode mode = FontMode::Unknown;
     bool good = false;
 };
 
@@ -113,6 +169,8 @@ public:
     MSFL_EXP static void _msdfRenderDebug2(Glyph g, MsdfGpuContext** ctx);
 
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size, bool accel = false);
+
+    MSFL_EXP static void DeleteFontObject(FontInst *font);
 };
 
 #ifdef MSFL_DLL
