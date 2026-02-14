@@ -1001,6 +1001,11 @@ _RangeData extract_range_data(UnicodeRange charRange) {
     return r;
 }
 
+struct ex_link {
+    ex_link *next = nullptr;
+    u64 val, hash;
+};
+
 GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     GlyphSet gs = {
         .rangeId = charRange
@@ -1059,9 +1064,9 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     //look up table thing to switch a from a component to a glpyh
     //if it gets encoded as a component first since a compound glyph
     //like the a with 2 dots on top gets encoded first
-    SimpleHashMap e_glyph_mabobidfk;
+    //SimpleHashMap e_glyph_mabobidfk;
 
-    i32 k;
+    i32 k,l;
     
     //read in the glyphs
     for (r = 0; r < rd.nRanges; r++) {
@@ -1074,6 +1079,20 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
         for (ucode_i = rd.min[r]; ucode_i < rd.max[r]; ucode_i++) {
             i32 loc = getUnicodeOffset(&fStream, &f, ucode_i), offset;
+
+            for (k = 0; k < cc.size(); k++) {
+                Glyph cg = cc[k];
+                if (cg.loc == loc) {
+                    gs.glyphs[tg++] = cg;
+                    cc.erase(cc.begin() + k); //move character to other place yeah
+                    goto skip_glf_add;
+                }
+            }
+
+            if (false) {
+            skip_glf_add:
+                continue;
+            }
 
             if (loc >= 0) {
                 offset = getGlyphOffset(&fStream, &f, loc);
@@ -1116,7 +1135,15 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                     if (copy)
                         continue;
 
-                    
+                    for (l = 0; l < tg; l++) {
+                        if (co.idx == gs.glyphs[l].loc) {
+                            copy = true;
+                            break;
+                        }
+                    }
+
+                    if (copy)
+                        continue;
 
                     Glyph co_glf = read_glyph(&fStream, &f, co.idx);
                     co_glf.char_id = co.idx;

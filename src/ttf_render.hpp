@@ -1,7 +1,8 @@
 #pragma once
 #include "ttf.hpp"
 #include "bitmap.hpp"
-#include "gl/graphics.hpp"   
+#include "gl/graphics.hpp" 
+#include "gl/Texture.hpp"  
 
 /**
  * 
@@ -142,6 +143,7 @@ struct FontInst {
                 size_t w = 0, h = 0;
             } dim;
             MsdfGpuContext *_dbg_ctx;
+            MsdfMode mode = MsdfMode::GL_Texture;
         } msdf_dat;
         struct {
             Bitmap bmp;
