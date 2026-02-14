@@ -98,6 +98,12 @@ BindableTexture::BindableTexture(std::string asset_path, std::string map_loc, st
     }
 }
 
+BindableTexture::BindableTexture(u32 handle, u32 w, u32 h) {
+    this->t_handle = handle;
+    this->w = w;
+    this->h = h;
+}
+
 void BindableTexture::bind(u32 slot) {
     if (slot >= 16) {
         std::cout << "Warning: cannot bind to texture slot above 15! Trying to bind to slot: " << slot << std::endl;

@@ -10,6 +10,8 @@ private:
 public:
     BindableTexture(std::string isrc);
     BindableTexture(std::string asset_path, std::string map_loc, std::string tex_loc);
+    BindableTexture(u32 handle, u32 w, u32 h);
+    BindableTexture() {}
 
     u32 width() const;
     u32 height() const;

@@ -37,7 +37,7 @@ Range Conglomeration Flag set to false -->
 */
 
 const u8 uncode_range_decode[] = {
-    0b00010000, 0x01, 0x00, 0x00, 0x0f, 0xff, //simple alphabet
+    0b00010000, 0x01, 0x00, 0x00, 0x2f, 0xff, //simple alphabet
     0b00000000, 0x01, 0x00, 0xff, //utf-8
     0b00010000, 0x01, 0x00, 0x00, 0xff, 0xff, //utf-16
     0b00000000, 0x01, 0x20, 0x7f, //Latin Basic
@@ -1145,8 +1145,10 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                     if (copy)
                         continue;
 
-                    Glyph co_glf = read_glyph(&fStream, &f, co.idx);
-                    co_glf.char_id = co.idx;
+                    i32 co_off = getGlyphOffset(&fStream, &f, co.idx);
+
+                    Glyph co_glf = read_glyph(&fStream, &f, co_off);
+                    co_glf.loc = co.idx;
                     co_glf.component = true;
                     cc.push_back(co_glf);
                 }

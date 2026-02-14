@@ -118,37 +118,52 @@ enum class FontMode {
     SDF
 };
 
-struct Character {
-    union {
-        struct {
-            i32 x,y,w,h;
-            bool rotate_90 = false; //is the glyph rotated 90deg counter clockwise in the sheet (optinal thing when generating sheet since it can save space)
-        } loc;
-    } sprite;
+/*
 
-    bool compound = false;
+NOTE IF A CHARACTER HAS ONLY 1 CHAR PART --> ignore offset
+
+*/
+struct CharPart {
+    struct {
+        i32 x,y,w,h;
+        bool rotate_90 = false; //is the glyph rotated 90deg counter clockwise in the sheet (optinal thing when generating sheet since it can save space)
+    } sheet_loc;
+    struct {
+        f32 a,b,c,d,e,f,m,n;
+    } offset;
+};
+
+struct Character {
+    CharPart *spriteParts;
+    size_t nParts = 0;
     u32 val;
+};
+
+struct __msdf_dim {
+    size_t w = 0, h = 0;
+};
+
+struct __msdf_tex {
+    Bitmap *bitmap = nullptr;
+    BindableTexture gl_texture;
+};
+
+struct __msdf_data {
+    __msdf_tex MSDF;
+    __msdf_dim dim;
+    MsdfGpuContext *_dbg_ctx = nullptr;
+    MsdfMode mode = MsdfMode::GL_Texture;
+};
+
+struct __bmp_data {
+    Bitmap bmp;
 };
 
 struct FontInst {
     UnicodeRange range;
     Character *map = nullptr;
-    union {
-        struct {
-            union {
-                Bitmap bitmap;
-                Texture gl_texture;
-            } MSDF;
-            struct {
-                size_t w = 0, h = 0;
-            } dim;
-            MsdfGpuContext *_dbg_ctx;
-            MsdfMode mode = MsdfMode::GL_Texture;
-        } msdf_dat;
-        struct {
-            Bitmap bmp;
-        } bitmap_dat;
-    };
+    __msdf_data msdf_dat;
+    __bmp_data bitmap_dat;
     FontMode mode = FontMode::Unknown;
     bool good = false;
 };

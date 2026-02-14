@@ -12,8 +12,8 @@
 #define MSFL_TTFRENDER_DEBUG
 #define COMMA ,
 
-#define MSDF_ACCEL_SHADER_PATH_VERT "../src/msdf_gl_accel_vert.glsl"
-#define MSDF_ACCEL_SHADER_PATH_FRAG "../src/msdf_gl_accel.glsl"
+#define MSDF_ACCEL_SHADER_PATH_VERT "../../src/msdf_gl_accel_vert.glsl"
+#define MSDF_ACCEL_SHADER_PATH_FRAG "../../src/msdf_gl_accel.glsl"
 
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 
@@ -2291,33 +2291,65 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
               space_normal_y = 1.0f / (ctx->fb.h);
 
         //set le uniforms
-        vec4 region_vec = vec4((g_pos.x * space_normal_x) * 2.0f - 1.0f, (g_pos.y * space_normal_y) * 2.0f - 1.0f, (g_pos.w * space_normal_x) * 2.0f, (g_pos.h * space_normal_y) * 2.0f);
-        vec4 scan_rgn = vec4(tg.xMin - padding_scl * gw, tg.yMin - padding_scl * gh, gw + padding_scl * gw * 2.0f, gh + padding_scl * gh * 2.0f);
+        vec4 region_vec, scan_rgn;
+
+        region_vec = vec4((g_pos.x * space_normal_x) * 2.0f - 1.0f, (g_pos.y * space_normal_y) * 2.0f - 1.0f, (g_pos.w * space_normal_x) * 2.0f, (g_pos.h * space_normal_y) * 2.0f);
+        scan_rgn = vec4(tg.xMin - padding_scl * gw, tg.yMin - padding_scl * gh, gw + padding_scl * gw * 2.0f, gh + padding_scl * gh * 2.0f);
 
         //render
-        msdf_vert out_rect[] = { 
-            (region_vec.x), (region_vec.y), 0.0 , 
-            scan_rgn.x, scan_rgn.y, curveMin, curveMax, 
+        if (g_pos.rotate) {
+            f32 tmp = scan_rgn.w;
+            scan_rgn.w = scan_rgn.z;
+            scan_rgn.z = tmp;
 
-            (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
-            scan_rgn.x , (scan_rgn.y + scan_rgn.w), curveMin, curveMax, 
+            msdf_vert out_rect[] = { 
+                (region_vec.x), (region_vec.y), 0.0 , 
+                scan_rgn.x+scan_rgn.w, scan_rgn.y, curveMin, curveMax, //tl --> tr
 
-            (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
-            (scan_rgn.x+scan_rgn.z), (scan_rgn.y),  curveMin, curveMax, 
+                (region_vec.x), (region_vec.y+region_vec.z), 0.0 , 
+                scan_rgn.x , (scan_rgn.y), curveMin, curveMax, //bl --> tl
+
+                (region_vec.x+region_vec.w), (region_vec.y), 0.0 , 
+                (scan_rgn.x+scan_rgn.z), (scan_rgn.y+scan_rgn.w),  curveMin, curveMax, //tr --> br
             
-            (region_vec.x+region_vec.z), (region_vec.y+region_vec.w), 0.0 , 
-            scan_rgn.x+scan_rgn.z , scan_rgn.y+scan_rgn.w, curveMin, curveMax, 
+                (region_vec.x+region_vec.w), (region_vec.y+region_vec.z), 0.0 , 
+                scan_rgn.x, scan_rgn.y+scan_rgn.w, curveMin, curveMax,  //br --> bl
             
-            (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
-            scan_rgn.x+scan_rgn.z, scan_rgn.y, curveMin, curveMax, 
+                (region_vec.x+region_vec.w), (region_vec.y), 0.0 , 
+                scan_rgn.x+scan_rgn.z, scan_rgn.y+scan_rgn.w, curveMin, curveMax, //tr --> br
             
-            (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
-            scan_rgn.x , scan_rgn.y+scan_rgn.w, curveMin, curveMax
-        };
+                (region_vec.x), (region_vec.y+region_vec.z), 0.0 , 
+                scan_rgn.x , scan_rgn.y, curveMin, curveMax //bl --> tl
+            };
 
-        const size_t NV = sizeof(out_rect) / sizeof(msdf_vert);
+            const size_t NV = sizeof(out_rect) / sizeof(msdf_vert);
 
-        ctx->g.push_verts(out_rect, NV);
+            ctx->g.push_verts(out_rect, NV);
+        } else {
+            msdf_vert out_rect[] = { 
+                (region_vec.x), (region_vec.y), 0.0 , 
+                scan_rgn.x, scan_rgn.y, curveMin, curveMax, 
+
+                (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
+                scan_rgn.x , (scan_rgn.y + scan_rgn.w), curveMin, curveMax, 
+
+                (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
+                (scan_rgn.x+scan_rgn.z), (scan_rgn.y),  curveMin, curveMax, 
+            
+                (region_vec.x+region_vec.z), (region_vec.y+region_vec.w), 0.0 , 
+                scan_rgn.x+scan_rgn.z , scan_rgn.y+scan_rgn.w, curveMin, curveMax, 
+            
+                (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
+                scan_rgn.x+scan_rgn.z, scan_rgn.y, curveMin, curveMax, 
+            
+                (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
+                scan_rgn.x , scan_rgn.y+scan_rgn.w, curveMin, curveMax
+            };
+
+            const size_t NV = sizeof(out_rect) / sizeof(msdf_vert);
+
+            ctx->g.push_verts(out_rect, NV);
+        }
 
         DeleteMsdfGenContext(&g_ctx);
     }
@@ -2665,6 +2697,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     CharSpritePos *c_pos = new CharSpritePos[glyphs.nGlyphs];
     font.map = new Character[glyphs.nCharacters];
 
+    //TODO: populate the font map!!!
+
     while (i < glyphs.nGlyphs) {
         Glyph g = gly[i]; //get the current glyph
 
@@ -2709,14 +2743,15 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             }
 
             //check potential 90 deg rotating benefits
+            if ((Rn.w < gh && Rn.w > 0) || (Rn.h < gw && Rn.h > 0)) continue;
             const u32 fit90 = mu_max(Rn.x + gh, sheet_w) * mu_max(Rn.y + gw, sheet_h);
 
-            if (fit90 < smallest_fit) {
+            /*if (fit90 < smallest_fit) {
                 low_age = Rn.age;
                 best_rgn = j;
-                smallest_fit = fit;
+                smallest_fit = fit90;
                 fit_rotated = true;
-            }
+            }*/
         }
 
         //add thing to sheet position or something
@@ -2733,8 +2768,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         c_pos[i] = {
             .x = (u32) target_rgn.x,
             .y = (u32) target_rgn.y,
-            .w = (u32) gw,
-            .h = (u32) gh,
+            .w = (u32) (fit_rotated ? gh : gw),
+            .h = (u32) (fit_rotated ? gw : gh),
             .rotate = fit_rotated
         };
 
@@ -2787,14 +2822,18 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     if (accel) {
         a_ctx = CreateMsdfGPUAccelerationContext(sheet_w, sheet_h);
+        font.msdf_dat.dim.w = a_ctx->fb.w;
+        font.msdf_dat.dim.h = a_ctx->fb.h;
         render_multi_positioned_msdf_gpu_accel(gly, c_pos, glyphs.nGlyphs, a_ctx, padding);
     } else {
-        font.sheet.data = new byte[(sheet_w * sheet_h) * 3];
-        ZeroMem(font.sheet.data, (sheet_w * sheet_h) * 3);
-        font.sheet.header.w = sheet_w;
-        font.sheet.header.h = sheet_h;
-        font.sheet.header.bitsPerPixel = 24;
-        font.sheet.header.fSz = (sheet_w * sheet_h) * 3;
+        font.msdf_dat.mode = MsdfMode::Bitmap;
+        Bitmap *sheet = font.msdf_dat.MSDF.bitmap;
+        sheet->data = new byte[(sheet_w * sheet_h) * 3];
+        ZeroMem(sheet->data, (sheet_w * sheet_h) * 3);
+        sheet->header.w = sheet_w;
+        sheet->header.h = sheet_h;
+        sheet->header.bitsPerPixel = 24;
+        sheet->header.fSz = (sheet_w * sheet_h) * 3;
 
         for (i = 0; i < glyphs.nGlyphs; i++) {
             r_pos = c_pos[i];
@@ -2806,7 +2845,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             //TODO: add memory management for the frame buffer and delete the buffer
             render_positioned_msdf(
                 gly[i], 
-                &font.sheet, 
+                sheet, 
                 r_pos.x, r_pos.y, r_pos.w, r_pos.h, 
                 padding, padding, padding, padding
             );
@@ -2814,12 +2853,12 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         }
     }
 
-    font.fb = a_ctx->fb;
+    if (accel) {
+        font.msdf_dat.mode = MsdfMode::GL_Texture;
+        font.msdf_dat.MSDF.gl_texture = BindableTexture(a_ctx->fb.getTextureHandle(), a_ctx->fb.w, a_ctx->fb.h);
+    }
 
-    if (accel)
-        font.sheet = a_ctx->fb.extractBitmap();
-
-    font.dbg_ctx = a_ctx;
+    //font._dbg_ctx = a_ctx;
 
     //memory management
     _safe_free_a(gly);
