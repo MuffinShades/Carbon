@@ -38,10 +38,7 @@ float cross2(vec2 a, vec2 b) {
 }
 
 vec2 dBdt3(vec2 p0, vec2 p1, vec2 p2, float t) {
-    return vec2(
-        2.0 * ((1.0 - t) * (p1.x - p0.x) + t * (p2.x - p1.x)),
-        2.0 * ((1.0 - t) * (p1.y - p0.y) + t * (p2.y - p1.y))
-    );
+    return 2.0 * (1.0 - t) * (p1 - p0) + 2.0 * t * (p2 - p1);
 }
 
 vec2 bz3(vec2 p0, vec2 p1, vec2 p2, float t) {
@@ -52,11 +49,15 @@ vec2 bz3(vec2 p0, vec2 p1, vec2 p2, float t) {
 }
 
 float curveOrtho(Curve c, vec2 p, float t) {
+    if (t > 1.0) t = 1.0;
+    if (t < 0.0) t = 0.0;
+
     const vec2 b = bz3(c.p0, c.p1, c.p2, t);
+
     return abs(cross2(normalize(
         dBdt3(c.p0, c.p1, c.p2, t)
     ), normalize(
-        vec2(p.x-b.x,p.y-b.y)
+        p-b
     )));
 }
 
@@ -68,6 +69,13 @@ Cubic solver functions
 const float one_third = 1.0 / 3.0;
 const float i9 = 1.0 / 9.0, i54 = 1.0 / 54.0;
 const float mu_pi = 3.1415926;
+
+float nz_sign(float v) {
+    if (v > 0)
+        return 1.0;
+    else
+        return -1.0;
+}
 
 float cube_root_32(float v) {
     return sign(v) * pow(abs(v), 1.0/3.0);
@@ -167,8 +175,24 @@ struct c_dist {
     float t;
 };
 
+c_dist LinearCurvePointSignedDist(vec2 p, Curve c) {
+    c_dist d;
+
+    vec2 p0 = c.p0, p1 = c.p1, p2 = c.p2, tp0 = p2 - p0, tp1 = p1 - p0;
+
+    vec2 dv = p - p0, mv = p1 - p0;
+
+    d.t = dot(dv, mv) / dot(mv, mv);
+
+    return d;
+}
+
 c_dist CurvePointSignedDist(vec2 p, Curve c) {
-    vec2 p0 = c.p0, p1 = c.p1, p2 = c.p2;
+    vec2 p0 = c.p0, p1 = c.p1, p2 = c.p2, tp0 = p2 - p0, tp1 = p1 - p0;
+
+    //if (abs((tp0.y / tp0.x) - abs(tp1.y / tp.x)) <= mu_epsil) {
+        //return LinearCurvePointSignedDist(p, c);
+    //}
 
     vec4 computeBase = c.compute_base;
 
@@ -197,10 +221,14 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
     float t, t_i, alpha, beta, gamma, D, d_best, t_best, t_out;
     vec2 d_vec, m;
 
+    //TODO: issue related to these endpoint calculations and the sign
+
     //check endpoints
     //basically just computes the time for the end pionts based on a pseudo dist and the dist based on normal dist
-    vec2 ip = c.p0 - p, fp = c.p2 - p, d0 = dBdt3(c.p0, c.p1, c.p2, 0.0), d1 = dBdt3(c.p0, c.p1, c.p2, 1.0), 
-         ese0 = d0 - c.p0, ese1 = c.p2 - d1;
+    vec2 ip = p0 - p, fp = c.p2 - p, d0 = dBdt3(c.p0, c.p1, c.p2, 0.0), d1 = dBdt3(c.p0, c.p1, c.p2, 1.0), 
+         ese0 = p1 - p0, ese1 = p2 - p1;
+
+    vec2 dpm = p1, dpn = p0;
     
     //t = 0
     //this works by just finding the perpendicular to a line segment going from p0 to p0  + derivative of curve at t = 0
@@ -214,11 +242,15 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
     //same thing goes as previous but instead it's a curve / line segment defined from p2 - its derivative -> p2
     //this time checking for t > 1.0 since if it is greater than 1 than it is again a pseudo distance
     float eDist = dot(fp, fp);
+
     if (eDist < d_best) {
         d_best = eDist;
         t_best = 1.0;
-        t_out = dot(fp, ese1) / dot(ese1, ese1);
+        ese1 = p2 - p1;
+        t_out = dot(p - p1, ese1) / dot(ese1, ese1);
         d_vec = fp;
+        dpm = p2;
+        dpn = p1;
     }
 
     for (j = 0; j < nRoots; j++) {
@@ -232,10 +264,7 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
         alpha = t_i * t_i;
         beta = 2.0 * t_i * t;
         gamma = t * t;
-        //dx = (alpha * p0.x + beta * p1.x + gamma * p2.x) - p.x;
-        //dy = (alpha * p0.y + beta * p1.y + gamma * p2.y) - p.y;
         m = alpha * p0 + beta * p1 + gamma * p2 - p;
-        //D = dx*dx + dy*dy;
         D = dot(m,m);
 
         if (D < d_best) {
@@ -243,11 +272,13 @@ c_dist CurvePointSignedDist(vec2 p, Curve c) {
             d_vec = m;
             t_best = t;
             t_out = t;
+            dpm = p2;
+            dpn = p0;
         }
     }
 
     //return computed distance
-    float s_dist = sign(cross2(dBdt3(c.p0, c.p1, c.p2, t_best), d_vec)) * sqrt(d_best);
+    float s_dist = nz_sign(cross2(dpm - dpn, d_vec)) * sqrt(d_best);
     
     rd.d = s_dist;
     rd.t = t_out;
@@ -272,7 +303,7 @@ c_dist ConvertToPseudoDist(c_dist d, Curve c, vec2 p) {
             float pd = abs(cross2(p, e) - cross2(p0, p1)) / e.length();
 
             if (pd < abs(d.d)) {
-                d.d = sign(cross2(e, (p0 + dr * t) - p)) * pd;
+                d.d = nz_sign(cross2(e, (p0 + dr * t) - p)) * pd;
                 d.t = t;
             }
         }
@@ -290,7 +321,7 @@ c_dist ConvertToPseudoDist(c_dist d, Curve c, vec2 p) {
             float pd = abs(cross2(p, e) - cross2(p0, p1)) / e.length();
 
             if (pd < abs(d.d)) {
-                d.d = sign(cross2(e, (p0 + dr * t) - p)) * pd;
+                d.d = nz_sign(cross2(e, (p0 + dr * t) - p)) * pd;
                 d.t = t;
             }
         }
@@ -330,11 +361,13 @@ void main() {
     db.d = f_inf;
     d_test.d = f_inf;
 
-    int cr = 0, cg = 0, cb = 0;
+    int cr = 0, cg = 0, cb = 0, ct = 0;
 
-    const float mu_epsil = 0.01;
+    const float mu_epsil = 0.0001;
 
     Curve tCurve;
+
+    vec3 cause_ortho = vec3(0,0,0);
 
     for (i = curve_range.x; i < curve_range.y; i++) {
         tCurve = glyph_curves[i];
@@ -350,6 +383,7 @@ void main() {
         )) {
             dr = d;
             cr = i;
+            cause_ortho.x = (d.t < 0.0 || d.t > 1.0) ? 1 : 0;
         }
 
         if (tCurve.chroma.y != 0 && (
@@ -360,6 +394,7 @@ void main() {
         )) {
             dg = d;
             cg = i;
+            cause_ortho.y = (d.t < 0.0 || d.t > 1.0) ? 1 : 0;
         }
 
         if (tCurve.chroma.z != 0 && (
@@ -370,10 +405,12 @@ void main() {
         )) {
             db = d;
             cb = i;
+            cause_ortho.z = (d.t < 0.0 || d.t > 1.0) ? 1 : 0;
         }
 
         if (ddd < -mu_epsil) {
             d_test = d;
+            ct = i;
         }
     }
 
@@ -397,6 +434,18 @@ void main() {
         db.d > 0 ? (((db.d) / blend_amount) * 0.5 + 0.5) : 0,
         1.0
     );
+
+    FragColor = vec4(dr.d > 0 ? 1 : 0, dg.d > 0 ? 1 : 0, db.d > 0 ? 1 : 0, 0);
+
+    /*if (FragColor.x + FragColor.y + FragColor.z >= 2)
+        FragColor = vec4(1,1,1,1);
+    else
+        FragColor = vec4(0,0,0,1);*/
+
+    //FragColor = vec4(glyph_curves[ct].chroma, 1.0);
+
+    //if (cause_ortho.x > 0 || cause_ortho.y > 0 || cause_ortho.z > 0)
+    //    FragColor = vec4(1.0, 0.5, 0.0, 1.0);
 
     //FragColor = vec4(p.x / 1000,p.y / 1000,0,1);
 }
