@@ -37,7 +37,7 @@ Range Conglomeration Flag set to false -->
 */
 
 const u8 uncode_range_decode[] = {
-    0b00000000, 0x01, 'A', 'z', //simple alphabet
+    0b00000000, 0x01, 'P', 'Z', //simple alphabet
     0b00000000, 0x01, 0x00, 0xff, //utf-8
     0b00010000, 0x01, 0x00, 0x00, 0xff, 0xff, //utf-16
     0b00000000, 0x01, 0x20, 0x7f, //Latin Basic

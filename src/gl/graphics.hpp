@@ -99,6 +99,39 @@ struct graphicsState {
     } __int_prop;
 };
 
+struct GenericFontProperties {
+    Color color;
+    struct {
+        i32 pt;
+        i32 px;
+        i32 kern;
+        struct {
+            f32 h = 1.0f; //horizontal warp
+            f32 v = 1.0f; //vertical warp
+        } warp;
+    } scale;
+    struct {
+        bool bold = false;
+        bool italic = false;
+        bool underline = false;
+        bool strikethrough = false;
+    } style;
+};
+
+struct CustomFontProperties {
+    Color color;
+    struct {
+        i32 pt;
+        i32 px;
+        i32 kern;
+    } scale;
+    struct {
+        Shader msdf;
+        Shader sdf;
+        //TODO: add other shaders for other render methods
+    } shader;
+};
+
 class graphics {
 private:
     graphicsState interalState;
@@ -203,6 +236,12 @@ public:
     //frame buffers
     void setOutputDevice(OutputDevice* device);
     void restoreDefaultOutputDevice();
+
+    //text
+    void RenderString(FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop);
+    void RenderString(FontInst *font, f32 x, f32 y, const char* str, CustomFontProperties prop);
+    f32 ComputeStringWidth(FontInst *font, const char* str);
+    f32 ComputeStringHeight(FontInst *font, const char* str);
 
     Shader* getCurrentShader();
     //void DrawImage();

@@ -2354,6 +2354,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
         DeleteMsdfGenContext(&g_ctx);
     }
 
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ctx->curveBuffer);
     ctx->g.render_flush();
 
     return 0;
