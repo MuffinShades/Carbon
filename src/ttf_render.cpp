@@ -2888,3 +2888,13 @@ void ttfRender::_msdfRenderDebug(Glyph g, MsdfGpuContext** ctx) {
 It's weird how the faster my code gets the more lines it takes
 
 */
+
+
+///textrendering through graphics related code
+
+void graphics::RenderString(struct FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop) {
+    if (!font || !str)
+        return;
+
+    
+}

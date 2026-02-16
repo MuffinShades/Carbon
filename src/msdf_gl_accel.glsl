@@ -431,7 +431,7 @@ void main() {
     dg = ConvertToPseudoDist(dg, glyph_curves[cg], p);
     db = ConvertToPseudoDist(db, glyph_curves[cb], p);
 
-    float blend_amount = 100.0;
+    float blend_amount = 30.0;
 
     //FragColor = vec4(dr.d > 0 ? 1 : 0, dg.d > 0 ? 1 : 0, db.d > 0 ? 1 : 0, 0);
 

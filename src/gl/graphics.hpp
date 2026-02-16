@@ -100,7 +100,6 @@ struct graphicsState {
 };
 
 struct GenericFontProperties {
-    Color color;
     struct {
         i32 pt;
         i32 px;
@@ -119,7 +118,6 @@ struct GenericFontProperties {
 };
 
 struct CustomFontProperties {
-    Color color;
     struct {
         i32 pt;
         i32 px;
@@ -238,10 +236,10 @@ public:
     void restoreDefaultOutputDevice();
 
     //text
-    void RenderString(FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop);
-    void RenderString(FontInst *font, f32 x, f32 y, const char* str, CustomFontProperties prop);
-    f32 ComputeStringWidth(FontInst *font, const char* str);
-    f32 ComputeStringHeight(FontInst *font, const char* str);
+    void RenderString(struct FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop);
+    void RenderString(struct FontInst *font, f32 x, f32 y, const char* str, CustomFontProperties prop);
+    f32 ComputeStringWidth(struct FontInst *font, const char* str);
+    f32 ComputeStringHeight(struct FontInst *font, const char* str);
 
     Shader* getCurrentShader();
     //void DrawImage();
