@@ -2828,13 +2828,15 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         render_multi_positioned_msdf_gpu_accel(gly, c_pos, glyphs.nGlyphs, a_ctx, padding);
     } else {
         font.msdf_dat.mode = MsdfMode::Bitmap;
-        Bitmap *sheet = font.msdf_dat.MSDF.bitmap;
+        Bitmap *sheet = new Bitmap;
         sheet->data = new byte[(sheet_w * sheet_h) * 3];
         ZeroMem(sheet->data, (sheet_w * sheet_h) * 3);
         sheet->header.w = sheet_w;
         sheet->header.h = sheet_h;
         sheet->header.bitsPerPixel = 24;
         sheet->header.fSz = (sheet_w * sheet_h) * 3;
+
+        font.msdf_dat.MSDF.bitmap = sheet;
 
         for (i = 0; i < glyphs.nGlyphs; i++) {
             r_pos = c_pos[i];
@@ -2883,18 +2885,154 @@ void ttfRender::_msdfRenderDebug(Glyph g, MsdfGpuContext** ctx) {
     );
 }
 
+void DeleteFontInst(FontInst *font) {
+    if (!font) return;
+
+    if (font->msdf_dat.MSDF.bitmap) {
+        Bitmap::Free(font->msdf_dat.MSDF.bitmap);
+        _safe_free_b(font->msdf_dat.MSDF.bitmap);
+        font->msdf_dat.MSDF.bitmap = nullptr;
+    }
+
+    font->msdf_dat.MSDF.gl_texture.free();
+
+    if (font->map) {
+        _safe_free_a(font->map);
+        font->map = nullptr;
+    }
+
+    font->good = false;
+}
+
 /*
 
 It's weird how the faster my code gets the more lines it takes
 
 */
 
+void GenerateFontInstanceTexture(FontInst *font, bool keep_redudant_data = false) {
+    if (!font) return;
 
-///textrendering through graphics related code
+    if (!font->good) {
+        std::cout << "ttf_render error | failed to generate font instance: BAD INSTANCE" << std::endl;
+        return;
+    }
 
+    switch (font->mode) {
+    case FontMode::MSDF: {
+        switch (font->msdf_dat.mode) {
+        case MsdfMode::GL_Texture: {
+            BindableTexture tex = font->msdf_dat.MSDF.gl_texture;
+            if (!tex.getHandle()) {
+                goto _bmp_cvrt;
+            }
+            break;
+        }
+        case MsdfMode::Bitmap: {
+        _bmp_cvrt:
+            Bitmap *bmp = font->msdf_dat.MSDF.bitmap;
+            const BitmapStatus bmp_stat = Bitmap::BitmapCheck(bmp);
+
+            if (!bmp || bmp_stat != BitmapStatus::Good) {
+                std::cout << "ttf_render error | invalid font bitmap" << std::endl;
+                font->good = false;
+                return;
+            }
+
+            font->msdf_dat.MSDF.gl_texture = BindableTexture(bmp);
+
+            if (!keep_redudant_data)
+                Bitmap::Free(bmp);
+
+            _safe_free_b(bmp);
+            font->msdf_dat.MSDF.bitmap = nullptr;
+
+            break;
+        }
+        default:
+            std::cout << "ttf_render error | invalid msdf format" << std::endl;
+            font->good = false;
+            return;
+        }
+        break;
+    }
+    default:
+        //nothing to convert
+        break;
+    }
+}
+
+/*
+
+Actual font rendering code :OOO
+
+Copyright muffinshades & Lambdana software 2026-present
+
+*/
+
+///textrendering through graphics related code=
+constexpr size_t n_gf_buf_verts = 0xffff;
+
+void graphics::ini_generic_font_state() {
+    this->useGraphicsState(&generic_font_state);
+    this->iniDynamicGraphicsState(n_gf_buf_verts);
+
+    gfont_s_ready = true;
+}
+
+struct str_pre_metrics {
+    i32 maxW, maxH;
+    size_t str_len;
+};
+
+//precomputations needed for text rendering
+/*
+
+Flag Format
+
+bit 1 (bool): whether or not every characters' position and dimensions should be calculated and stored in the metrics object
+    --> exists because there is a function to compute things like the bounding box of the strings and the actual positions are not needed
+    --> also this whole computation might be done whilsts redering each glyph so like yeah this functionality might be scraped but idgaf
+
+bits 2-8: reserved
+
+*/
+str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop, u8 flags) {
+    str_pre_metrics metrics;
+
+    //compute string length
+    size_t len = 0;
+    const char* l_cmp = str;
+
+    while (*l_cmp != 0x00) {
+        len++;
+        l_cmp++;
+    }
+
+    metrics.str_len = len;
+
+    //
+
+
+    //
+    return metrics;
+}
+
+//TODO: coordinate this process with graphics states
 void graphics::RenderString(struct FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop) {
     if (!font || !str)
         return;
 
-    
+    if (!gfont_s_ready)
+        ini_generic_font_state();
+
+    //compute the stirng metrics first
+    constexpr u8 met_flg = 0b10000000;
+    str_pre_metrics metrics = computePreStringMetrics(font, x, y, str, prop, met_flg);
+
+    //
+    this->useGraphicsState(&generic_font_state);
+    this->render_begin();
+
+
 }

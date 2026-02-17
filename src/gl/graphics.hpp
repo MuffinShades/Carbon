@@ -171,6 +171,12 @@ private:
 
     f32 winW, winH;
 
+    //
+    static graphicsState generic_font_state;
+
+    bool gfont_s_ready = false;
+
+    void ini_generic_font_state();
 public:
     enum class StockRenderType {
         Line

@@ -188,6 +188,8 @@ public:
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size, bool accel = false);
 
     MSFL_EXP static void DeleteFontObject(FontInst *font);
+
+    MSFL_EXP static void DeleteFontInst(FontInst *font);
 };
 
 #ifdef MSFL_DLL

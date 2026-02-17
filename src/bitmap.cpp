@@ -190,3 +190,48 @@ void Bitmap::Free(Bitmap* bmp)  {
     bmp->data = nullptr;
     bmp->header = {};
 }
+
+BitmapStatus Bitmap::BitmapCheck(Bitmap *bmp) {
+    if (!bmp)
+        return BitmapStatus::BadPointer;
+
+    if (
+        !bmp->data && 
+        bmp->header.fSz == 0 &&
+        bmp->header.w == 0 &&
+        bmp->header.h == 0 
+    )
+        return BitmapStatus::Blank;
+
+    const size_t nf_bits = bmp->header.w * bmp->header.h * bmp->header.bitsPerPixel;
+    const size_t nf_bytes = (nf_bits >> 3) + ((nf_bits & 7) > 0);
+
+    if (
+        !bmp->data ||
+        nf_bytes != bmp->header.fSz
+    )
+        return BitmapStatus::BadData;
+
+    if (
+        bmp->header.w == 0 ||
+        bmp->header.h == 0
+    )
+        return BitmapStatus::BadDimensions;
+
+    if (
+        bmp->header.bmpSig != BMP_SIG
+    )
+        return BitmapStatus::BadSig;
+
+    if (
+        bmp->header.bitsPerPixel != 1 &&
+        bmp->header.bitsPerPixel != 4 &&
+        bmp->header.bitsPerPixel != 8 &&
+        bmp->header.bitsPerPixel != 16 &&
+        bmp->header.bitsPerPixel != 24 &&
+        bmp->header.bitsPerPixel != 32 
+    )
+        return BitmapStatus::BadBPP;
+
+    return BitmapStatus::Good;
+}

@@ -58,6 +58,51 @@ u32 BindableTexture::GenTexFromDecodedPng(BindableTexture* self, png_image img) 
     return 0;
 }
 
+u32 BindableTexture::GenTexFromBitmap(BindableTexture* self, Bitmap *bmp) {
+    if (!self) {
+        std::cout << "invalid self ;-;" << std::endl;
+        return 4;
+    }
+
+    std::cout << "handle address: " << (uintptr_t) (&self->t_handle) << std::endl;
+
+    //now generate the texture
+    glGenTextures(1, &self->t_handle);
+
+    if (!self->t_handle) {
+        std::cout << "error: failed to create texture!" << std::endl;
+        return 2;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, self->t_handle);
+
+    //image params
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    const size_t nChannels = bmp->header.bitsPerPixel >> 3;
+
+    if (nChannels != 3 && nChannels != 4) {
+        std::cout << "error: usupported number of channels: " << nChannels << std::endl;
+        return 3;
+    }
+
+    auto gl_fmt = nChannels == 3 ? GL_RGB : GL_RGBA;
+
+    //load texture data and mipmap
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bmp->header.w, bmp->header.h, 0, gl_fmt, GL_UNSIGNED_BYTE, bmp->data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glBindTexture(GL_TEXTURE_2D, 0); //unbind from le texture
+
+    self->w = bmp->header.w;
+    self->h = bmp->header.h;
+
+    return 0;
+}
+
 BindableTexture::BindableTexture(std::string isrc) {
     if (isrc.length() == 0) return;
 
@@ -136,4 +181,11 @@ void BindableTexture::free() {
         glDeleteTextures(1, &this->t_handle);
 
     this->t_handle = 0;
+}
+
+BindableTexture::BindableTexture(Bitmap *bmp) {
+    if (!bmp ||  Bitmap::BitmapCheck(bmp) != BitmapStatus::Good)
+        return;
+
+    BindableTexture::GenTexFromBitmap(this, bmp);
 }
