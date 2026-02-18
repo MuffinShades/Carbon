@@ -407,3 +407,100 @@ static inline f64 mu_deg(f64 theta) {
 
 const u64 mu_i_infinity_64 = 0xffffffffffffffffULL;
 const u32 mu_i_infinity_32 = 0xffffffff;
+
+#define __MSFL_HASH_32 {                        \
+    if (!dat || nBits == 0 || len == 0) return 0;\
+    if (nBits > 32) nBits = 32;                 \
+                                                \
+    const char *c_dat = (const char*) dat;      \
+    const u32 mask = (1 << nBits) - 1;          \
+                                                \
+    u32 hash = 0, g = 0xff;                     \
+                                                \
+    i32 i;                                      \
+                                                \
+    for (i = 0; i < len; i++) {                 \
+        hash += (c_dat[i] * g);                 \
+                                                \
+        g <<= 8;                                \
+        g |= 0xff;                              \
+        g = (g >> 31) * 0xff + g * !(g >> 31);  \
+    }                                           \
+                                                \
+    return hash & mask;                         \
+}
+
+#define __MSDF_HASH_32_ALIGN_4 { \
+    if (!dat || nBits == 0 || len == 0) return 0; \
+                                                  \
+    if (nBits > 32) nBits = 32;                   \
+    const u32 *c_dat = (const u32*) dat;          \
+    const u32 mask = (1 << nBits) - 1;            \
+    u32 hash = 0, g = 0xff;                       \
+    const size_t len_4 = len >> 2;                \
+                                                  \
+    i32 i;                                        \
+                                                  \
+    for (i = 0; i < len_4; i++) {                 \
+        hash += (c_dat[i] * g);                   \
+                                                  \
+        g <<= 8;                                  \
+        g |= 0xff;                                \
+        g = (g >> 31) * 0xff + g * !(g >> 31);    \
+    }                                             \
+                                                  \
+    return hash & mask;                           \
+}
+
+#define __MSFL_HASH_64 {                        \
+    if (!dat || nBits == 0 || len == 0) return 0;\
+    if (nBits > 64) nBits = 64;                 \
+                                                \
+    const char *c_dat = (const char*) dat;      \
+    const u32 mask = (1 << nBits) - 1;          \
+                                                \
+    u32 hash = 0, g = 0xff;                     \
+                                                \
+    i32 i;                                      \
+                                                \
+    for (i = 0; i < len; i++) {                 \
+        hash += (c_dat[i] * g);                 \
+                                                \
+        g <<= 8;                                \
+        g |= 0xff;                              \
+        g = (g >> 31) * 0xff + g * !(g >> 31);  \
+    }                                           \
+                                                \
+    return hash & mask;                         \
+}
+
+#define __MSDF_HASH_64_ALIGN_8 { \
+    if (!dat || nBits == 0 || len == 0) return 0; \
+                                                  \
+    if (nBits > 64) nBits = 64;                   \
+    const u64 *c_dat = (const u64*) dat;          \
+    const u64 mask = (1 << nBits) - 1;            \
+    u64 hash = 0, g = 0xff;                       \
+    const size_t len_8 = len >> 3;                \
+                                                  \
+    i32 i;                                        \
+                                                  \
+    for (i = 0; i < len_8; i++) {                 \
+        hash += (c_dat[i] * g);                   \
+                                                  \
+        g <<= 8;                                  \
+        g |= 0xff;                                \
+        g = (g >> 63) * 0xff + g * !(g >> 63);    \
+    }                                             \
+                                                  \
+    return hash & mask;                           \
+}
+
+const u32 compute_basic_hash_32(size_t nBits, void *dat, size_t len) __MSFL_HASH_32
+inline const u32 compute_basic_hash_32_inline(size_t nBits, void *dat, size_t len) __MSFL_HASH_32
+const u32 compute_basic_hash_32_align_4(size_t nBits, void *dat, size_t len) __MSDF_HASH_32_ALIGN_4
+inline const u32 compute_basic_hash_32_align_4_inline(size_t nBits, void *dat, size_t len) __MSDF_HASH_32_ALIGN_4
+const u64 compute_basic_hash_64(size_t nBits, void *dat, size_t len) __MSFL_HASH_64
+inline const u64 compute_basic_hash_64_inline(size_t nBits, void *dat, size_t len) __MSFL_HASH_64
+const u64 compute_basic_hash_64_align_8(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8
+inline const u64 compute_basic_hash_64_align_8_inline(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8

@@ -159,9 +159,28 @@ struct __bmp_data {
     Bitmap bmp;
 };
 
+struct CharLink {
+    Character ochar;
+    CharLink *next = nullptr, *prev = nullptr;
+};
+
+enum class CharMapType {
+    Hash, //char id is linked to a hash map
+    Direct //char id is index
+};
+
+struct CharMap {
+    struct {
+        size_t nBits = 0;
+        size_t sz = 0;
+    } hash_inf;
+    CharMapType ty = CharMapType::Direct;
+    CharLink *hash_map = nullptr;
+};
+
 struct FontInst {
     UnicodeRange range;
-    Character *map = nullptr;
+    CharMap map;
     __msdf_data msdf_dat;
     __bmp_data bitmap_dat;
     FontMode mode = FontMode::Unknown;

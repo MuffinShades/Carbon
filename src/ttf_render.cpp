@@ -2997,7 +2997,7 @@ bit 1 (bool): whether or not every characters' position and dimensions should be
 bits 2-8: reserved
 
 */
-str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop, u8 flags) {
+str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop, u8 flags) {
     str_pre_metrics metrics;
 
     //compute string length
@@ -3018,21 +3018,80 @@ str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, con
     return metrics;
 }
 
+struct StrRenderContext {
+    char *cur_char = nullptr;
+    f32 x = 0, y = 0;
+};
+
+struct genericFontVert {
+    f32 pos[3];
+};
+
 //TODO: coordinate this process with graphics states
-void graphics::RenderString(struct FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop) {
+void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop) {
     if (!font || !str)
         return;
 
     if (!gfont_s_ready)
         ini_generic_font_state();
 
+    //check font instance and hash map stuff
+
     //compute the stirng metrics first
     constexpr u8 met_flg = 0b10000000;
-    str_pre_metrics metrics = computePreStringMetrics(font, x, y, str, prop, met_flg);
+    str_pre_metrics metrics = computePreStringMetrics(font, x, y, z, str, prop, met_flg);
 
-    //
-    this->useGraphicsState(&generic_font_state);
+    //render setup
+
+    StrRenderContext s_ctx = {
+        .cur_char = (char*) str,
+        .x = x,
+        .y = y
+    };
+
+    //begin render
     this->render_begin();
 
+    char cc;
 
+    while ((cc = *s_ctx.cur_char) != 0x00) {
+        switch (cc) {
+        //New Line
+        case 0x0A:
+
+            break;
+        //Tab
+        case 0x09:
+
+            break;
+        //Delete
+        case 0x7F:
+
+            break;
+        //backspace
+        case 0x08:
+
+            break;
+        //carriage return (basically home button)
+        case 0x0D:
+
+            break;
+        }
+
+        //find the character info
+        if (font->map.ty == CharMapType::Direct) {
+
+        } else {
+            const u32 hVal = compute_basic_hash_32(font->map.hash_inf.nBits, &cc, 1);
+            CharLink *lnk = (font->map.hash_map+hVal);
+
+            //render missing glyph if bad
+            if (!lnk) {
+
+            }
+        }
+
+        //
+        genericFontVert glyph_rect_base[] = RECT_VERTS(,,,, z);
+    }
 }

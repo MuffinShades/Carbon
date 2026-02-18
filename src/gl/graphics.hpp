@@ -242,8 +242,8 @@ public:
     void restoreDefaultOutputDevice();
 
     //text
-    void RenderString(struct FontInst *font, f32 x, f32 y, const char* str, GenericFontProperties prop);
-    void RenderString(struct FontInst *font, f32 x, f32 y, const char* str, CustomFontProperties prop);
+    void RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop);
+    void RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, CustomFontProperties prop);
     f32 ComputeStringWidth(struct FontInst *font, const char* str);
     f32 ComputeStringHeight(struct FontInst *font, const char* str);
 
