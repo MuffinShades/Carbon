@@ -527,6 +527,24 @@ bool read_hhea(ttfStream *stream, ttfFile* f) {
     f->h_inf.lineGap = stream->readFWord();
     f->h_inf.advanceWidthMax = stream->readUFWord();
     f->h_inf.minLeftSideBearing = stream->readFWord();
+    f->h_inf.minRightSideBearing = stream->readFWord();
+    f->h_inf.xMaxExtent = stream->readFWord();
+    
+    i16 cs_rise = stream->readInt16(),
+        cs_run = stream->readInt16();
+
+    if (cs_run == 0)
+        f->h_inf.vertical_caret_slope = true;
+    else
+        f->h_inf.caret_slope = (f32)cs_rise / (f32)cs_run;
+
+    f->h_inf.caretOffset = stream->readFWord();
+
+    const volatile i64 RESERVE_VALS = stream->readInt64();
+
+    f->h_inf.metricDataFormat = stream->readInt16();
+
+    f->h_inf.nLongHorMetrics = stream->readUInt16();
 
     return 0;
 }
@@ -1033,6 +1051,9 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     //
     read_offset_tables(&fStream, &f);
 
+    //read horizontal metrics
+    read_hhea(&fStream, &f);
+
     i32 r, ucode_i, tg = 0;
     gs.nCharacters = 0;
 
@@ -1113,8 +1134,13 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
             glf = read_glyph(&fStream, &f, offset);
             glf.char_id = ucode_i;
-            glf.loc = loc;
+            glf.glyph_id = loc;
             gs.glyphs[tg++] = glf;
+
+            //check to see if metrics exist
+            if (loc < f.h_inf.nLongHorMetrics) {
+                //TODO: read le metrics
+            }
 
             //handle compound glyphs
             if (glf.compound) {

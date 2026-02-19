@@ -3020,7 +3020,7 @@ str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, f32
 
 struct StrRenderContext {
     char *cur_char = nullptr;
-    f32 x = 0, y = 0;
+    f32 x = 0, baseline_y = 0;
 };
 
 struct genericFontVert {
@@ -3037,6 +3037,7 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
 
     //check font instance and hash map stuff
 
+
     //compute the stirng metrics first
     constexpr u8 met_flg = 0b10000000;
     str_pre_metrics metrics = computePreStringMetrics(font, x, y, z, str, prop, met_flg);
@@ -3046,7 +3047,7 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
     StrRenderContext s_ctx = {
         .cur_char = (char*) str,
         .x = x,
-        .y = y
+        .baseline_y = y
     };
 
     //begin render
@@ -3054,11 +3055,13 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
 
     char cc;
 
+    i32 p;
+
     while ((cc = *s_ctx.cur_char) != 0x00) {
         switch (cc) {
         //New Line
         case 0x0A:
-
+            
             break;
         //Tab
         case 0x09:
@@ -3079,19 +3082,32 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
         }
 
         //find the character info
-        if (font->map.ty == CharMapType::Direct) {
+        Character o_char; //TODO: set this to the missing char for easy escape if given char does not exist
 
-        } else {
+        if (font->map.ty == CharMapType::Direct && cc < font->map.hash_inf.sz)
+            o_char = font->map.hash_map[cc].ochar;
+        else {
             const u32 hVal = compute_basic_hash_32(font->map.hash_inf.nBits, &cc, 1);
             CharLink *lnk = (font->map.hash_map+hVal);
 
             //render missing glyph if bad
-            if (!lnk) {
+            while (lnk && lnk->ochar.val != cc) {
+                lnk = lnk->next;
+            }
 
+            if (lnk) {
+                o_char = lnk->ochar;
             }
         }
 
         //
-        genericFontVert glyph_rect_base[] = RECT_VERTS(,,,, z);
+        for (p = 0; p < o_char.nParts; p++) {
+            CharPart cp = o_char.spriteParts[p];
+
+            genericFontVert glyph_rect_base[] = RECT_VERTS(, , , , z);
+        }
+
+        //advance to next character
+        s_ctx.cur_char++;
     }
 }

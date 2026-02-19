@@ -137,6 +137,10 @@ struct Character {
     CharPart *spriteParts;
     size_t nParts = 0;
     u32 val;
+    struct {
+        u32 w, h;
+        i32 rise; //how many pixels relative to the glyphs w / h the glyph is above the baseline
+    } dim;
 };
 
 struct __msdf_dim {

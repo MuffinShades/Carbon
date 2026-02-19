@@ -104,7 +104,7 @@ struct GlyphPart {
 };
 
 struct Glyph {
-    i32 char_id = -1, loc = 0; //-1 is a placeholder character for the missing character glyph
+    i32 char_id = -1, glyph_id = 0; //-1 is a placeholder character for the missing character glyph
     i16 nContours;
     float xMin, yMin, xMax, yMax;
     Point* points = nullptr;
@@ -117,6 +117,10 @@ struct Glyph {
         GlyphPart *glyph_parts = nullptr;
         size_t nGlyphParts = 0;
     } compound_inf;
+    struct {
+        i16 advance_width;
+        i16 left_bearing;
+    } h_inf; //horizontal glyph info
 };
 
 enum CMapMode {
