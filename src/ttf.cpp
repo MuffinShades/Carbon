@@ -549,6 +549,41 @@ bool read_hhea(ttfStream *stream, ttfFile* f) {
     return 0;
 }
 
+void read_hmtx(ttfStream *stream, ttfFile* f) {
+    if (!stream || !f)
+        return;
+
+    const size_t n_metrics = f->h_inf.nLongHorMetrics;
+
+    if (n_metrics == 0) {
+        std::cout << "ttf error: cannot read hmtx -> hhea not read or nothing to read ;-;" << std::endl;
+        return;
+    }
+
+    if (f->hmtx_table.len == 0) {
+        std::cout << "ttf error: no hmtx or ttf header not read" << std::endl;
+        return;
+    }
+
+    if (f->h_metrics) return;
+
+    f->h_metrics = new h_char_metric[n_metrics];
+    ZeroMem(f->h_metrics, n_metrics);
+
+    stream->seek(f->hmtx_table.off);
+
+    i32 i;
+
+    for (i = 0; i < n_metrics; i++) {
+        h_char_metric hcm;
+
+        hcm.advance_w = stream->readUInt16();
+        hcm.l_side_bearing = stream->readInt16();
+
+        f->h_metrics[i] = hcm;
+    }
+}
+
 /**
  *
  * getUnicodeOffset
@@ -1053,6 +1088,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     //read horizontal metrics
     read_hhea(&fStream, &f);
+    read_hmtx(&fStream, &f);
 
     i32 r, ucode_i, tg = 0;
     gs.nCharacters = 0;
@@ -1103,7 +1139,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
             for (k = 0; k < cc.size(); k++) {
                 Glyph cg = cc[k];
-                if (cg.loc == loc) {
+                if (cg.glyph_id == loc) {
                     gs.glyphs[tg++] = cg;
                     cc.erase(cc.begin() + k); //move character to other place yeah
                     goto skip_glf_add;
@@ -1138,9 +1174,10 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
             gs.glyphs[tg++] = glf;
 
             //check to see if metrics exist
-            if (loc < f.h_inf.nLongHorMetrics) {
-                //TODO: read le metrics
-            }
+            if (f.h_inf.nLongHorMetrics == 1) //monospace font
+                glf.h_inf = f.h_metrics[0];
+            else if (loc < f.h_inf.nLongHorMetrics) {
+                glf.h_inf = f.h_metrics[loc];
 
             //handle compound glyphs
             if (glf.compound) {
@@ -1152,7 +1189,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                     bool copy = false;
 
                     for (Glyph cg : cc) {
-                        if (co.idx == cg.loc) {
+                        if (co.idx == cg.glyph_id) {
                             copy = true;
                             break;
                         }
@@ -1162,7 +1199,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                         continue;
 
                     for (l = 0; l < tg; l++) {
-                        if (co.idx == gs.glyphs[l].loc) {
+                        if (co.idx == gs.glyphs[l].glyph_id) {
                             copy = true;
                             break;
                         }
@@ -1174,7 +1211,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                     i32 co_off = getGlyphOffset(&fStream, &f, co.idx);
 
                     Glyph co_glf = read_glyph(&fStream, &f, co_off);
-                    co_glf.loc = co.idx;
+                    co_glf.glyph_id = co.idx;
                     co_glf.component = true;
                     cc.push_back(co_glf);
                 }
@@ -1193,6 +1230,8 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     in_memcpy(gs.glyphs + n_o_glyphs, cc.data(), cc.size() * sizeof(Glyph));
 
     _safe_free_a(o_gs_glyphs);
+
+    gs.file = f;
 
     return gs;
 }

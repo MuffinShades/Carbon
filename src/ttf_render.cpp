@@ -2643,6 +2643,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     // get all the glyphs
     GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
+    ttfFile f = glyphs.file;
 
     std::cout << "Generating " << glyphs.nGlyphs << " glyphs..." << std::endl;
 
@@ -2866,6 +2867,10 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     //memory management
     _safe_free_a(gly);
 
+    //add font info stuff
+    font.inf = f.h_inf;
+    font.ad_inf.monospace = (font.inf.nLongHorMetrics == 1);
+
     return font;
 }
 
@@ -3036,7 +3041,6 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
         ini_generic_font_state();
 
     //check font instance and hash map stuff
-
 
     //compute the stirng metrics first
     constexpr u8 met_flg = 0b10000000;

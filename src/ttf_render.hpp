@@ -140,6 +140,8 @@ struct Character {
     struct {
         u32 w, h;
         i32 rise; //how many pixels relative to the glyphs w / h the glyph is above the baseline
+        h_char_metric metr;
+        bool use_metr = false;
     } dim;
 };
 
@@ -188,6 +190,10 @@ struct FontInst {
     __msdf_data msdf_dat;
     __bmp_data bitmap_dat;
     FontMode mode = FontMode::Unknown;
+    h_char_inf inf;
+    struct {
+        bool monospace = false;
+    } ad_inf;
     bool good = false;
 };
 

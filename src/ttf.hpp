@@ -117,10 +117,7 @@ struct Glyph {
         GlyphPart *glyph_parts = nullptr;
         size_t nGlyphParts = 0;
     } compound_inf;
-    struct {
-        i16 advance_width;
-        i16 left_bearing;
-    } h_inf; //horizontal glyph info
+    h_char_metric h_inf; //horizontal glyph info
 };
 
 enum CMapMode {
@@ -182,8 +179,9 @@ struct h_char_inf {
     u16 nLongHorMetrics;
 };
 
-struct char_metric {
-
+struct h_char_metric {
+    u16 advance_w;
+    i16 l_side_bearing;
 };
 
 struct char_set {
@@ -213,6 +211,7 @@ public:
     std::vector<offsetTable> tables;
     table_head header;
     h_char_inf h_inf;
+    h_char_metric *h_metrics = nullptr;
 };
 
 enum class UnicodeRange {
@@ -249,6 +248,7 @@ struct GlyphSet {
     size_t nCharacters = 0;
     _rLoc* rangeLocations = nullptr;
     size_t nRanges = 0;
+    ttfFile file;
 };
 
 class ttfParse {
