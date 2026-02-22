@@ -2697,7 +2697,19 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     SpriteRegion Rn;
 
     CharSpritePos *c_pos = new CharSpritePos[glyphs.nGlyphs];
-    font.map = new Character[glyphs.nCharacters];
+
+    constexpr size_t nFontMapHashBits = 15;
+    
+    if (glyphs.nRanges == 1) {
+        font.map.ty = CharMapType::Direct;
+        font.map.hash_inf.sz = glyphs.nGlyphs;
+    } else {
+        font.map.hash_inf.nBits = nFontMapHashBits;
+        font.map.hash_inf.sz = 1 << font.map.hash_inf.nBits;
+        font.map.ty = CharMapType::Hash;
+        font.map.hash_map = new CharLink[nFontMapHashBits];
+        ZeroMem(font.map.hash_map, nFontMapHashBits);
+    }
 
     //TODO: populate the font map!!!
 
@@ -2813,6 +2825,22 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         }
         //std::cout << "Computed Glyph: " << i << " | " << gw << "x" << gh << std::endl;
 
+        //add character info
+        switch (font.map.ty) {
+        case CharMapType::Direct: {
+
+            break;
+        }
+        case CharMapType::Hash: {
+
+            break;
+        }
+        default:
+            std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
+            break;
+        }
+
+        //
         i++;
     }
 
@@ -2901,9 +2929,11 @@ void DeleteFontInst(FontInst *font) {
 
     font->msdf_dat.MSDF.gl_texture.free();
 
-    if (font->map) {
-        _safe_free_a(font->map);
-        font->map = nullptr;
+    if (font->map.hash_map) {
+        _safe_free_a(font->map.hash_map);
+        font->map.hash_map = nullptr;
+        font->map.hash_inf.sz = 0;
+        font->map.ty = (CharMapType) 0;
     }
 
     font->good = false;
@@ -2988,6 +3018,8 @@ void graphics::ini_generic_font_state() {
 struct str_pre_metrics {
     i32 maxW, maxH;
     size_t str_len;
+    i32 line_h;
+    f32 stride_factor; //amount to multiply each stride by in order to get proper pt scale
 };
 
 //precomputations needed for text rendering
@@ -3016,7 +3048,10 @@ str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, f32
 
     metrics.str_len = len;
 
-    //
+    //pt based calculations
+    
+
+    //compute font height
 
 
     //
@@ -3047,7 +3082,6 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
     str_pre_metrics metrics = computePreStringMetrics(font, x, y, z, str, prop, met_flg);
 
     //render setup
-
     StrRenderContext s_ctx = {
         .cur_char = (char*) str,
         .x = x,
