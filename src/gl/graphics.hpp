@@ -104,6 +104,7 @@ struct GenericFontProperties {
         i32 pt;
         i32 px;
         i32 kern;
+        i32 tab_size = 4;
         struct {
             f32 h = 1.0f; //horizontal warp
             f32 v = 1.0f; //vertical warp
@@ -122,6 +123,7 @@ struct CustomFontProperties {
         i32 pt;
         i32 px;
         i32 kern;
+        i32 tab_size = 4;
     } scale;
     struct {
         Shader msdf;

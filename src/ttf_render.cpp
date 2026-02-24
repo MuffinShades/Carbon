@@ -2652,6 +2652,11 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     font.range = range;
 
+    //set some info needed later for spacing calculations
+    font.ad_inf.unitsPerEm = f.header.unitsPerEm;
+    font.ad_inf.ascent = f.h_inf.ascent;
+    font.ad_inf.descent = f.h_inf.descent;
+
     //compute scale
     f32 scale = 1.0f, p_const = 32.0f;
 
@@ -2826,9 +2831,15 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         //std::cout << "Computed Glyph: " << i << " | " << gw << "x" << gh << std::endl;
 
         //add character info
+        Character ochar;
+
+        ochar.dim.w = g.xMax - g.xMin;
+        ochar.dim.h = g.yMax - g.yMin;
+
+        //TODO:
         switch (font.map.ty) {
         case CharMapType::Direct: {
-
+            font.map.hash_map[g.char_id]->ochar = ochar;
             break;
         }
         case CharMapType::Hash: {
@@ -3020,6 +3031,12 @@ struct str_pre_metrics {
     size_t str_len;
     i32 line_h;
     f32 stride_factor; //amount to multiply each stride by in order to get proper pt scale
+
+    //basically just multiply a glyph's width (xMax - xMin) by this value to get its output screen pixel width
+    //then compute the output height of the glyph using the ratio of the glyphs height to width and the compute pixel width above
+    f32 WemRatio;
+
+    i32 tab_distance = 0;
 };
 
 //precomputations needed for text rendering
@@ -3034,7 +3051,17 @@ bit 1 (bool): whether or not every characters' position and dimensions should be
 bits 2-8: reserved
 
 */
-str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop, u8 flags) {
+#ifdef WIN32
+    constexpr u32 standardDPI = 96;
+#else
+    constexpr u32 standardDPI = 72;
+#endif
+
+constexpr f32 ptInch = 0.01389f;
+constexpr f32 ptem = 0.08364583416f;
+constexpr f32 empt = 11.955168f;
+
+str_pre_metrics computePreStringMetrics(FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop, u8 flags) {
     str_pre_metrics metrics;
 
     //compute string length
@@ -3049,10 +3076,12 @@ str_pre_metrics computePreStringMetrics(struct FontInst *font, f32 x, f32 y, f32
     metrics.str_len = len;
 
     //pt based calculations
-    
+    const f32 px_per_pt = ptInch * standardDPI;
+    const i32 px_w = prop.scale.pt * px_per_pt;
+    metrics.WemRatio = px_w / ((f32) font->ad_inf.unitsPerEm); //width based em ratio
 
-    //compute font height
-
+    //compute font line height
+    metrics.line_h = abs(font->ad_inf.descent - font->ad_inf.ascent);
 
     //
     return metrics;
@@ -3065,10 +3094,11 @@ struct StrRenderContext {
 
 struct genericFontVert {
     f32 pos[3];
+    f32 tex[2];
 };
 
 //TODO: coordinate this process with graphics states
-void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop) {
+void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop) {
     if (!font || !str)
         return;
 
@@ -3085,39 +3115,36 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
     StrRenderContext s_ctx = {
         .cur_char = (char*) str,
         .x = x,
-        .baseline_y = y
+        .baseline_y = y + font->ad_inf.ascent //add max ascent to get proper positioning for the text basline
     };
 
     //begin render
     this->render_begin();
 
     char cc;
-
     i32 p;
 
     while ((cc = *s_ctx.cur_char) != 0x00) {
         switch (cc) {
         //New Line
         case 0x0A:
-            
+            s_ctx.baseline_y += metrics.line_h;
             break;
         //Tab
         case 0x09:
-
-            break;
-        //Delete
-        case 0x7F:
-
-            break;
-        //backspace
-        case 0x08:
-
+            s_ctx.x += metrics.tab_distance;
             break;
         //carriage return (basically home button)
         case 0x0D:
 
             break;
+        default:
+
+        //check for blank characters rq
+        if (cc == 0x00) {
+            break;
         }
+        //
 
         //find the character info
         Character o_char; //TODO: set this to the missing char for easy escape if given char does not exist
@@ -3138,11 +3165,41 @@ void graphics::RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const ch
             }
         }
 
+        f32 w, h;
+
         //
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
 
-            genericFontVert glyph_rect_base[] = RECT_VERTS(, , , , z);
+            w = o_char.dim.w;
+
+            // z
+            //cp.sheet_loc.x, cp.sheet_loc.y, cp.sheet_loc.w, cp.sheet_loc.h
+
+            genericFontVert glyph_rect_base[] = { 
+                (region_vec.x), (region_vec.y), 0.0 , 
+                scan_rgn.x, scan_rgn.y, curveMin, curveMax, 
+
+                (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
+                scan_rgn.x , (scan_rgn.y + scan_rgn.w), curveMin, curveMax, 
+
+                (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
+                (scan_rgn.x+scan_rgn.z), (scan_rgn.y),  curveMin, curveMax, 
+            
+                (region_vec.x+region_vec.z), (region_vec.y+region_vec.w), 0.0 , 
+                scan_rgn.x+scan_rgn.z , scan_rgn.y+scan_rgn.w, curveMin, curveMax, 
+            
+                (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
+                scan_rgn.x+scan_rgn.z, scan_rgn.y, curveMin, curveMax, 
+            
+                (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
+                scan_rgn.x , scan_rgn.y+scan_rgn.w, curveMin, curveMax
+            };
+        }
+        
+
+
+        break; //end of switch statement default branch
         }
 
         //advance to next character

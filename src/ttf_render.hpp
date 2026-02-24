@@ -193,6 +193,9 @@ struct FontInst {
     h_char_inf inf;
     struct {
         bool monospace = false;
+        i32 unitsPerEm = 0;
+        i16 ascent;
+        i16 descent;
     } ad_inf;
     bool good = false;
 };
