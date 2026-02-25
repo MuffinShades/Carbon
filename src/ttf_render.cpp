@@ -2835,11 +2835,14 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
         ochar.dim.w = g.xMax - g.xMin;
         ochar.dim.h = g.yMax - g.yMin;
+        ochar.dim.hw_ratio = ((f32) ochar.dim.h) / ((f32) ochar.dim.w);
+        ochar.val = g.char_id;
+        //ochar.nParts = 
 
         //TODO:
         switch (font.map.ty) {
         case CharMapType::Direct: {
-            font.map.hash_map[g.char_id]->ochar = ochar;
+            font.map.hash_map[g.char_id].ochar = ochar;
             break;
         }
         case CharMapType::Hash: {
@@ -3165,17 +3168,52 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             }
         }
 
-        f32 w, h;
+        f32 w, h, cx_max = x;
+
+        /********************************
+            Transforms' Format:
+            
+            Matrix (woah iso metric looking matrix cool!):
+
+             ⌈ A, C ⌉
+            ⌊ B, D ⌋
+        
+            A = a/m, B = b/n, C = c/m, D = d/n
+
+            Extra:
+
+            .xy --> xy-translation [e,f]
+            .zw --> xy-scale [m,n]
+        *********************************/
+        f32 gp_transform_mat2[] = {1.0f, 0.0f, 0.0f, 1.0f};
+        vec4 gp_transform_ext = vec4(0.0f, 0.0f, 1.0f, 1.0f);
 
         //
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
 
-            w = o_char.dim.w;
+            //compute rendered width and height
+            w = o_char.dim.w * metrics.WemRatio;
+            h = w * o_char.dim.hw_ratio;
 
-            // z
+            //get baseline relative x,y position of the glyph cell
+
+            //set the transforms
+            const f32 im = 1.0f / cp.offset.m, in = 1.0f / cp.offset.n;
+
+            gp_transform_mat2[0] = cp.offset.a * im; //matrix
+            gp_transform_mat2[1] = cp.offset.b * in;
+            gp_transform_mat2[2] = cp.offset.c * im;
+            gp_transform_mat2[3] = cp.offset.d * in;
+
+            gp_transform_ext.x = cp.offset.e; //extra
+            gp_transform_ext.y = cp.offset.f;
+            gp_transform_ext.z = cp.offset.m;
+            gp_transform_ext.w = cp.offset.n;
+
             //cp.sheet_loc.x, cp.sheet_loc.y, cp.sheet_loc.w, cp.sheet_loc.h
 
+            //TODO NEXT: fill this out right
             genericFontVert glyph_rect_base[] = { 
                 (region_vec.x), (region_vec.y), 0.0 , 
                 scan_rgn.x, scan_rgn.y, curveMin, curveMax, 
@@ -3196,8 +3234,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 scan_rgn.x , scan_rgn.y+scan_rgn.w, curveMin, curveMax
             };
         }
-        
 
+        x = cx_max;
 
         break; //end of switch statement default branch
         }

@@ -140,6 +140,7 @@ struct Character {
     struct {
         u32 w, h;
         i32 rise; //how many pixels relative to the glyphs w / h the glyph is above the baseline
+        f32 hw_ratio = 1.0f;
         h_char_metric metr;
         bool use_metr = false;
     } dim;
