@@ -123,14 +123,16 @@ enum class FontMode {
 NOTE IF A CHARACTER HAS ONLY 1 CHAR PART --> ignore offset
 
 */
+
 struct CharPart {
     struct {
         i32 x,y,w,h;
         bool rotate_90 = false; //is the glyph rotated 90deg counter clockwise in the sheet (optinal thing when generating sheet since it can save space)
     } sheet_loc;
+    p_mat_2d offset;
     struct {
-        f32 a,b,c,d,e,f,m,n;
-    } offset;
+        i32 xMax, xMin, yMax, yMin;
+    } size;
 };
 
 struct Character {
@@ -193,12 +195,17 @@ struct FontInst {
     FontMode mode = FontMode::Unknown;
     h_char_inf inf;
     struct {
-        bool monospace = false;
+        bool monospace = false, efficient_compound_glyphs = true;
         i32 unitsPerEm = 0;
         i16 ascent;
         i16 descent;
     } ad_inf;
     bool good = false;
+};
+
+struct MsdfSettings {
+    bool efficient_compound_glyphs = false;
+    bool accel = true;
 };
 
 class ttfRender {

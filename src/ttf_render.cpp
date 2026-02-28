@@ -2716,8 +2716,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ZeroMem(font.map.hash_map, nFontMapHashBits);
     }
 
-    //TODO: populate the font map!!!
-
+    //genereate the sprite sheet layout
     while (i < glyphs.nGlyphs) {
         Glyph g = gly[i]; //get the current glyph
 
@@ -2782,8 +2781,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             continue;
         }
 
-        //std::cout << "T Region: " << target_rgn.x << " " << target_rgn.y << std::endl;
-
         c_pos[i] = {
             .x = (u32) target_rgn.x,
             .y = (u32) target_rgn.y,
@@ -2792,10 +2789,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             .rotate = fit_rotated
         };
 
-        //std::cout << "POS: Draw(" << target_rgn.x << "," << target_rgn.y << "," << gw << "," << gh << ") " << (gw*gh) << std::endl;
-
         //sizing adjust
-        //TODO: ADJUST FOR PADDING
         sheet_w = mu_max(sheet_w, target_rgn.x + gw);
         sheet_h = mu_max(sheet_h, target_rgn.y + gh);
 
@@ -2828,7 +2822,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             };
             rgn_stack.push_back(r2); //add 2 new regions
         }
-        //std::cout << "Computed Glyph: " << i << " | " << gw << "x" << gh << std::endl;
 
         //add character info
         Character ochar;
@@ -2837,7 +2830,20 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ochar.dim.h = g.yMax - g.yMin;
         ochar.dim.hw_ratio = ((f32) ochar.dim.h) / ((f32) ochar.dim.w);
         ochar.val = g.char_id;
+        
         //ochar.nParts = 
+        ochar.nParts = g.compound ? g.compound_inf.nGlyphParts : 1;
+        ochar.spriteParts = new CharPart[ochar.nParts];
+
+        if (g.compound) {
+            for (j = 0; j < ochar.nParts; j++) {
+                CharPart *part = ochar.spriteParts + j;
+
+                part->offset = g.compound_inf.glyph_parts[j].pos_mat;
+            }
+        } else {
+            //TODO: add single part for non compound glyph
+        }
 
         //TODO:
         switch (font.map.ty) {
@@ -2882,6 +2888,9 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         font.msdf_dat.MSDF.bitmap = sheet;
 
         for (i = 0; i < glyphs.nGlyphs; i++) {
+            //todo: for comound glyphs add
+
+
             r_pos = c_pos[i];
 
             if (r_pos.w <= 0 || r_pos.h <= 0)
@@ -3152,9 +3161,9 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         //find the character info
         Character o_char; //TODO: set this to the missing char for easy escape if given char does not exist
 
-        if (font->map.ty == CharMapType::Direct && cc < font->map.hash_inf.sz)
-            o_char = font->map.hash_map[cc].ochar;
-        else {
+        if (font->map.ty == CharMapType::Direct) {
+            if (cc < font->map.hash_inf.sz) o_char = font->map.hash_map[cc].ochar;
+        } else {
             const u32 hVal = compute_basic_hash_32(font->map.hash_inf.nBits, &cc, 1);
             CharLink *lnk = (font->map.hash_map+hVal);
 
@@ -3168,7 +3177,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             }
         }
 
-        f32 w, h, cx_max = x;
+        //render glyph parts
+        f32 part_w, part_h, part_y, HemRatio, cx_max = x;
 
         /********************************
             Transforms' Format:
@@ -3192,11 +3202,12 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
 
-            //compute rendered width and height
-            w = o_char.dim.w * metrics.WemRatio;
-            h = w * o_char.dim.hw_ratio;
+            //compute needed render constants
+            part_w = (cp.size.xMax - cp.size.xMin) * metrics.WemRatio;
+            part_h = part_w * o_char.dim.hw_ratio;
 
-            //get baseline relative x,y position of the glyph cell
+            HemRatio = part_h / (cp.size.yMax - cp.size.yMin); 
+            part_y = s_ctx.baseline_y - (cp.size.yMax) * HemRatio;
 
             //set the transforms
             const f32 im = 1.0f / cp.offset.m, in = 1.0f / cp.offset.n;
@@ -3211,28 +3222,28 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             gp_transform_ext.z = cp.offset.m;
             gp_transform_ext.w = cp.offset.n;
 
-            //cp.sheet_loc.x, cp.sheet_loc.y, cp.sheet_loc.w, cp.sheet_loc.h
-
-            //TODO NEXT: fill this out right
+            //verticies
             genericFontVert glyph_rect_base[] = { 
-                (region_vec.x), (region_vec.y), 0.0 , 
-                scan_rgn.x, scan_rgn.y, curveMin, curveMax, 
+                s_ctx.x, part_y, z, 
+                cp.sheet_loc.x, cp.sheet_loc.y, 
 
-                (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
-                scan_rgn.x , (scan_rgn.y + scan_rgn.w), curveMin, curveMax, 
+                (s_ctx.x), (part_y+part_h), z, 
+                cp.sheet_loc.x, cp.sheet_loc.y+cp.sheet_loc.h, 
 
-                (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
-                (scan_rgn.x+scan_rgn.z), (scan_rgn.y),  curveMin, curveMax, 
+                (s_ctx.x+part_w), (part_y), z, 
+                cp.sheet_loc.x+cp.sheet_loc.w, cp.sheet_loc.y, 
             
-                (region_vec.x+region_vec.z), (region_vec.y+region_vec.w), 0.0 , 
-                scan_rgn.x+scan_rgn.z , scan_rgn.y+scan_rgn.w, curveMin, curveMax, 
+                (s_ctx.x+part_w), (part_y+part_h), z, 
+                cp.sheet_loc.x+cp.sheet_loc.w, cp.sheet_loc.y+cp.sheet_loc.h, 
             
-                (region_vec.x+region_vec.z), (region_vec.y), 0.0 , 
-                scan_rgn.x+scan_rgn.z, scan_rgn.y, curveMin, curveMax, 
+                (s_ctx.x+part_w), (part_y), z, 
+                cp.sheet_loc.x+cp.sheet_loc.w, cp.sheet_loc.y,  
             
-                (region_vec.x), (region_vec.y+region_vec.w), 0.0 , 
-                scan_rgn.x , scan_rgn.y+scan_rgn.w, curveMin, curveMax
+                (s_ctx.x), (part_y+part_h), z, 
+                cp.sheet_loc.x, cp.sheet_loc.y+cp.sheet_loc.h, 
             };
+
+            //TODO: actually render ts
         }
 
         x = cx_max;

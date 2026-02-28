@@ -96,11 +96,13 @@ public:
     }
 };
 
+struct p_mat_2d {
+    f32 a,b,c,d,e,f,m,n;
+};
+
 struct GlyphPart {
     u32 idx;
-    struct {
-        f32 a, b, c, d, e, f, m, n;
-    } pos_mat;
+    p_mat_2d pos_mat;
 };
 
 struct Glyph {
