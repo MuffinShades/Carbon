@@ -103,7 +103,7 @@ struct MsdfGpuContext {
 
 struct CharSpritePos {
     u32 x, y, w, h;
-    bool rotate = false;
+    bool rotate_90 = false;
 };
 
 enum class MsdfMode {
@@ -125,10 +125,7 @@ NOTE IF A CHARACTER HAS ONLY 1 CHAR PART --> ignore offset
 */
 
 struct CharPart {
-    struct {
-        i32 x,y,w,h;
-        bool rotate_90 = false; //is the glyph rotated 90deg counter clockwise in the sheet (optinal thing when generating sheet since it can save space)
-    } sheet_loc;
+    CharSpritePos sheet_loc;
     p_mat_2d offset;
     struct {
         i32 xMax, xMin, yMax, yMin;

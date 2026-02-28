@@ -2196,7 +2196,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
 
 const size_t MAX_BUFFER_CURVES = 1024;
 
-i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, size_t nGlyphs, MsdfGpuContext *ctx, f32 padding_scl) {
+i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, FontInst *font, size_t nGlyphs, MsdfGpuContext *ctx, f32 padding_scl) {
     
     //simple error / render ability checks
     if (ctx->fb.w == 0 || ctx->fb.h == 0) 
@@ -2214,8 +2214,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
     CharSpritePos g_pos;
     f32 gw,gh;
 
-    i32 i;
-
     size_t dat_collect;
 
     if (!msdf_gen_shader.good())
@@ -2229,9 +2227,33 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
 
     MsdfGenContext g_ctx;
 
+    i32 i, j;
     for (i = 0; i < nGlyphs; i++) {
         tg = tGlyphs[i];
         g_pos = pos[i];
+
+        //add spritesheet character info for compound glyphs
+        //TODO: support the hash map
+        if (tg.compound) {
+            switch (font->map.ty) {
+            case CharMapType::Direct: {
+                Character *ochar = &font->map.hash_map[tg.char_id].ochar;
+
+                for (j = 0; j < ochar->nParts; j++)
+                    ochar->spriteParts[j].sheet_loc = pos[ochar->val];
+                    
+                break;
+            }
+            case CharMapType::Hash: {
+                std::cout << "TODO: implement char map hashing" << std::endl;
+                break;
+            }
+            default:
+                std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
+                break;
+            }
+        }
+        //
 
         if (g_pos.w == 0 || g_pos.h == 0) continue; //dimension check (dont add null glyphs)
 
@@ -2297,7 +2319,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, s
         scan_rgn = vec4(tg.xMin - padding_scl * gw, tg.yMin - padding_scl * gh, gw + padding_scl * gw * 2.0f, gh + padding_scl * gh * 2.0f);
 
         //render
-        if (g_pos.rotate) {
+        if (g_pos.rotate_90) {
             f32 tmp = scan_rgn.w;
             scan_rgn.w = scan_rgn.z;
             scan_rgn.z = tmp;
@@ -2786,7 +2808,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             .y = (u32) target_rgn.y,
             .w = (u32) (fit_rotated ? gh : gw),
             .h = (u32) (fit_rotated ? gw : gh),
-            .rotate = fit_rotated
+            .rotate_90 = fit_rotated
         };
 
         //sizing adjust
@@ -2845,7 +2867,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             //TODO: add single part for non compound glyph
         }
 
-        //TODO:
+        //TODO: add hash thing
         switch (font.map.ty) {
         case CharMapType::Direct: {
             font.map.hash_map[g.char_id].ochar = ochar;
@@ -2874,7 +2896,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         a_ctx = CreateMsdfGPUAccelerationContext(sheet_w, sheet_h);
         font.msdf_dat.dim.w = a_ctx->fb.w;
         font.msdf_dat.dim.h = a_ctx->fb.h;
-        render_multi_positioned_msdf_gpu_accel(gly, c_pos, glyphs.nGlyphs, a_ctx, padding);
+        render_multi_positioned_msdf_gpu_accel(gly, c_pos, &font, glyphs.nGlyphs, a_ctx, padding);
     } else {
         font.msdf_dat.mode = MsdfMode::Bitmap;
         Bitmap *sheet = new Bitmap;
@@ -2888,10 +2910,31 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         font.msdf_dat.MSDF.bitmap = sheet;
 
         for (i = 0; i < glyphs.nGlyphs; i++) {
-            //todo: for comound glyphs add
-
+            Glyph glf = gly[i];
 
             r_pos = c_pos[i];
+
+            //add spritesheet location for compound glyph parts since they depend on already being computed
+            //TODO: add support for the hash map
+            if (glf.compound) {
+                switch (font.map.ty) {
+                case CharMapType::Direct: {
+                    Character *ochar = &font.map.hash_map[glf.char_id].ochar;
+
+                    for (j = 0; j < ochar->nParts; j++)
+                        ochar->spriteParts[j].sheet_loc = c_pos[ochar->val];
+                    
+                    break;
+                }
+                case CharMapType::Hash: {
+
+                    break;
+                }
+                default:
+                    std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
+                    break;
+                }
+            }
 
             if (r_pos.w <= 0 || r_pos.h <= 0)
                 continue;
@@ -2899,12 +2942,11 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             //use gpu acceleration if needed
             //TODO: add memory management for the frame buffer and delete the buffer
             render_positioned_msdf(
-                gly[i], 
+                glf, 
                 sheet, 
                 r_pos.x, r_pos.y, r_pos.w, r_pos.h, 
                 padding, padding, padding, padding
             );
-            //std::cout << "Generated Glyph: " << i << std::endl;
         }
     }
 
@@ -3101,13 +3143,29 @@ str_pre_metrics computePreStringMetrics(FontInst *font, f32 x, f32 y, f32 z, con
 
 struct StrRenderContext {
     char *cur_char = nullptr;
-    f32 x = 0, baseline_y = 0;
+    f32 x = 0, left_edge = 0, baseline_y = 0;
 };
 
 struct genericFontVert {
     f32 pos[3];
     f32 tex[2];
 };
+
+static graphicsState defFontRenderState;
+static bool defFontRenderStateCreated = false;
+static Shader defFontShader;
+constexpr size_t nFontRenderVerts = 2048;
+
+//todo: set these paths
+#define DEF_FONT_SHADER_VERT_SRC ""
+#define DEF_FONT_SHADER_FRAG_SRC ""
+
+/*
+MAJOR TODO:
+
+ok so possible remove the uniforms to the shader and add functionality to be able to render multiple characters in one batch
+
+*/
 
 //TODO: coordinate this process with graphics states
 void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop) {
@@ -3127,11 +3185,32 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     StrRenderContext s_ctx = {
         .cur_char = (char*) str,
         .x = x,
+        .left_edge = x,
         .baseline_y = y + font->ad_inf.ascent //add max ascent to get proper positioning for the text basline
     };
 
+    this->useGraphicsState(&defFontRenderState);
+
+    if (!defFontRenderStateCreated) {
+        this->iniDynamicGraphicsState(nFontRenderVerts);
+        this->vertexStructureDefineBegin(sizeof(genericFontVert));
+        this->defineVertexPart(0, vertexClassPart(genericFontVert, pos));
+        this->defineVertexPart(1, vertexClassPart(genericFontVert, tex));
+        this->vertexStructureDefineEnd();
+        defFontRenderStateCreated = true;
+    }
+
+    if (!defFontShader.good()) {
+        defFontShader = Shader(DEF_FONT_SHADER_VERT_SRC, DEF_FONT_SHADER_FRAG_SRC);
+    }
+
+    this->setCurrentShader(&defFontShader);
+
     //begin render
     this->render_begin();
+
+    //TODO: set projection matrix
+
 
     char cc;
     i32 p;
@@ -3141,6 +3220,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         //New Line
         case 0x0A:
             s_ctx.baseline_y += metrics.line_h;
+            s_ctx.x = s_ctx.left_edge;
             break;
         //Tab
         case 0x09:
@@ -3148,7 +3228,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             break;
         //carriage return (basically home button)
         case 0x0D:
-
+            s_ctx.x = s_ctx.left_edge;
             break;
         default:
 
@@ -3178,7 +3258,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         }
 
         //render glyph parts
-        f32 part_w, part_h, part_y, HemRatio, cx_max = x;
+        f32 part_w, part_h, part_y, part_x, HemRatio, cx_max = x;
 
         /********************************
             Transforms' Format:
@@ -3207,7 +3287,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             part_h = part_w * o_char.dim.hw_ratio;
 
             HemRatio = part_h / (cp.size.yMax - cp.size.yMin); 
-            part_y = s_ctx.baseline_y - (cp.size.yMax) * HemRatio;
+            //part_y = s_ctx.baseline_y - (cp.size.yMax) * HemRatio;
 
             //set the transforms
             const f32 im = 1.0f / cp.offset.m, in = 1.0f / cp.offset.n;
@@ -3216,6 +3296,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             gp_transform_mat2[1] = cp.offset.b * in;
             gp_transform_mat2[2] = cp.offset.c * im;
             gp_transform_mat2[3] = cp.offset.d * in;
+
+            part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x * (1.0f / metrics.WemRatio)) + (gp_transform_mat2[2] * cp.size.yMax) + cp.offset.e)
 
             gp_transform_ext.x = cp.offset.e; //extra
             gp_transform_ext.y = cp.offset.f;
@@ -3244,6 +3326,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             };
 
             //TODO: actually render ts
+            this->push_verts(glyph_rect_base, sizeof(glyph_rect_base));
+            this->render_flush();
         }
 
         x = cx_max;
