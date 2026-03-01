@@ -2217,7 +2217,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     size_t dat_collect;
 
     if (!msdf_gen_shader.good())
-        msdf_gen_shader = Shader::LoadShaderFromFile("../../src/msdf_gl_accel_vert.glsl", "../../src/msdf_gl_accel.glsl");
+        msdf_gen_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_SHADER_PATH_VERT, MSDF_ACCEL_SHADER_PATH_FRAG);
 
     ctx->g.setCurrentShader(&msdf_gen_shader);
     ctx->g.render_begin();
@@ -2232,11 +2232,21 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         tg = tGlyphs[i];
         g_pos = pos[i];
 
+        if (tg.char_id < 0) {
+        _char_id_fail:
+            std::cout << "error invalid char id! @ i = " << i << " / " << nGlyphs << std::endl;
+            continue;
+        }
+
         //add spritesheet character info for compound glyphs
         //TODO: support the hash map
         if (tg.compound) {
             switch (font->map.ty) {
             case CharMapType::Direct: {
+                if (tg.char_id > font->map.hash_inf.sz) {
+                    goto _char_id_fail;
+                }
+
                 Character *ochar = &font->map.hash_map[tg.char_id].ochar;
 
                 for (j = 0; j < ochar->nParts; j++)
@@ -3209,16 +3219,14 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     }
 
     if (!defFontShader.good()) {
-        defFontShader = Shader(DEF_FONT_SHADER_VERT_SRC, DEF_FONT_SHADER_FRAG_SRC);
+        defFontShader = Shader::LoadShaderFromFile(DEF_FONT_SHADER_VERT_SRC, DEF_FONT_SHADER_FRAG_SRC);
     }
 
+    this->render_begin();
     this->setCurrentShader(&defFontShader);
 
     defFontShader.SetMat4("screen_project", &str_proj_mat);
     font->msdf_dat.MSDF.gl_texture.bind();
-
-    //begin render
-    this->render_begin();
 
     //TODO: set projection matrix
 

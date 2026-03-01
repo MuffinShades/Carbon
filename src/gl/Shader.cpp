@@ -49,6 +49,8 @@ Shader::Shader(const char *vertex_data, const char *fragment_data) {
 
 	//create the program
 	this->PGRM = glCreateProgram();
+
+    std::cout << "CREATED PROGRAM: " << this->PGRM << std::endl; 
 	//add the shaders
 	glAttachShader(this->PGRM, this->vert);
 	glAttachShader(this->PGRM, this->frag);

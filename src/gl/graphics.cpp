@@ -58,11 +58,9 @@ void graphics::iniStaticGraphicsState() {
         return;
     //vertex array
     vao_create(this->cur_state->vao);
-    glBindVertexArray(this->cur_state->vao);
 
     //buffer allocation
     glGenBuffers(1, &this->cur_state->vbo);
-    vbo_bind(this->cur_state->vbo);
 
     this->cur_state->g_fmt = graphicsState::__gs_fmt::_static;
 }
@@ -74,11 +72,13 @@ void graphics::iniDynamicGraphicsState(size_t nBufferVerts) {
     this->batch_size = nBufferVerts;
     //vertex array
     vao_create(this->cur_state->vao);
-    glBindVertexArray(this->cur_state->vao);
 
     //buffer allocation
     glGenBuffers(1, &this->cur_state->vbo);
-    vbo_bind(this->cur_state->vbo);
+
+    if (this->cur_state->vmem)
+        _safe_free_a(this->cur_state->vmem);
+    this->cur_state->vmem = nullptr;
 
     this->cur_state->g_fmt = graphicsState::__gs_fmt::_dynamic;
 }
@@ -231,6 +231,9 @@ void graphics::render_begin(bool clear) {
     if (!this->s) return;
     if (!this->shader_bound)
         this->shader_bind();
+    
+    glBindVertexArray(this->cur_state->vao);
+    vbo_bind(this->cur_state->vbo);
 }
 
 void graphics::render_flush() {
@@ -635,20 +638,9 @@ void graphics::vertexStructureDefineBegin(size_t vObjSz) {
         return;
     }
 
-    if (!cur_state->vbo) {
-        glGenBuffers(1, &cur_state->vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
-        this->vmem_alloc(vObjSz * this->batch_size);
-    } else
-        glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
-
     glBindVertexArray(this->cur_state->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
-
+    vbo_bind(this->cur_state->vbo);
     this->cur_state->__int_prop.v_obj_sz = vObjSz;
-
-    if (!cur_state->vmem)
-        this->vmem_alloc(this->batch_size * vObjSz);
 }
 
 void graphics::vertexStructureDefineEnd() {
@@ -656,13 +648,13 @@ void graphics::vertexStructureDefineEnd() {
 }
 
 void graphics::defineVertexPart(i32 n, __mu_glVInf inf) {
-    glEnableVertexAttribArray(n); 
-    glVertexAttribPointer(n, inf.p_sz / sizeof(f32), GL_FLOAT, 0, inf.sz, (void*)inf.off);
+    glVertexAttribPointer(n, inf.p_sz / sizeof(f32), GL_FLOAT, GL_FALSE, inf.sz, (void*)inf.off);
+    glEnableVertexAttribArray(n);
 }
 
 void graphics::defineIntegerVertexPart(i32 n, __mu_glVInf inf) {
-    glEnableVertexAttribArray(n); 
     glVertexAttribIPointer(n, inf.p_sz / sizeof(i32), GL_INT, inf.sz, (void*)inf.off);
+    glEnableVertexAttribArray(n); 
 }
 
 Bitmap FrameBuffer::extractBitmap() {

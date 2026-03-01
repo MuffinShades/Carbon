@@ -11,7 +11,7 @@ out vec2 texp;
 uniform mat4 screen_project;
 
 void main() {
-    posf = pos;
+    posf = pos.xy;
     texp = msdf_tex;
     //gl_Position = screen_project * vec4((glf_transform * pos.xy) * glf_transform_ext.zw + glf_transform_ext.xy, pos.z, 1.0);
 
