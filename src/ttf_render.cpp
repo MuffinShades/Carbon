@@ -2727,7 +2727,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     constexpr size_t nFontMapHashBits = 15;
     
-    if (glyphs.nRanges == 1) {
+    /*if (glyphs.nRanges == 1) {
         font.map.ty = CharMapType::Direct;
         font.map.hash_inf.sz = glyphs.nGlyphs;
     } else {
@@ -2736,7 +2736,12 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         font.map.ty = CharMapType::Hash;
         font.map.hash_map = new CharLink[nFontMapHashBits];
         ZeroMem(font.map.hash_map, nFontMapHashBits);
-    }
+    }*/
+
+    font.map.ty = CharMapType::Direct;
+    font.map.hash_inf.sz = glyphs.nGlyphs;
+    font.map.hash_map = new CharLink[font.map.hash_inf.sz];
+    ZeroMem(font.map.hash_map, font.map.hash_inf.sz);
 
     //genereate the sprite sheet layout
     while (i < glyphs.nGlyphs) {
@@ -3158,8 +3163,8 @@ static mat4 str_proj_mat;
 constexpr size_t nFontRenderVerts = 2048;
 
 //todo: set these paths
-#define DEF_FONT_SHADER_VERT_SRC ""
-#define DEF_FONT_SHADER_FRAG_SRC ""
+#define DEF_FONT_SHADER_VERT_SRC "../../src/basic_font_vert.glsl"
+#define DEF_FONT_SHADER_FRAG_SRC "../../src/basic_font_frag.glsl"
 
 /*
 MAJOR TODO:
@@ -3287,6 +3292,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         for (p = 0; p < o_char.nParts; p++) {
             if (this->vert_space() < 6) {
                 this->render_flush();
+                this->render_begin(false);
             }
 
             CharPart cp = o_char.spriteParts[p];
@@ -3331,7 +3337,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             };
 
             //TODO: actually render ts
-            this->push_verts(glyph_rect_base, sizeof(glyph_rect_base));
+            this->push_verts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert));
             this->render_flush();
         }
 
