@@ -496,11 +496,11 @@ const u32 mu_i_infinity_32 = 0xffffffff;
     return hash & mask;                           \
 }
 
-const u32 compute_basic_hash_32(size_t nBits, void *dat, size_t len) __MSFL_HASH_32
-inline const u32 compute_basic_hash_32_inline(size_t nBits, void *dat, size_t len) __MSFL_HASH_32
-const u32 compute_basic_hash_32_align_4(size_t nBits, void *dat, size_t len) __MSDF_HASH_32_ALIGN_4
-inline const u32 compute_basic_hash_32_align_4_inline(size_t nBits, void *dat, size_t len) __MSDF_HASH_32_ALIGN_4
-const u64 compute_basic_hash_64(size_t nBits, void *dat, size_t len) __MSFL_HASH_64
-inline const u64 compute_basic_hash_64_inline(size_t nBits, void *dat, size_t len) __MSFL_HASH_64
-const u64 compute_basic_hash_64_align_8(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8
-inline const u64 compute_basic_hash_64_align_8_inline(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8
+static const u32 compute_basic_hash_32(size_t nBits, void *dat, size_t len) __MSFL_HASH_32
+static inline const u32 compute_basic_hash_32_inline(size_t nBits, void *dat, size_t len) __MSFL_HASH_32
+static const u32 compute_basic_hash_32_align_4(size_t nBits, void *dat, size_t len) __MSDF_HASH_32_ALIGN_4
+static inline const u32 compute_basic_hash_32_align_4_inline(size_t nBits, void *dat, size_t len) __MSDF_HASH_32_ALIGN_4
+static const u64 compute_basic_hash_64(size_t nBits, void *dat, size_t len) __MSFL_HASH_64
+static inline const u64 compute_basic_hash_64_inline(size_t nBits, void *dat, size_t len) __MSFL_HASH_64
+static const u64 compute_basic_hash_64_align_8(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8
+static inline const u64 compute_basic_hash_64_align_8_inline(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8

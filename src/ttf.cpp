@@ -1176,7 +1176,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
             //check to see if metrics exist
             if (f.h_inf.nLongHorMetrics == 1) //monospace font
                 glf.h_inf = f.h_metrics[0];
-            else if (loc < f.h_inf.nLongHorMetrics) {
+            else if (loc < f.h_inf.nLongHorMetrics)
                 glf.h_inf = f.h_metrics[loc];
 
             //handle compound glyphs

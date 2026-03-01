@@ -3154,6 +3154,7 @@ struct genericFontVert {
 static graphicsState defFontRenderState;
 static bool defFontRenderStateCreated = false;
 static Shader defFontShader;
+static mat4 str_proj_mat;
 constexpr size_t nFontRenderVerts = 2048;
 
 //todo: set these paths
@@ -3198,6 +3199,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         this->defineVertexPart(1, vertexClassPart(genericFontVert, tex));
         this->vertexStructureDefineEnd();
         defFontRenderStateCreated = true;
+
+        str_proj_mat = mat4::CreateOrthoProjectionMatrix(0.0f, win->w, win->h, 0.0f, -1.0f, 1000.0f);
     }
 
     if (!defFontShader.good()) {
@@ -3206,11 +3209,13 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
     this->setCurrentShader(&defFontShader);
 
+    defFontShader.SetMat4("screen_project", &str_proj_mat);
+    font->msdf_dat.MSDF.gl_texture.bind();
+
     //begin render
     this->render_begin();
 
     //TODO: set projection matrix
-
 
     char cc;
     i32 p;
@@ -3280,6 +3285,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
         //
         for (p = 0; p < o_char.nParts; p++) {
+            if (this->vert_space() < 6) {
+                this->render_flush();
+            }
+
             CharPart cp = o_char.spriteParts[p];
 
             //compute needed render constants
@@ -3297,12 +3306,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             gp_transform_mat2[2] = cp.offset.c * im;
             gp_transform_mat2[3] = cp.offset.d * in;
 
-            part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x * (1.0f / metrics.WemRatio)) + (gp_transform_mat2[2] * cp.size.yMax) + cp.offset.e)
-
-            gp_transform_ext.x = cp.offset.e; //extra
-            gp_transform_ext.y = cp.offset.f;
-            gp_transform_ext.z = cp.offset.m;
-            gp_transform_ext.w = cp.offset.n;
+            part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x * (1.0f / metrics.WemRatio)) + (gp_transform_mat2[2] * cp.size.yMax) + cp.offset.e) * metrics.WemRatio;
+            part_y = s_ctx.baseline_y - cp.offset.n * ((gp_transform_mat2[1] * s_ctx.x * (1.0f / metrics.WemRatio)) +  (gp_transform_mat2[3] * cp.size.yMax) + cp.offset.f) * HemRatio;
 
             //verticies
             genericFontVert glyph_rect_base[] = { 
@@ -3338,4 +3343,6 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         //advance to next character
         s_ctx.cur_char++;
     }
+
+    this->render_flush();
 }

@@ -179,6 +179,8 @@ private:
     bool gfont_s_ready = false;
 
     void ini_generic_font_state();
+
+    size_t batch_size = 0xfffff;
 public:
     enum class StockRenderType {
         Line

@@ -105,6 +105,27 @@ struct GlyphPart {
     p_mat_2d pos_mat;
 };
 
+struct h_char_inf {
+    i16 ascent;
+    i16 descent;
+    i16 lineGap;
+    u16 advanceWidthMax;
+    u16 minLeftSideBearing;
+    u16 minRightSideBearing;
+    i16 xMaxExtent;
+    f32 caret_slope = 0.0f;
+    bool vertical_caret_slope = false;
+    i16 caretOffset;
+    i16 metricDataFormat;
+    u16 nLongHorMetrics;
+};
+
+struct h_char_metric {
+    u16 advance_w;
+    i16 l_side_bearing;
+};
+
+
 struct Glyph {
     i32 char_id = -1, glyph_id = 0; //-1 is a placeholder character for the missing character glyph
     i16 nContours;
@@ -165,27 +186,6 @@ struct cmap_format_12 {
     cmap12_group *groups = nullptr;
     void *segValBlock = nullptr;
 };
-
-struct h_char_inf {
-    i16 ascent;
-    i16 descent;
-    i16 lineGap;
-    u16 advanceWidthMax;
-    u16 minLeftSideBearing;
-    u16 minRightSideBearing;
-    i16 xMaxExtent;
-    f32 caret_slope = 0.0f;
-    bool vertical_caret_slope = false;
-    i16 caretOffset;
-    i16 metricDataFormat;
-    u16 nLongHorMetrics;
-};
-
-struct h_char_metric {
-    u16 advance_w;
-    i16 l_side_bearing;
-};
-
 struct char_set {
 
 };

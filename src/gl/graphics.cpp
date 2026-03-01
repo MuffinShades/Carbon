@@ -23,6 +23,8 @@
 
 #define vbo_bind(vbo) glBindBuffer(GL_ARRAY_BUFFER, (vbo))
 
+graphicsState graphics::generic_font_state;
+
 void graphics::Load() {
     //opengl settings
     //glEnable(GL_DEPTH_TEST);
@@ -62,11 +64,23 @@ void graphics::iniStaticGraphicsState() {
     glGenBuffers(1, &this->cur_state->vbo);
     vbo_bind(this->cur_state->vbo);
 
-    define_vattrib_struct(0, Vertex, posf);
-    define_vattrib_struct(1, Vertex, n);
-    define_vattrib_struct(2, Vertex, tex);
-
     this->cur_state->g_fmt = graphicsState::__gs_fmt::_static;
+}
+
+void graphics::iniDynamicGraphicsState(size_t nBufferVerts) {
+    if (!this->cur_state || this->cur_state->g_fmt != graphicsState::__gs_fmt::_null)
+        return;
+
+    this->batch_size = nBufferVerts;
+    //vertex array
+    vao_create(this->cur_state->vao);
+    glBindVertexArray(this->cur_state->vao);
+
+    //buffer allocation
+    glGenBuffers(1, &this->cur_state->vbo);
+    vbo_bind(this->cur_state->vbo);
+
+    this->cur_state->g_fmt = graphicsState::__gs_fmt::_dynamic;
 }
 
 bool graphics::useGraphicsState(graphicsState *gs) {
@@ -137,15 +151,15 @@ void graphics::push_verts(void *v, size_t n) {
         std::cout << "Warning vmem is not allocated! Did you call graphics::Load?" << std::endl;
 
         if (cur_state->__int_prop.v_obj_sz > 0)
-            this->vmem_alloc(BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
+            this->vmem_alloc(this->batch_size * cur_state->__int_prop.v_obj_sz);
         return;
     }
 
     size_t bsz;
     const size_t vos = this->cur_state->__int_prop.v_obj_sz;
 
-    if ((bsz = (this->_c_vert + n) * vos) > BATCH_SIZE) {
-        std::cout << "Warning reached end of allocated gpu memory! " << bsz << " / " << BATCH_SIZE << " | Adding: " << n << " verts!" << std::endl;
+    if ((bsz = (this->_c_vert + n) * vos) > this->batch_size) {
+        std::cout << "Warning reached end of allocated gpu memory! " << bsz << " / " << this->batch_size << " | Adding: " << n << " verts!" << std::endl;
         return;
     }
 
@@ -161,7 +175,7 @@ void graphics::push_verts(void *v, size_t n) {
 
 size_t graphics::vert_space() {
     const size_t vos = this->cur_state->__int_prop.v_obj_sz;
-    return (BATCH_SIZE - this->_c_vert * vos) / vos + 1;
+    return (this->batch_size - this->_c_vert * vos) / vos + 1;
 }
 
 void graphics::vmem_alloc(size_t sz) {
@@ -188,12 +202,12 @@ void graphics::vmem_clear() {
     if (!cur_state->vmem) {
 
         if (cur_state->__int_prop.v_obj_sz > 0)
-            this->vmem_alloc(BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
+            this->vmem_alloc(this->batch_size * cur_state->__int_prop.v_obj_sz);
         this->_c_vert = 0;
         return;
     }
 
-    ZeroMem(cur_state->vmem, BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
+    ZeroMem(cur_state->vmem, this->batch_size * cur_state->__int_prop.v_obj_sz);
     this->_c_vert = 0;
 }
 
@@ -213,7 +227,7 @@ void graphics::render_begin(bool clear) {
     if (clear)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (!cur_state->vmem && cur_state->__int_prop.v_obj_sz > 0)
-        this->vmem_alloc(BATCH_SIZE * cur_state->__int_prop.v_obj_sz);
+        this->vmem_alloc(this->batch_size * cur_state->__int_prop.v_obj_sz);
     if (!this->s) return;
     if (!this->shader_bound)
         this->shader_bind();
@@ -305,7 +319,7 @@ void graphics::flush() {
 }
 
 const size_t graphics::getEstimatedMemoryUsage() {
-    return sizeof(Vertex) * BATCH_SIZE;
+    return sizeof(Vertex) * this->batch_size;
 }
 
 void graphics::free_state() {
@@ -420,7 +434,7 @@ void graphics::mush_render(Mesh *m) {
 
     const size_t nv = m->size(), nv_bytes = nv * sizeof(Vertex);
 
-    if ((this->mush_offset + nv_bytes) > BATCH_SIZE) {
+    if ((this->mush_offset + nv_bytes) > this->batch_size) {
         //set program variables
         this->s->SetMat4("proj_mat", &this->proj_matrix);
         this->bind_vao();
@@ -624,7 +638,7 @@ void graphics::vertexStructureDefineBegin(size_t vObjSz) {
     if (!cur_state->vbo) {
         glGenBuffers(1, &cur_state->vbo);
         glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
-        this->vmem_alloc(vObjSz * BATCH_SIZE);
+        this->vmem_alloc(vObjSz * this->batch_size);
     } else
         glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
 
@@ -634,7 +648,7 @@ void graphics::vertexStructureDefineBegin(size_t vObjSz) {
     this->cur_state->__int_prop.v_obj_sz = vObjSz;
 
     if (!cur_state->vmem)
-        this->vmem_alloc(BATCH_SIZE * vObjSz);
+        this->vmem_alloc(this->batch_size * vObjSz);
 }
 
 void graphics::vertexStructureDefineEnd() {
