@@ -257,3 +257,89 @@ public:
     void free_state();
     const size_t getEstimatedMemoryUsage();
 };
+
+struct RenderStateDescriptor {
+    bool dynamic = false;
+    bool use_indicies = false;
+    size_t max_batch_verts = 0xffff;
+    size_t max_batch_indicies = 0xffff;
+    size_t vertex_size = 1;
+};
+
+struct RenderState {
+    enum class __gs_fmt {
+        _null,
+        _static,
+        _dynamic
+    } g_fmt = __gs_fmt::_null;
+    size_t vertex_size = 0;
+    u32 vao = 0, vbo = 0, ibo = 0;
+    OutputDevice* oDevice = nullptr;
+    size_t c_vert = 0;
+    struct {
+        u32 w,h;
+    } dim;
+    struct {
+        bool _ini = false;
+        bool _null = false;
+        RenderStateDescriptor _desc;
+    } _p_inf;
+    enum class Process {
+        None,
+        VertexDefine,
+        Locked,
+        Render
+    } cur_process = Process::None;
+    Shader *cur_shader = nullptr;
+};
+
+class graphics2 {
+private:
+    RenderState default_state = {._p_inf = {._null = true}};
+    RenderState *state = nullptr, *prev_state = nullptr;
+
+    void _IniCurrentGraphicsState(RenderStateDescriptor desc);
+public:
+    //render states
+    RenderState CreateBlankRenderState();
+    void SetRenderState(RenderState *state);
+    RenderState *GetCurrentRenderState();
+    void RestoreLastRenderState();
+    void RestoreDefaultRenderState();
+
+    void VertexDefineBegin(size_t v_obj_sz);
+    void DefineVertexPart(i32 part_index, __mu_glVInf inf);
+    void DefineIntegerVertexPart(i32 part_index, __mu_glVInf inf);
+    void VertexDefineEnd();
+
+    static void DeleteRenderState(RenderState *state);
+
+    //render functions
+    void SetShader(Shader *shader);
+    Shader* GetCurrentShader();
+    void RenderBegin();
+    void PushVerts();
+    void SetVerts();
+    void PushIndicies();
+    void SetIndicies();
+    void RenderFlush(bool clear_buffer = true);
+    void LockState(); //locks rendering and output
+    void UnlockState();
+
+    //text
+    void RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop);
+    void RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, CustomFontProperties prop);
+    f32 ComputeStringWidth(struct FontInst *font, const char* str);
+    f32 ComputeStringHeight(struct FontInst *font, const char* str);
+
+    //frame buffers and stuff
+    void SetOutputDevice(OutputDevice* device);
+    void RestoreDefaultOutputDevice();
+
+    //constructors
+    graphics2();
+    graphics2(RenderStateDescriptor desc);
+    graphics2(RenderState *def_state);
+
+    friend bool render_precheck(graphics2 *g);
+};

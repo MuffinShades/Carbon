@@ -680,8 +680,6 @@ Bitmap FrameBuffer::extractBitmap() {
 
     glReadPixels(0, 0, this->w, this->h, GL_RGB, GL_UNSIGNED_BYTE, bmp.data);
 
-    std::cout << "reading: " << this->w << " " << this->h << std::endl;
-
     return bmp;
 }
 
@@ -718,4 +716,362 @@ void FrameBuffer::extractToBitmap(Bitmap *map) {
             std::cout << "Failed to write framebuffer to bitmap! Strange bit depth: " << map->header.bitsPerPixel << std::endl;
         }
     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void graphics2::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
+    if (!state) {
+        std::cout << "Graphics Warning | Failed to configure render state: current render state is a nullptr! \n\tMake sure you correctly created the currently bound render state." << std::endl;
+        return;
+    }
+
+    if (!state->_p_inf._null) {
+        std::cout << "Graphics Warning | Failed to configure render state: cannot configure null render state! \n\tMake sure you have set a valid render state and are not using a deleted state." << std::endl;
+        return;
+    }
+
+    state->_p_inf._desc = desc;
+
+    //create buffer objects
+    glGenVertexArrays(1, &state->vao);
+    glGenBuffers(1, &state->vbo);
+
+    if (desc.use_indicies) {
+        glGenBuffers(1, &state->ibo);
+
+        if (!state->ibo) {
+            std::cout << "Graphics Error | Failed to configure render state: failed to create IBO!" << std::endl;
+            return;
+        }
+    }
+
+    if (!state->vao) {
+        std::cout << "Graphics Error | Failed to configure render state: failed to create VAO!" << std::endl;
+        return;
+    }
+
+    if (!state->vao) {
+        std::cout << "Graphics Error | Failed to configure render state: failed to create VBO!" << std::endl;
+        return;
+    }
+
+    glBindVertexArray(state->vao);
+
+    //dynamic and static related things
+    if (desc.dynamic) {
+        state->g_fmt = RenderState::__gs_fmt::_dynamic;
+        glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+        glBufferData(GL_ARRAY_BUFFER, desc.max_batch_verts * desc.vertex_size, 0, GL_DYNAMIC_DRAW);
+
+        if (desc.use_indicies) {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->ibo);
+            glBufferData(GL_ARRAY_BUFFER, desc.max_batch_indicies, 0, GL_DYNAMIC_DRAW);
+        }
+    } else {
+        state->g_fmt = RenderState::__gs_fmt::_static;
+    }
+
+    glBindVertexArray(0);
+
+    state->_p_inf._ini = true;
+}
+
+RenderState graphics2::CreateBlankRenderState() {
+    return {}; //most underwelming function ever
+}
+
+void graphics2::SetRenderState(RenderState *s) {
+    if (!s) {
+        std::cout << "Graphics Warning | Failed to set render state: current render state is a nullptr! \n\tMake sure you correctly created the currently bound render state." << std::endl;
+        return;
+    }
+
+    if (!s->_p_inf._null) {
+        std::cout << "Graphics Warning | Failed to set render state: cannot configure null render state! \n\tMake sure you have set a valid render state and are not using a deleted state." << std::endl;
+        return;
+    }
+
+    prev_state = state;
+    state = s;
+}
+
+RenderState *graphics2::GetCurrentRenderState() {
+    return state;
+}
+
+void graphics2::RestoreLastRenderState() {
+    RenderState *temp = prev_state;
+    prev_state = state;
+    state = temp;
+}
+
+void graphics2::RestoreDefaultRenderState() {
+    prev_state = state;
+    state = &this->default_state;
+}
+
+void graphics2::VertexDefineBegin(size_t v_obj_sz) {
+    if (!state) {
+        std::cout << "Graphics Warning | Failed to begin vertex define: current render state is a nullptr! \n\tMake sure you correctly created the currently bound render state." << std::endl;
+        return;
+    }
+
+    if (!state->_p_inf._null || !state->_p_inf._ini || !state->vbo) {
+        std::cout << "Graphics Warning | Failed to begin vertex define: cannot define vertex for undefined render state! \n\tVBO: " << state->vbo << "\n\tnull: " << state->_p_inf._null << "\n\tini: " << state->_p_inf._ini << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Warning | Cannot call vertex define related functions whilsts in a locked state" << std::endl;
+        return;
+    }
+
+    const RenderStateDescriptor desc = state->_p_inf._desc;
+
+    //check for descrenpency between vobjsz and stored size and fix it
+    if (state->vertex_size != v_obj_sz && desc.dynamic) {
+        glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+        glBufferData(GL_ARRAY_BUFFER, desc.max_batch_verts * v_obj_sz, 0, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    state->vertex_size = v_obj_sz;
+    state->cur_process = RenderState::Process::VertexDefine;
+}
+
+void graphics2::DefineVertexPart(i32 part_index, __mu_glVInf inf) {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error Failed to define vertex part: invalid render state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Warning | Cannot call vertex define related functions whilsts in a locked state" << std::endl;
+        return;
+    }
+
+    if (state->cur_process != RenderState::Process::VertexDefine) {
+        std::cout << "Graphics Error | Cannot define vertex part: make sure you called VertexDefineBegin first!" << std::endl;
+        return;
+    }
+
+    glVertexAttribPointer(part_index, inf.p_sz / sizeof(f32), GL_FLOAT, GL_FALSE, inf.sz, (void*)inf.off);
+    glEnableVertexAttribArray(part_index);
+}
+
+void graphics2::DefineIntegerVertexPart(i32 part_index, __mu_glVInf inf) {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Failed to define vertex part: invalid render state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Warning | Cannot call vertex define related functions whilsts in a locked state" << std::endl;
+        return;
+    }
+
+    if (state->cur_process != RenderState::Process::VertexDefine) {
+        std::cout << "Graphics Error | Cannot define vertex part: make sure you called VertexDefineBegin first!" << std::endl;
+        return;
+    }
+
+    glVertexAttribIPointer(part_index, inf.p_sz / sizeof(i32), GL_INT, inf.sz, (void*)inf.off);
+    glEnableVertexAttribArray(part_index); 
+}
+
+void graphics2::VertexDefineEnd() {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Failed to end vertex define: invalid render state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Warning | Cannot call vertex define related functions whilsts in a locked state" << std::endl;
+        return;
+    }
+
+    if (state->cur_process != RenderState::Process::VertexDefine)
+        std::cout << "Graphics Warning | Ending vertex define that never began!" << std::endl;
+
+    state->cur_process = RenderState::Process::None;
+}
+
+void graphics2::DeleteRenderState(RenderState *state) {
+    if (!state)
+        return;
+
+    if (state->cur_process == RenderState::Process::Locked)
+        std::cout << "Graphics Warning | Deleting locked render state!" << std::endl;
+
+    if (state->vao) glDeleteVertexArrays(1, &state->vao);
+    if (state->vbo) glDeleteBuffers(1, &state->vbo);
+    if (state->ibo) glDeleteBuffers(1, &state->ibo);
+
+    ZeroMem(state, sizeof(RenderState));
+
+    //ensure that if this state is bound it will properly trigger an error somewhere :)
+    state->_p_inf._null = true;
+    state->_p_inf._ini = false;
+}
+
+//render functions
+void graphics2::SetShader(Shader *shader) {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Failed to set shader: invalid render state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Warning | Cannot set shader whilsts graphics state is locked!" << std::endl;
+        return;
+    }
+
+    if (!shader || !shader->good()) {
+        std::cout << "Graphics Warning | Failed to set shader: bad shader!" << std::endl;
+        return;
+    }
+
+    shader->use(); //ok now use le shader
+    state->cur_shader = shader;
+}
+
+Shader* graphics2::GetCurrentShader() {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Failed to get shader: invalid render state!" << std::endl;
+        return nullptr;
+    }
+
+    return state->cur_shader;
+}
+
+bool render_precheck(graphics2 *g) {
+    if (!g->state || g->state->_p_inf._null || !g->state->_p_inf._ini) {
+        std::cout << "Graphics Error | Failed to begin render: invalid render state!" << std::endl;
+        return false;
+    }
+
+    if (g->state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Warning | Cannot render whilsts process is locked!" << std::endl;
+        return false;
+    }
+
+    if (g->state->cur_process != RenderState::Process::None) {
+        std::cout << "Graphics Warning | Cannot render whilsts state is busy with something else!" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+void graphics2::RenderBegin() {
+    if (!render_precheck(this)) return;
+
+    glBindVertexArray(state->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+
+    state->c_vert = 0;
+    state->cur_process = RenderState::Process::Render;
+}
+
+//TODO: all these actually important functions
+void graphics2::PushVerts() {
+    if (!render_precheck(this)) return;
+}
+
+void graphics2::SetVerts() {
+    if (!render_precheck(this)) return;
+}
+
+void graphics2::PushIndicies() {
+    if (!render_precheck(this)) return;
+}
+
+void graphics2::SetIndicies() {
+    if (!render_precheck(this)) return;
+}
+
+void graphics2::RenderFlush(bool clear_buffer = true) {
+    if (!render_precheck(this)) return;
+}
+
+void graphics2::LockState() {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Cannot lock invalid state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process != RenderState::Process::None) {
+        std::cout << "Graphics Error | Cannot lock state whilst it is doing something else :P" << std::endl;
+        return;
+    }
+
+    state->cur_process = RenderState::Process::Locked;
+}
+
+void graphics2::UnlockState() {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Cannot unlock invalid state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process != RenderState::Process::Locked) {
+        std::cout << "Graphics Warning | Attempting to unlock state that isn't locked!" << std::endl;
+        return;
+    }
+
+    state->cur_process = RenderState::Process::None;
+}
+
+//frame buffers and stuff
+void graphics2::SetOutputDevice(OutputDevice* device) {
+    if (!device) {
+        std::cout << "Graphics Error | Attempting to set output device to a nullptr!" << std::endl;
+        return;
+    }
+
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Cannot set output device to an invalid state!" << std::endl;
+        return;
+    }
+}
+
+void graphics2::RestoreDefaultOutputDevice() {
+
+}
+
+//constructors
+//TODO: incorporate default render state within these johns
+graphics2::graphics2() {
+
+}
+graphics2::graphics2(RenderStateDescriptor desc) {
+
+}
+
+graphics2::graphics2(RenderState *def_state) {
+
 }
