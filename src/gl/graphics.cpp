@@ -998,24 +998,72 @@ void graphics2::RenderBegin() {
 }
 
 //TODO: all these actually important functions
-void graphics2::PushVerts() {
+void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush) {
+    if (!verts || n_verts == 0) {
+        std::cout << "Graphics Warning | Cannot push invalid verts!" << std::endl;
+        return;
+    }
+
     if (!render_precheck(this)) return;
+
+    if (auto_flush && state->c_vert > state->_p_inf._desc.max_batch_verts) {
+        this->RenderFlush(false);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, state->vao);
+
+    switch (state->g_fmt) {
+    case RenderState::__gs_fmt::_dynamic:
+        glBufferSubData(GL_ARRAY_BUFFER, state->c_vert * state->vertex_size, n_verts * state->vertex_size, verts);
+        state->c_vert += n_verts;
+        break;
+    case RenderState::__gs_fmt::_static:
+        if ((i32) state->suppress < (i32) RenderState::SupressionLevel::NothingWarnings)
+            std::cout << "Graphics Warning | Push verts is just set verts when dealing with a static context!" << std::endl;
+        glBufferData(GL_ARRAY_BUFFER, state->c_vert * state->vertex_size, verts, GL_STATIC_DRAW);
+        if (auto_flush)
+            this->RenderFlush(false);
+        break;
+    }
 }
 
-void graphics2::SetVerts() {
+void graphics2::SetVerts(void *verts, size_t n_verts, bool flush_current) {
+    if (!verts || n_verts == 0) {
+        std::cout << "Graphics Warning | Cannot set invalid verts!" << std::endl;
+        return;
+    }
+
     if (!render_precheck(this)) return;
+
+    if (flush_current) {
+        this->RenderFlush(false);
+    }
+
+    
 }
 
-void graphics2::PushIndicies() {
+void graphics2::PushIndicies(void *indicies, size_t n_indicies) {
     if (!render_precheck(this)) return;
+
+    if (!indicies || n_indicies == 0) {
+        std::cout << "Graphics Warning | Cannot push invalid indicies!" << std::endl;
+        return;
+    }
 }
 
-void graphics2::SetIndicies() {
+void graphics2::SetIndicies(void *indicies, size_t n_indicies) {
     if (!render_precheck(this)) return;
+
+    if (!indicies || n_indicies == 0) {
+        std::cout << "Graphics Warning | Cannot set invalid indicies!" << std::endl;
+        return;
+    }
 }
 
 void graphics2::RenderFlush(bool clear_buffer = true) {
     if (!render_precheck(this)) return;
+
+
 }
 
 void graphics2::LockState() {
@@ -1057,6 +1105,8 @@ void graphics2::SetOutputDevice(OutputDevice* device) {
         std::cout << "Graphics Error | Cannot set output device to an invalid state!" << std::endl;
         return;
     }
+
+    
 }
 
 void graphics2::RestoreDefaultOutputDevice() {

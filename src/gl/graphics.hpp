@@ -275,7 +275,7 @@ struct RenderState {
     size_t vertex_size = 0;
     u32 vao = 0, vbo = 0, ibo = 0;
     OutputDevice* oDevice = nullptr;
-    size_t c_vert = 0;
+    size_t c_vert = 0, c_ind = 0; //current vertex and current indicie
     struct {
         u32 w,h;
     } dim;
@@ -290,6 +290,12 @@ struct RenderState {
         Locked,
         Render
     } cur_process = Process::None;
+    enum class SupressionLevel {
+        None,
+        NothingWarnings,
+        Warnings,
+        Errors
+    } suppress = SupressionLevel::None;
     Shader *cur_shader = nullptr;
 };
 
@@ -318,10 +324,10 @@ public:
     void SetShader(Shader *shader);
     Shader* GetCurrentShader();
     void RenderBegin();
-    void PushVerts();
-    void SetVerts();
-    void PushIndicies();
-    void SetIndicies();
+    void PushVerts(void *verts, size_t n_verts, bool auto_flush);
+    void SetVerts(void *verts, size_t n_verts, bool flush_current);
+    void PushIndicies(void *indicies, size_t n_indicies);
+    void SetIndicies(void *indicies, size_t n_indicies);
     void RenderFlush(bool clear_buffer = true);
     void LockState(); //locks rendering and output
     void UnlockState();
