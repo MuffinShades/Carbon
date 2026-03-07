@@ -264,6 +264,15 @@ struct RenderStateDescriptor {
     size_t max_batch_verts = 0xffff;
     size_t max_batch_indicies = 0xffff;
     size_t vertex_size = 1;
+    size_t vertex_overflow_buffer_cell_verts = 0xfff;
+    size_t indicie_overflow_buffer_cell_verts = 0xfff;
+    bool auto_store_extra = true;
+};
+
+struct _OverflowBufferCell {
+    _OverflowBufferCell* next = nullptr;
+    void *dat = nullptr;
+    size_t iPos = 0;
 };
 
 struct RenderState {
@@ -297,6 +306,9 @@ struct RenderState {
         Errors
     } suppress = SupressionLevel::None;
     Shader *cur_shader = nullptr;
+
+    //NOTE: each cell's size is store under _p_inf._desc.vertex_overflow_buffer_cell_verts or the other
+    _OverflowBufferCell *vtx_overflow = nullptr, *idc_overflow = nullptr, *vtxo_cur = nullptr, *idco_cur = nullptr;
 };
 
 class graphics2 {
@@ -305,6 +317,8 @@ private:
     RenderState *state = nullptr, *prev_state = nullptr;
 
     void _IniCurrentGraphicsState(RenderStateDescriptor desc);
+    void _StoreExtraVerts(void *v_buf, size_t sz);
+    void _StoreExtraIndicies(void *i_buf, size_t sz);
 public:
     //render states
     RenderState CreateBlankRenderState();

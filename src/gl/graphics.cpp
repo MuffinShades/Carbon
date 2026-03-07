@@ -800,6 +800,62 @@ void graphics2::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
     state->_p_inf._ini = true;
 }
 
+void delete_overflow_buffer(_OverflowBufferCell *root) {
+    while (root) {
+        _safe_free_a(root->dat);
+        auto *nx = root->next;
+        _safe_free_b(root);
+        root = nx;
+    }
+}
+
+void graphics2::_StoreExtraVerts(void *v_buf, size_t sz) {
+    if (!v_buf || sz == 0) {
+        std::cout << "(Internal) Graphics Error | Cannot store invalid extra verticies!" << std::endl;
+        return;
+    }
+
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "(Internal) Graphics Error | Failed to store extra verts: invalid render state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "(Internal) Graphics Warning | Cannot store extra verts whilsts render state is locked!" << std::endl;
+        return;
+    }
+
+    //TODO: store the extra verts and handle all that
+    if (state->vtx_overflow) {
+        
+
+        if (lCopy >= sz) {
+
+        } else {
+
+        }
+    }
+}
+
+void graphics2::_StoreExtraIndicies(void *i_buf, size_t sz) {
+    if (!i_buf || sz == 0) {
+        std::cout << "(Internal) Graphics Error | Cannot store invalid extra indicies!" << std::endl;
+        return;
+    }
+
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "(Internal) Graphics Error | Failed to store extra verts: invalid render state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "(Internal) Graphics Warning | Cannot store extra verts whilsts render state is locked!" << std::endl;
+        return;
+    }
+
+    //TODO: store the extra indicies and handle all that
+}
+
 RenderState graphics2::CreateBlankRenderState() {
     return {}; //most underwelming function ever
 }
@@ -946,7 +1002,7 @@ void graphics2::SetShader(Shader *shader) {
     }
 
     if (state->cur_process == RenderState::Process::Locked) {
-        std::cout << "Graphics Warning | Cannot set shader whilsts graphics state is locked!" << std::endl;
+        std::cout << "Graphics Warning | Cannot set shader whilsts graphics render state is locked!" << std::endl;
         return;
     }
 
@@ -955,7 +1011,6 @@ void graphics2::SetShader(Shader *shader) {
         return;
     }
 
-    shader->use(); //ok now use le shader
     state->cur_shader = shader;
 }
 
@@ -975,7 +1030,7 @@ bool render_precheck(graphics2 *g) {
     }
 
     if (g->state->cur_process == RenderState::Process::Locked) {
-        std::cout << "Graphics Warning | Cannot render whilsts process is locked!" << std::endl;
+        std::cout << "Graphics Warning | Cannot render whilsts render state is locked!" << std::endl;
         return false;
     }
 
@@ -1006,8 +1061,18 @@ void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush) {
 
     if (!render_precheck(this)) return;
 
-    if (auto_flush && state->c_vert > state->_p_inf._desc.max_batch_verts) {
-        this->RenderFlush(false);
+    if (state->c_vert > state->_p_inf._desc.max_batch_verts) {
+        if (auto_flush) {
+            if (state->_p_inf._desc.use_indicies) {
+                _StoreExtraVerts(verts, n_verts * state->vertex_size);
+            } else
+                this->RenderFlush(false);
+        } else {
+            std::cout << "Graphics Warning | Extra verticies! Max sure to called RenderFlush or enable auto flush!" << std::endl;
+
+            if (state->_p_inf._desc.auto_store_extra)
+                _StoreExtraVerts(verts, n_verts * state->vertex_size);
+        }
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, state->vao);
@@ -1063,7 +1128,22 @@ void graphics2::SetIndicies(void *indicies, size_t n_indicies) {
 void graphics2::RenderFlush(bool clear_buffer = true) {
     if (!render_precheck(this)) return;
 
+    size_t nPoints = state->c_vert;
 
+    if (state->_p_inf._desc.use_indicies) {
+        nPoints = state->c_ind;
+    }
+
+    state->cur_shader->use();
+    glBindVertexArray(state->vao);
+    if (state->_p_inf._desc.use_indicies)
+        glDrawElements(GL_TRIANGLES, nPoints, GL_UNSIGNED_INT, 0);
+    else
+        glDrawArrays(GL_TRIANGLES, 0, nPoints);
+    glBindVertexArray(0);
+
+    state->c_vert = 0;
+    state->c_ind = 0;
 }
 
 void graphics2::LockState() {
