@@ -339,6 +339,8 @@ private:
     void _IniCurrentGraphicsState(RenderStateDescriptor desc);
     void _StoreExtraVerts(void *v_buf, size_t sz);
     void _StoreExtraIndicies(void *i_buf, size_t sz);
+
+    static OutputDevice _OutputDev_Default;
 public:
     //render states
     RenderState CreateBlankRenderState();
