@@ -258,12 +258,17 @@ public:
     const size_t getEstimatedMemoryUsage();
 };
 
+struct BasicVertex {
+    f32 x,y,z;
+};
+
 struct RenderStateDescriptor {
     bool dynamic = false;
     bool use_indicies = false;
     size_t max_batch_verts = 0xffff;
     size_t max_batch_indicies = 0xffff;
-    size_t vertex_size = 1;
+    size_t vertex_size = 0;
+    size_t indc_sz = 4;
     size_t vertex_overflow_buffer_cell_verts = 0xfff;
     size_t indicie_overflow_buffer_cell_verts = 0xfff;
     bool auto_store_extra = true;
@@ -281,7 +286,8 @@ struct RenderState {
         _static,
         _dynamic
     } g_fmt = __gs_fmt::_null;
-    size_t vertex_size = 0;
+    //indicie size is by default an  unsigned int
+    size_t vertex_size = 0, indc_sz = 4;
     u32 vao = 0, vbo = 0, ibo = 0;
     OutputDevice* oDevice = nullptr;
     size_t c_vert = 0, c_ind = 0; //current vertex and current indicie
@@ -290,6 +296,7 @@ struct RenderState {
     } dim;
     struct {
         bool _ini = false;
+        bool _vert_def = false;
         bool _null = false;
         RenderStateDescriptor _desc;
     } _p_inf;
@@ -310,6 +317,19 @@ struct RenderState {
     //NOTE: each cell's size is store under _p_inf._desc.vertex_overflow_buffer_cell_verts or the other
     _OverflowBufferCell *vtx_overflow = nullptr, *idc_overflow = nullptr, *vtxo_cur = nullptr, *idco_cur = nullptr;
 };
+
+/*
+
+TODO:
+
+check set indicies visually
+finish the storing functinoality
+render flush
+functions to render meshes easier
+testing
+constructors
+
+*/
 
 class graphics2 {
 private:
@@ -337,11 +357,11 @@ public:
     //render functions
     void SetShader(Shader *shader);
     Shader* GetCurrentShader();
-    void RenderBegin();
-    void PushVerts(void *verts, size_t n_verts, bool auto_flush);
+    void RenderBegin(i32 w = -1, i32 h = -1);
+    void PushVerts(void *verts, size_t n_verts, bool auto_flush_old);
     void SetVerts(void *verts, size_t n_verts, bool flush_current);
-    void PushIndicies(void *indicies, size_t n_indicies);
-    void SetIndicies(void *indicies, size_t n_indicies);
+    void PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_old);
+    void SetIndicies(void *indicies, size_t n_indicies, bool flush_current);
     void RenderFlush(bool clear_buffer = true);
     void LockState(); //locks rendering and output
     void UnlockState();
@@ -360,6 +380,8 @@ public:
     graphics2();
     graphics2(RenderStateDescriptor desc);
     graphics2(RenderState *def_state);
+
+    void Resize(u32 w, u32 h);
 
     friend bool render_precheck(graphics2 *g);
 };

@@ -741,7 +741,10 @@ void FrameBuffer::extractToBitmap(Bitmap *map) {
 
 
 
-
+OutputDevice graphics2::_OutputDev_Default = {
+    .type = OutputDevice::DefaultOutputDevice,
+    .device = nullptr
+};
 
 void graphics2::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
     if (!state) {
@@ -827,7 +830,7 @@ void graphics2::_StoreExtraVerts(void *v_buf, size_t sz) {
 
     //TODO: store the extra verts and handle all that
     if (state->vtx_overflow) {
-        
+        const size_t lCopy = 0;
 
         if (lCopy >= sz) {
 
@@ -873,6 +876,27 @@ void graphics2::SetRenderState(RenderState *s) {
 
     prev_state = state;
     state = s;
+
+    glViewport(0, 0, state->dim.w, state->dim.h);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    switch (state->oDevice->type) {
+    case OutputDevice::FrameBuffer:
+        FrameBuffer *fb = (FrameBuffer*) state->oDevice->device;
+
+        if (!fb) {
+            std::cout << "Graphics Warning | Restoring state outputdevice to default! Because of invalid output device" << std::endl;
+            this->RestoreDefaultOutputDevice();
+            break;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fb->getHandle());
+        break;
+    case OutputDevice::Unknown:
+        std::cout << "Graphics Warning | Output device is unknown! Restoring default output device." << std::endl;
+        this->RestoreDefaultOutputDevice();
+        break;
+    }
 }
 
 RenderState *graphics2::GetCurrentRenderState() {
@@ -974,6 +998,7 @@ void graphics2::VertexDefineEnd() {
         std::cout << "Graphics Warning | Ending vertex define that never began!" << std::endl;
 
     state->cur_process = RenderState::Process::None;
+    state->_p_inf._vert_def = true;
 }
 
 void graphics2::DeleteRenderState(RenderState *state) {
@@ -1039,12 +1064,24 @@ bool render_precheck(graphics2 *g) {
         return false;
     }
 
+    if (!g->state->_p_inf._vert_def) {
+        std::cout << "Graphics Error | Failed to render: vertex structure is not defined.\n\tMake sure you call the VertexDefine family of functions to define the structure of your vertex!" << std::endl;
+        return false;
+    }
+
     return true;
 }
 
-void graphics2::RenderBegin() {
+void graphics2::RenderBegin(i32 w, i32 h) {
     if (!render_precheck(this)) return;
 
+    if (w >= 0)
+        state->dim.w = w;
+
+    if (h >= 0)
+        state->dim.h = h;
+
+    glViewport(0,0,state->dim.w, state->dim.h);
     glBindVertexArray(state->vao);
     glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
 
@@ -1053,7 +1090,7 @@ void graphics2::RenderBegin() {
 }
 
 //TODO: all these actually important functions
-void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush) {
+void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
     if (!verts || n_verts == 0) {
         std::cout << "Graphics Warning | Cannot push invalid verts!" << std::endl;
         return;
@@ -1061,8 +1098,13 @@ void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush) {
 
     if (!render_precheck(this)) return;
 
-    if (state->c_vert > state->_p_inf._desc.max_batch_verts) {
-        if (auto_flush) {
+    if (n_verts > state->_p_inf._desc.max_batch_verts) {
+        std::cout << "Graphics Warning | Cannot push " << n_verts << " verticies at once!\n\tPush geometry in chunks and render each chunk or increase vertex batch size!" << std::endl;
+        return;
+    }
+
+    if (state->c_vert + n_verts >= state->_p_inf._desc.max_batch_verts) {
+        if (auto_flush_old) {
             if (state->_p_inf._desc.use_indicies) {
                 _StoreExtraVerts(verts, n_verts * state->vertex_size);
             } else
@@ -1075,7 +1117,7 @@ void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush) {
         }
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, state->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
 
     switch (state->g_fmt) {
     case RenderState::__gs_fmt::_dynamic:
@@ -1085,9 +1127,8 @@ void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush) {
     case RenderState::__gs_fmt::_static:
         if ((i32) state->suppress < (i32) RenderState::SupressionLevel::NothingWarnings)
             std::cout << "Graphics Warning | Push verts is just set verts when dealing with a static context!" << std::endl;
-        glBufferData(GL_ARRAY_BUFFER, state->c_vert * state->vertex_size, verts, GL_STATIC_DRAW);
-        if (auto_flush)
-            this->RenderFlush(false);
+        glBufferData(GL_ARRAY_BUFFER, n_verts * state->vertex_size, verts, GL_STATIC_DRAW);
+        state->c_vert = n_verts;
         break;
     }
 }
@@ -1100,28 +1141,107 @@ void graphics2::SetVerts(void *verts, size_t n_verts, bool flush_current) {
 
     if (!render_precheck(this)) return;
 
+    if (n_verts > state->_p_inf._desc.max_batch_verts) {
+        std::cout << "Graphics Warning | Cannot set " << n_verts << " verticies at once!\n\tPush geometry in chunks and render each chunk or increase vertex batch size!" << std::endl;
+        return;
+    }
+
     if (flush_current) {
         this->RenderFlush(false);
     }
 
-    
+    glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+
+    switch (state->g_fmt) {
+    case RenderState::__gs_fmt::_dynamic:
+        glBufferSubData(GL_ARRAY_BUFFER, 0, n_verts * state->vertex_size, verts);
+        state->c_vert = n_verts;
+        break;
+    case RenderState::__gs_fmt::_static:
+        glBufferData(GL_ARRAY_BUFFER, n_verts * state->vertex_size, verts, GL_STATIC_DRAW);
+        state->c_vert = n_verts;
+        break;
+    }
 }
 
-void graphics2::PushIndicies(void *indicies, size_t n_indicies) {
+void graphics2::PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_old) {
     if (!render_precheck(this)) return;
+
+    if (!state->_p_inf._desc.use_indicies) {
+        std::cout << "Graphics Error | Cannot push indicies when render state does not use indicies!" << std::endl;
+        return;
+    }
 
     if (!indicies || n_indicies == 0) {
         std::cout << "Graphics Warning | Cannot push invalid indicies!" << std::endl;
         return;
     }
+
+    if (n_indicies > state->_p_inf._desc.max_batch_indicies) {
+        std::cout << "Graphics Warning | Cannot push " << n_indicies << " indicies at once!\n\tPush geometry in chunks and render each chunk or increase indicie batch size!" << std::endl;
+        return;
+    }
+
+    if (state->c_ind + n_indicies >= state->_p_inf._desc.max_batch_indicies) {
+        if (auto_flush_old)
+            this->RenderFlush(false);
+        else {
+            std::cout << "Graphics Warning | Extra indicies! Max sure to called RenderFlush or enable auto flush!" << std::endl;
+
+            if (state->_p_inf._desc.auto_store_extra)
+                _StoreExtraIndicies(indicies, n_indicies * state->vertex_size);
+        }
+    }
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->ibo);
+
+    switch (state->g_fmt) {
+    case RenderState::__gs_fmt::_dynamic:
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, state->c_ind * state->indc_sz, n_indicies * state->vertex_size, indicies);
+        state->c_ind += n_indicies;
+        break;
+    case RenderState::__gs_fmt::_static:
+        if ((i32) state->suppress < (i32) RenderState::SupressionLevel::NothingWarnings)
+            std::cout << "Graphics Warning | PushIndicies is just SetIndicies when dealing with a static context!" << std::endl;
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, n_indicies * state->vertex_size, indicies, GL_STATIC_DRAW);
+        state->c_ind = n_indicies;
+        break;
+    }
 }
 
-void graphics2::SetIndicies(void *indicies, size_t n_indicies) {
+void graphics2::SetIndicies(void *indicies, size_t n_indicies, bool flush_current) {
     if (!render_precheck(this)) return;
+
+    if (!state->_p_inf._desc.use_indicies) {
+        std::cout << "Graphics Error | Cannot set indicies when render state does not use indicies!" << std::endl;
+        return;
+    }
 
     if (!indicies || n_indicies == 0) {
         std::cout << "Graphics Warning | Cannot set invalid indicies!" << std::endl;
         return;
+    }
+
+    if (n_indicies > state->_p_inf._desc.max_batch_indicies) {
+        std::cout << "Graphics Warning | Cannot set " << n_indicies << " indicies at once!\n\tPush geometry in chunks and render each chunk or increase indicie batch size!" << std::endl;
+        return;
+    }
+
+    if (flush_current) {
+        this->RenderFlush(false);
+    }
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->ibo);
+
+    switch (state->g_fmt) {
+    case RenderState::__gs_fmt::_dynamic:
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, n_indicies * state->vertex_size, indicies);
+        state->c_ind = n_indicies;
+        break;
+    case RenderState::__gs_fmt::_static:
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, n_indicies * state->vertex_size, indicies, GL_STATIC_DRAW);
+        state->c_ind = n_indicies;
+        break;
     }
 }
 
@@ -1186,22 +1306,67 @@ void graphics2::SetOutputDevice(OutputDevice* device) {
         return;
     }
 
-    
+    u32 fbo;
+    FrameBuffer *fb;
+
+    switch (device->type) {
+    case OutputDevice::FrameBuffer:
+        fb = (FrameBuffer*) device->device;
+
+        if (!fb) {
+            std::cout << "Graphics Error | Cannot set output device: null frame buffer output device!" << std::endl;
+             return;
+        }
+
+        fbo = fb->getHandle();
+
+        state->dim.w = fb->w;
+        state->dim.h = fb->h;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo); 
+        glViewport(0, 0, fb->w, fb->h);
+
+        if (!fb->texHandle && fb->ty == FrameBuffer::Texture)
+            fb->texAttach(fb->w, fb->h);
+        
+        break;
+    default:
+        std::cout << "Error, cannot bind to unknown output device!" << std::endl;
+        return;
+    }
 }
 
 void graphics2::RestoreDefaultOutputDevice() {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Cannot unlock invalid state!" << std::endl;
+        return;
+    }
 
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Error | Cannot change output device whilsts render state is locked!" << std::endl;
+        return;
+    }
+
+    state->oDevice = &_OutputDev_Default;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 //constructors
 //TODO: incorporate default render state within these johns
 graphics2::graphics2() {
+    this->state = &this->default_state;
 
+    RenderStateDescriptor def_desc;
+
+    this->_IniCurrentGraphicsState(def_desc);
 }
-graphics2::graphics2(RenderStateDescriptor desc) {
 
+graphics2::graphics2(RenderStateDescriptor desc) {
+    this->state = &this->default_state;
+    this->_IniCurrentGraphicsState(desc);
 }
 
 graphics2::graphics2(RenderState *def_state) {
-
+    this->default_state = *def_state;
+    this->state = def_state;
 }
