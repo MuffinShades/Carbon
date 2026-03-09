@@ -23,9 +23,9 @@
 
 #define vbo_bind(vbo) glBindBuffer(GL_ARRAY_BUFFER, (vbo))
 
-graphicsState graphics::generic_font_state;
+graphicsState graphics2::generic_font_state;
 
-void graphics::Load() {
+void graphics2::Load() {
     //opengl settings
     //glEnable(GL_DEPTH_TEST);
 	//glEnable(GL_ALPHA_TEST);
@@ -53,7 +53,7 @@ void graphics::Load() {
     //
 }
 
-void graphics::iniStaticGraphicsState() {
+void graphics2::iniStaticGraphicsState() {
     if (!this->cur_state || this->cur_state->g_fmt != graphicsState::__gs_fmt::_null)
         return;
     //vertex array
@@ -65,7 +65,7 @@ void graphics::iniStaticGraphicsState() {
     this->cur_state->g_fmt = graphicsState::__gs_fmt::_static;
 }
 
-void graphics::iniDynamicGraphicsState(size_t nBufferVerts) {
+void graphics2::iniDynamicGraphicsState(size_t nBufferVerts) {
     if (!this->cur_state || this->cur_state->g_fmt != graphicsState::__gs_fmt::_null)
         return;
 
@@ -83,7 +83,7 @@ void graphics::iniDynamicGraphicsState(size_t nBufferVerts) {
     this->cur_state->g_fmt = graphicsState::__gs_fmt::_dynamic;
 }
 
-bool graphics::useGraphicsState(graphicsState *gs) {
+bool graphics2::useGraphicsState(graphicsState *gs) {
     if (!this->using_foreign_gs)
         this->interalState.nv = this->_c_vert;
     else if (this->cur_state) {
@@ -100,7 +100,7 @@ bool graphics::useGraphicsState(graphicsState *gs) {
     return true;
 }
 
-void graphics::useDefaultGraphicsState() {
+void graphics2::useDefaultGraphicsState() {
     if (this->cur_state) {
         this->cur_state->nv = this->_c_vert;
     }
@@ -114,7 +114,7 @@ void graphics::useDefaultGraphicsState() {
 #define PROJ_ZMAX  100.0f
 
 //when le window resizes
-void graphics::WinResize(const size_t w, const size_t h) {
+void graphics2::WinResize(const size_t w, const size_t h) {
     this->winW = (f32) w;
     this->winH = (f32) h;
 
@@ -135,7 +135,7 @@ void graphics::WinResize(const size_t w, const size_t h) {
     );
 }
 
-void graphics::push_verts(void *v, size_t n) {
+void graphics2::push_verts(void *v, size_t n) {
     if (!this->cur_state) {
         std::cout << "Error, no state bound!" << std::endl;
         return;
@@ -173,12 +173,12 @@ void graphics::push_verts(void *v, size_t n) {
     this->_c_vert += n;
 }
 
-size_t graphics::vert_space() {
+size_t graphics2::vert_space() {
     const size_t vos = this->cur_state->__int_prop.v_obj_sz;
     return (this->batch_size - this->_c_vert * vos) / vos + 1;
 }
 
-void graphics::vmem_alloc(size_t sz) {
+void graphics2::vmem_alloc(size_t sz) {
     if (!cur_state->vbo_alloc) {
         if (!cur_state->vbo) {
             glGenBuffers(1, &cur_state->vbo);
@@ -198,7 +198,7 @@ void graphics::vmem_alloc(size_t sz) {
     ZeroMem<byte>((byte*)cur_state->vmem, sz);
 }
 
-void graphics::vmem_clear() {
+void graphics2::vmem_clear() {
     if (!cur_state->vmem) {
 
         if (cur_state->__int_prop.v_obj_sz > 0)
@@ -211,17 +211,17 @@ void graphics::vmem_clear() {
     this->_c_vert = 0;
 }
 
-void graphics::shader_bind() {
+void graphics2::shader_bind() {
     this->shader_bound = true;
     this->s->use();
 }
 
-void graphics::shader_unbind() {
+void graphics2::shader_unbind() {
     this->shader_bound = false;
     glUseProgram(0);
 }
 
-void graphics::render_begin(bool clear) {
+void graphics2::render_begin(bool clear) {
     if (this->using_default_device && clear)
         glViewport(0, 0, this->winW, this->winH);
     if (clear)
@@ -236,7 +236,7 @@ void graphics::render_begin(bool clear) {
     vbo_bind(this->cur_state->vbo);
 }
 
-void graphics::render_flush() {
+void graphics2::render_flush() {
     if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot render when mushing!" << std::endl;
         return;
@@ -246,7 +246,7 @@ void graphics::render_flush() {
     this->flush();
 }
 
-void graphics::bindMeshToVbo(Mesh *m) {
+void graphics2::bindMeshToVbo(Mesh *m) {
     if (!this->cur_state)
         return;
 
@@ -267,7 +267,7 @@ void graphics::bindMeshToVbo(Mesh *m) {
     vbo_bind(0);
 }
 
-void graphics::render_noflush() {
+void graphics2::render_noflush() {
     if (!this->cur_state)
         return;
 
@@ -295,11 +295,11 @@ void graphics::render_noflush() {
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
 
-void graphics::render_bind() {
+void graphics2::render_bind() {
     this->bind_vao();
 }
 
-void graphics::render_no_geo_update() {
+void graphics2::render_no_geo_update() {
     if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot no geo render when mushing!" << std::endl;
         return;
@@ -314,18 +314,18 @@ void graphics::render_no_geo_update() {
     glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
 }
 
-void graphics::flush() {
+void graphics2::flush() {
     //if (!this->using_foreign_gs)
     //    this->vmem_clear();
 
     this->_c_vert = 0;
 }
 
-const size_t graphics::getEstimatedMemoryUsage() {
+const size_t graphics2::getEstimatedMemoryUsage() {
     return sizeof(Vertex) * this->batch_size;
 }
 
-void graphics::free_state() {
+void graphics2::free_state() {
     _safe_free_a(cur_state->vmem);
     this->_c_vert = 0;
 }
@@ -352,7 +352,7 @@ void graphics::free_state() {
     this->push_verts(vertices, 6);
 }*/
 
-void graphics::setCurrentShader(Shader *s) {
+void graphics2::setCurrentShader(Shader *s) {
     if (s) {
         if (!this->using_foreign_gs)
             this->def_shader = s;
@@ -361,11 +361,11 @@ void graphics::setCurrentShader(Shader *s) {
     this->shader_bind();
 }
 
-Shader* graphics::getCurrentShader() {
+Shader* graphics2::getCurrentShader() {
     return this->s;
 }
 
-void graphics::mesh_single_bind(Mesh *m) {
+void graphics2::mesh_single_bind(Mesh *m) {
     if (this->rs_state == ReserveState::MeshBind) {
         return;
     }
@@ -390,7 +390,7 @@ void graphics::mesh_single_bind(Mesh *m) {
     this->rs_state = ReserveState::MeshBind;
 }
 
-void graphics::mesh_unbind() {
+void graphics2::mesh_unbind() {
     if (this->rs_state == ReserveState::Mush) {
         std::cout << "cannot mesh unbind when mushing!" << std::endl;
         return;
@@ -411,7 +411,7 @@ void graphics::mesh_unbind() {
     this->rs_state = ReserveState::None;
 }
 
-void graphics::mush_begin() {
+void graphics2::mush_begin() {
     if (!this->cur_state)
         return;
 
@@ -426,7 +426,7 @@ void graphics::mush_begin() {
     vbo_bind(this->cur_state->vbo);
 }
 
-void graphics::mush_render(Mesh *m) {
+void graphics2::mush_render(Mesh *m) {
     if (!m)
         return;
 
@@ -453,7 +453,7 @@ void graphics::mush_render(Mesh *m) {
     this->mush_offset += nv_bytes;
 }
 
-void graphics::mush_end() {
+void graphics2::mush_end() {
     if (this->rs_state != ReserveState::Mush) return;
 
     //final render
@@ -593,7 +593,7 @@ FrameBuffer::FrameBuffer(FrameBuffer::fb_type ty, u32 w, u32 h) {
     }
 }
 
-void graphics::setOutputDevice(OutputDevice *device) {
+void graphics2::setOutputDevice(OutputDevice *device) {
     if (!device) return;
 
     u32 fbo;
@@ -626,13 +626,13 @@ void graphics::setOutputDevice(OutputDevice *device) {
     }
 }
 
-void graphics::restoreDefaultOutputDevice() {
+void graphics2::restoreDefaultOutputDevice() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, this->winW, this->winH);
     this->using_default_device = true;
 }
 
-void graphics::vertexStructureDefineBegin(size_t vObjSz) {
+void graphics2::vertexStructureDefineBegin(size_t vObjSz) {
     if (!this->cur_state) {
         std::cout << "Failed to start vertex struct definitions!" << std::endl;
         return;
@@ -643,16 +643,16 @@ void graphics::vertexStructureDefineBegin(size_t vObjSz) {
     this->cur_state->__int_prop.v_obj_sz = vObjSz;
 }
 
-void graphics::vertexStructureDefineEnd() {
+void graphics2::vertexStructureDefineEnd() {
     //ok
 }
 
-void graphics::defineVertexPart(i32 n, __mu_glVInf inf) {
+void graphics2::defineVertexPart(i32 n, __mu_glVInf inf) {
     glVertexAttribPointer(n, inf.p_sz / sizeof(f32), GL_FLOAT, GL_FALSE, inf.sz, (void*)inf.off);
     glEnableVertexAttribArray(n);
 }
 
-void graphics::defineIntegerVertexPart(i32 n, __mu_glVInf inf) {
+void graphics2::defineIntegerVertexPart(i32 n, __mu_glVInf inf) {
     glVertexAttribIPointer(n, inf.p_sz / sizeof(i32), GL_INT, inf.sz, (void*)inf.off);
     glEnableVertexAttribArray(n); 
 }
@@ -741,12 +741,12 @@ void FrameBuffer::extractToBitmap(Bitmap *map) {
 
 
 
-OutputDevice graphics2::_OutputDev_Default = {
-    .type = OutputDevice::DefaultOutputDevice,
-    .device = nullptr
+OutputDevice graphics::_OutputDev_Default = {
+    .device = nullptr,
+    .type = OutputDevice::DefaultOutputDevice
 };
 
-void graphics2::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
+void graphics::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
     if (!state) {
         std::cout << "Graphics Warning | Failed to configure render state: current render state is a nullptr! \n\tMake sure you correctly created the currently bound render state." << std::endl;
         return;
@@ -812,7 +812,7 @@ void delete_overflow_buffer(_OverflowBufferCell *root) {
     }
 }
 
-void graphics2::_StoreExtraVerts(void *v_buf, size_t sz) {
+void graphics::_StoreExtraVerts(void *v_buf, size_t sz) {
     if (!v_buf || sz == 0) {
         std::cout << "(Internal) Graphics Error | Cannot store invalid extra verticies!" << std::endl;
         return;
@@ -840,7 +840,7 @@ void graphics2::_StoreExtraVerts(void *v_buf, size_t sz) {
     }
 }
 
-void graphics2::_StoreExtraIndicies(void *i_buf, size_t sz) {
+void graphics::_StoreExtraIndicies(void *i_buf, size_t sz) {
     if (!i_buf || sz == 0) {
         std::cout << "(Internal) Graphics Error | Cannot store invalid extra indicies!" << std::endl;
         return;
@@ -859,11 +859,19 @@ void graphics2::_StoreExtraIndicies(void *i_buf, size_t sz) {
     //TODO: store the extra indicies and handle all that
 }
 
-RenderState graphics2::CreateBlankRenderState() {
+RenderState graphics::CreateBlankRenderState() {
     return {}; //most underwelming function ever
 }
 
-void graphics2::SetRenderState(RenderState *s) {
+RenderState graphics::CreateNewRenderState(RenderStateDescriptor desc) {
+    RenderState rs = {};
+
+    rs._p_inf._desc = desc;
+
+    return rs;
+}
+
+void graphics::SetRenderState(RenderState *s) {
     if (!s) {
         std::cout << "Graphics Warning | Failed to set render state: current render state is a nullptr! \n\tMake sure you correctly created the currently bound render state." << std::endl;
         return;
@@ -880,9 +888,11 @@ void graphics2::SetRenderState(RenderState *s) {
     glViewport(0, 0, state->dim.w, state->dim.h);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    FrameBuffer *fb = nullptr;
+
     switch (state->oDevice->type) {
     case OutputDevice::FrameBuffer:
-        FrameBuffer *fb = (FrameBuffer*) state->oDevice->device;
+        fb = (FrameBuffer*) state->oDevice->device;
 
         if (!fb) {
             std::cout << "Graphics Warning | Restoring state outputdevice to default! Because of invalid output device" << std::endl;
@@ -897,24 +907,27 @@ void graphics2::SetRenderState(RenderState *s) {
         this->RestoreDefaultOutputDevice();
         break;
     }
+
+    if (!s->_p_inf._ini)
+        this->_IniCurrentGraphicsState(s->_p_inf._desc);
 }
 
-RenderState *graphics2::GetCurrentRenderState() {
+RenderState *graphics::GetCurrentRenderState() {
     return state;
 }
 
-void graphics2::RestoreLastRenderState() {
+void graphics::RestoreLastRenderState() {
     RenderState *temp = prev_state;
     prev_state = state;
     state = temp;
 }
 
-void graphics2::RestoreDefaultRenderState() {
+void graphics::RestoreDefaultRenderState() {
     prev_state = state;
     state = &this->default_state;
 }
 
-void graphics2::VertexDefineBegin(size_t v_obj_sz) {
+void graphics::VertexDefineBegin(size_t v_obj_sz) {
     if (!state) {
         std::cout << "Graphics Warning | Failed to begin vertex define: current render state is a nullptr! \n\tMake sure you correctly created the currently bound render state." << std::endl;
         return;
@@ -943,7 +956,7 @@ void graphics2::VertexDefineBegin(size_t v_obj_sz) {
     state->cur_process = RenderState::Process::VertexDefine;
 }
 
-void graphics2::DefineVertexPart(i32 part_index, __mu_glVInf inf) {
+void graphics::DefineVertexPart(i32 part_index, __mu_glVInf inf) {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error Failed to define vertex part: invalid render state!" << std::endl;
         return;
@@ -963,7 +976,7 @@ void graphics2::DefineVertexPart(i32 part_index, __mu_glVInf inf) {
     glEnableVertexAttribArray(part_index);
 }
 
-void graphics2::DefineIntegerVertexPart(i32 part_index, __mu_glVInf inf) {
+void graphics::DefineIntegerVertexPart(i32 part_index, __mu_glVInf inf) {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error | Failed to define vertex part: invalid render state!" << std::endl;
         return;
@@ -983,7 +996,7 @@ void graphics2::DefineIntegerVertexPart(i32 part_index, __mu_glVInf inf) {
     glEnableVertexAttribArray(part_index); 
 }
 
-void graphics2::VertexDefineEnd() {
+void graphics::VertexDefineEnd() {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error | Failed to end vertex define: invalid render state!" << std::endl;
         return;
@@ -1001,7 +1014,7 @@ void graphics2::VertexDefineEnd() {
     state->_p_inf._vert_def = true;
 }
 
-void graphics2::DeleteRenderState(RenderState *state) {
+void graphics::DeleteRenderState(RenderState *state) {
     if (!state)
         return;
 
@@ -1020,7 +1033,7 @@ void graphics2::DeleteRenderState(RenderState *state) {
 }
 
 //render functions
-void graphics2::SetShader(Shader *shader) {
+void graphics::SetShader(Shader *shader) {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error | Failed to set shader: invalid render state!" << std::endl;
         return;
@@ -1039,7 +1052,7 @@ void graphics2::SetShader(Shader *shader) {
     state->cur_shader = shader;
 }
 
-Shader* graphics2::GetCurrentShader() {
+Shader* graphics::GetCurrentShader() {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error | Failed to get shader: invalid render state!" << std::endl;
         return nullptr;
@@ -1048,7 +1061,7 @@ Shader* graphics2::GetCurrentShader() {
     return state->cur_shader;
 }
 
-bool render_precheck(graphics2 *g) {
+bool render_precheck(graphics *g) {
     if (!g->state || g->state->_p_inf._null || !g->state->_p_inf._ini) {
         std::cout << "Graphics Error | Failed to begin render: invalid render state!" << std::endl;
         return false;
@@ -1072,8 +1085,15 @@ bool render_precheck(graphics2 *g) {
     return true;
 }
 
-void graphics2::RenderBegin(i32 w, i32 h) {
+void graphics::RenderBegin(i32 w, i32 h) {
     if (!render_precheck(this)) return;
+
+    glEnable(GL_DEPTH_TEST);
+	glEnable(GL_ALPHA_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LEQUAL);
+    glEnable(GL_CULL_FACE);  
+    glCullFace(GL_FRONT);
 
     if (w >= 0)
         state->dim.w = w;
@@ -1090,7 +1110,7 @@ void graphics2::RenderBegin(i32 w, i32 h) {
 }
 
 //TODO: all these actually important functions
-void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
+void graphics::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
     if (!verts || n_verts == 0) {
         std::cout << "Graphics Warning | Cannot push invalid verts!" << std::endl;
         return;
@@ -1107,8 +1127,10 @@ void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
         if (auto_flush_old) {
             if (state->_p_inf._desc.use_indicies) {
                 _StoreExtraVerts(verts, n_verts * state->vertex_size);
-            } else
-                this->RenderFlush(false);
+            } else {
+                this->RenderFlush();
+                this->RenderBegin();
+            }
         } else {
             std::cout << "Graphics Warning | Extra verticies! Max sure to called RenderFlush or enable auto flush!" << std::endl;
 
@@ -1133,7 +1155,7 @@ void graphics2::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
     }
 }
 
-void graphics2::SetVerts(void *verts, size_t n_verts, bool flush_current) {
+void graphics::SetVerts(void *verts, size_t n_verts, bool flush_current) {
     if (!verts || n_verts == 0) {
         std::cout << "Graphics Warning | Cannot set invalid verts!" << std::endl;
         return;
@@ -1147,7 +1169,8 @@ void graphics2::SetVerts(void *verts, size_t n_verts, bool flush_current) {
     }
 
     if (flush_current) {
-        this->RenderFlush(false);
+        this->RenderFlush();
+        this->RenderBegin();
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
@@ -1164,7 +1187,7 @@ void graphics2::SetVerts(void *verts, size_t n_verts, bool flush_current) {
     }
 }
 
-void graphics2::PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_old) {
+void graphics::PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_old) {
     if (!render_precheck(this)) return;
 
     if (!state->_p_inf._desc.use_indicies) {
@@ -1183,9 +1206,10 @@ void graphics2::PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_
     }
 
     if (state->c_ind + n_indicies >= state->_p_inf._desc.max_batch_indicies) {
-        if (auto_flush_old)
-            this->RenderFlush(false);
-        else {
+        if (auto_flush_old) {
+            this->RenderFlush();
+            this->RenderBegin();
+        } else {
             std::cout << "Graphics Warning | Extra indicies! Max sure to called RenderFlush or enable auto flush!" << std::endl;
 
             if (state->_p_inf._desc.auto_store_extra)
@@ -1209,7 +1233,7 @@ void graphics2::PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_
     }
 }
 
-void graphics2::SetIndicies(void *indicies, size_t n_indicies, bool flush_current) {
+void graphics::SetIndicies(void *indicies, size_t n_indicies, bool flush_current) {
     if (!render_precheck(this)) return;
 
     if (!state->_p_inf._desc.use_indicies) {
@@ -1228,7 +1252,8 @@ void graphics2::SetIndicies(void *indicies, size_t n_indicies, bool flush_curren
     }
 
     if (flush_current) {
-        this->RenderFlush(false);
+        this->RenderFlush();
+        this->RenderBegin();
     }
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->ibo);
@@ -1245,7 +1270,7 @@ void graphics2::SetIndicies(void *indicies, size_t n_indicies, bool flush_curren
     }
 }
 
-void graphics2::RenderFlush(bool clear_buffer = true) {
+void graphics::RenderFlush() {
     if (!render_precheck(this)) return;
 
     size_t nPoints = state->c_vert;
@@ -1264,9 +1289,17 @@ void graphics2::RenderFlush(bool clear_buffer = true) {
 
     state->c_vert = 0;
     state->c_ind = 0;
+
+    state->cur_process = RenderState::Process::None;
 }
 
-void graphics2::LockState() {
+void graphics::ClearOutput() {
+    if (!render_precheck(this)) return;
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void graphics::LockState() {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error | Cannot lock invalid state!" << std::endl;
         return;
@@ -1280,7 +1313,7 @@ void graphics2::LockState() {
     state->cur_process = RenderState::Process::Locked;
 }
 
-void graphics2::UnlockState() {
+void graphics::UnlockState() {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error | Cannot unlock invalid state!" << std::endl;
         return;
@@ -1295,7 +1328,7 @@ void graphics2::UnlockState() {
 }
 
 //frame buffers and stuff
-void graphics2::SetOutputDevice(OutputDevice* device) {
+void graphics::SetOutputDevice(OutputDevice* device) {
     if (!device) {
         std::cout << "Graphics Error | Attempting to set output device to a nullptr!" << std::endl;
         return;
@@ -1336,7 +1369,7 @@ void graphics2::SetOutputDevice(OutputDevice* device) {
     }
 }
 
-void graphics2::RestoreDefaultOutputDevice() {
+void graphics::RestoreDefaultOutputDevice() {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
         std::cout << "Graphics Error | Cannot unlock invalid state!" << std::endl;
         return;
@@ -1353,7 +1386,7 @@ void graphics2::RestoreDefaultOutputDevice() {
 
 //constructors
 //TODO: incorporate default render state within these johns
-graphics2::graphics2() {
+graphics::graphics() {
     this->state = &this->default_state;
 
     RenderStateDescriptor def_desc;
@@ -1361,12 +1394,30 @@ graphics2::graphics2() {
     this->_IniCurrentGraphicsState(def_desc);
 }
 
-graphics2::graphics2(RenderStateDescriptor desc) {
+graphics::graphics(RenderStateDescriptor desc) {
     this->state = &this->default_state;
     this->_IniCurrentGraphicsState(desc);
 }
 
-graphics2::graphics2(RenderState *def_state) {
+graphics::graphics(RenderState *def_state) {
     this->default_state = *def_state;
     this->state = def_state;
+}
+
+u32 graphics::getOutputWidth() {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Cannot get width from invalid state!" << std::endl;
+        return 0;
+    }
+
+    return state->dim.w;
+}
+
+u32 graphics::getOutputHeight() {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Cannot get height from invalid state!" << std::endl;
+        return 0;
+    }
+
+    return state->dim.h;
 }

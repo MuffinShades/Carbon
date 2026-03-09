@@ -71,7 +71,9 @@ public:
     }
     Bitmap extractBitmap();
     void extractToBitmap(Bitmap *map);
+
     friend class graphics;
+    friend class graphics2;
 
     OutputDevice *device() {
         this->od.device = (void*) this;
@@ -132,7 +134,7 @@ struct CustomFontProperties {
     } shader;
 };
 
-class graphics {
+class graphics2 {
 private:
     graphicsState interalState;
     graphicsState *cur_state = nullptr;
@@ -187,7 +189,7 @@ public:
         
     };  
 
-    graphics(Window *w) {
+    graphics2(Window *w) {
         if (w != nullptr)
             this->win = w;
         else
@@ -197,7 +199,7 @@ public:
         this->winH = this->win->h;
     }
 
-    graphics() {
+    graphics2() {
         this->winW = 0;
         this->winH = 0;
     }
@@ -331,7 +333,7 @@ constructors
 
 */
 
-class graphics2 {
+class graphics {
 private:
     RenderState default_state = {._p_inf = {._null = true}};
     RenderState *state = nullptr, *prev_state = nullptr;
@@ -340,10 +342,13 @@ private:
     void _StoreExtraVerts(void *v_buf, size_t sz);
     void _StoreExtraIndicies(void *i_buf, size_t sz);
 
+    void ini_generic_font_state();
+
     static OutputDevice _OutputDev_Default;
 public:
     //render states
     RenderState CreateBlankRenderState();
+    RenderState CreateNewRenderState(RenderStateDescriptor desc);
     void SetRenderState(RenderState *state);
     RenderState *GetCurrentRenderState();
     void RestoreLastRenderState();
@@ -364,7 +369,8 @@ public:
     void SetVerts(void *verts, size_t n_verts, bool flush_current);
     void PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_old);
     void SetIndicies(void *indicies, size_t n_indicies, bool flush_current);
-    void RenderFlush(bool clear_buffer = true);
+    void RenderFlush();
+    void ClearOutput();
     void LockState(); //locks rendering and output
     void UnlockState();
 
@@ -378,12 +384,16 @@ public:
     void SetOutputDevice(OutputDevice* device);
     void RestoreDefaultOutputDevice();
 
+    //idek
+    u32 getOutputWidth();
+    u32 getOutputHeight();
+
     //constructors
-    graphics2();
-    graphics2(RenderStateDescriptor desc);
-    graphics2(RenderState *def_state);
+    graphics();
+    graphics(RenderStateDescriptor desc);
+    graphics(RenderState *def_state);
 
     void Resize(u32 w, u32 h);
 
-    friend bool render_precheck(graphics2 *g);
+    friend bool render_precheck(graphics *g);
 };

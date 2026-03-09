@@ -189,10 +189,10 @@ graphicsState *RigidBody3::getGraphicsState(graphics *g) {
 void RigidBody3::makeGraphicsState(graphics *g) {
     if (!g || !this->mesh) return;
 
-    g->useGraphicsState(&gs);
+    /*g->useGraphicsState(&gs);
     g->iniStaticGraphicsState();
     g->bindMeshToVbo(this->mesh);
-    g->useDefaultGraphicsState();
+    g->useDefaultGraphicsState();*/
 
     this->made_gs = true;
 }
@@ -464,17 +464,17 @@ void RBodyScene3::render(graphics* g, Camera *cam) {
     if (!cam || !g)
         return;
 
-    graphicsState *gs;
-    Shader *s = g->getCurrentShader();
+    /*RenderState *gs;
+    Shader *s = g->GetCurrentShader();
     mat4 mm;
 
     for (auto b : this->objs) {
         gs = b->getGraphicsState(g);
         mm = b->getMat();
-        g->useGraphicsState(gs);
+        g->SetRenderState(gs);
         s->SetMat4("model_mat", &mm);
         g->render_no_geo_update();
-    }
+    }*/
 }
 
 void RBodyScene3::setGravity(f32 g) {

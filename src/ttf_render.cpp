@@ -36,21 +36,25 @@ struct msdf_vert {
 MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     MsdfGpuContext *ctx = new MsdfGpuContext;
 
-    //load graphics
-    ctx->g.Load();
+    RenderStateDescriptor def_desc = {
+        .dynamic = true
+    };
 
-    ctx->g.vertexStructureDefineBegin(sizeof(msdf_vert));
-    ctx->g.defineVertexPart(0, vertexClassPart(msdf_vert, pos));
-    ctx->g.defineVertexPart(1, vertexClassPart(msdf_vert, glyph_rel_region));
-    ctx->g.defineIntegerVertexPart(2, vertexClassPart(msdf_vert, curve_range));
-    ctx->g.vertexStructureDefineEnd();
+    //load graphics
+    ctx->g = graphics(def_desc);
+
+    ctx->g.VertexDefineBegin(sizeof(msdf_vert));
+    ctx->g.DefineVertexPart(0, vertexClassPart(msdf_vert, pos));
+    ctx->g.DefineVertexPart(1, vertexClassPart(msdf_vert, glyph_rel_region));
+    ctx->g.DefineIntegerVertexPart(2, vertexClassPart(msdf_vert, curve_range));
+    ctx->g.VertexDefineEnd();
 
     //set output device
     ctx->fb = FrameBuffer(FrameBuffer::Texture, w, h);
 
     std::cout << "Creating context: " << w << " " << h << std::endl;
 
-    ctx->g.setOutputDevice(ctx->fb.device());
+    ctx->g.SetOutputDevice(ctx->fb.device());
 
     ctx->good = true;
 
@@ -2151,7 +2155,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     if (!ctx->good)
         std::cout << "warning bad context!" << std::endl;
 
-    ctx->g.setCurrentShader(&msdf_gen_shader);
+    ctx->g.SetShader(&msdf_gen_shader);
     
     //params of the curves being sent to the gpu
     if (!ctx->curveBuffer)
@@ -2178,9 +2182,9 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     //render
     msdf_vert out_rect[] = RECT_VERTS(region_vec.x, region_vec.y, region_vec.z, region_vec.w, 0.0 COMMA glyph_dim_vec.x COMMA glyph_dim_vec.y COMMA glyph_dim_vec.x COMMA glyph_dim_vec.w);
 
-    ctx->g.render_begin();
-    ctx->g.push_verts(out_rect, sizeof(out_rect) / sizeof(msdf_vert));
-    ctx->g.render_flush();
+    ctx->g.RenderBegin();
+    ctx->g.PushVerts(out_rect, sizeof(out_rect) / sizeof(msdf_vert), true);
+    ctx->g.RenderFlush();
 
     _safe_free_a(glyph_contours); //more memory management
 
@@ -2219,8 +2223,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     if (!msdf_gen_shader.good())
         msdf_gen_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_SHADER_PATH_VERT, MSDF_ACCEL_SHADER_PATH_FRAG);
 
-    ctx->g.setCurrentShader(&msdf_gen_shader);
-    ctx->g.render_begin();
+    ctx->g.SetShader(&msdf_gen_shader);
+    ctx->g.RenderBegin();
 
     constexpr size_t N_RECT_VERTS = 6;
     size_t nextCurveInsert = 0;
@@ -2273,11 +2277,11 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         //generate the glpyh context
         g_ctx = CreateMsdfGenContext(tg, true);
 
-        if (ctx->g.vert_space() < N_RECT_VERTS || nextCurveInsert + g_ctx.nCurves >= MAX_BUFFER_CURVES) {
+        if (nextCurveInsert + g_ctx.nCurves >= MAX_BUFFER_CURVES) {
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ctx->curveBuffer);
 
-            ctx->g.render_flush();
-            ctx->g.render_begin(false);
+            ctx->g.RenderFlush();
+            ctx->g.RenderBegin();
 
             nextCurveInsert = 0;
         }
@@ -2356,7 +2360,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
             const size_t NV = sizeof(out_rect) / sizeof(msdf_vert);
 
-            ctx->g.push_verts(out_rect, NV);
+            ctx->g.PushVerts(out_rect, NV, true);
         } else {
             msdf_vert out_rect[] = { 
                 (region_vec.x), (region_vec.y), 0.0 , 
@@ -2380,14 +2384,14 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
             const size_t NV = sizeof(out_rect) / sizeof(msdf_vert);
 
-            ctx->g.push_verts(out_rect, NV);
+            ctx->g.PushVerts(out_rect, NV, true);
         }
 
         DeleteMsdfGenContext(&g_ctx);
     }
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ctx->curveBuffer);
-    ctx->g.render_flush();
+    ctx->g.RenderFlush();
 
     return 0;
 }
@@ -3089,8 +3093,7 @@ Copyright muffinshades & Lambdana software 2026-present
 constexpr size_t n_gf_buf_verts = 0xffff;
 
 void graphics::ini_generic_font_state() {
-    this->useGraphicsState(&generic_font_state);
-    this->iniDynamicGraphicsState(n_gf_buf_verts);
+    defFontRenderState = CreateNewRenderState(fontRenderDesc);
 
     gfont_s_ready = true;
 }
@@ -3166,11 +3169,16 @@ struct genericFontVert {
     f32 tex[2];
 };
 
-static graphicsState defFontRenderState;
+static RenderState defFontRenderState;
 static bool defFontRenderStateCreated = false;
 static Shader defFontShader;
 static mat4 str_proj_mat;
 constexpr size_t nFontRenderVerts = 2048;
+static RenderStateDescriptor fontRenderDesc = {
+    .dynamic = true,
+    .use_indicies = false,
+    .max_batch_verts = nFontRenderVerts
+};
 
 //todo: set these paths
 #define DEF_FONT_SHADER_VERT_SRC "../../src/basic_font_vert.glsl"
@@ -3188,7 +3196,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     if (!font || !str)
         return;
 
-    if (!gfont_s_ready)
+    if (!defFontRenderStateCreated)
         ini_generic_font_state();
 
     //check font instance and hash map stuff
@@ -3205,25 +3213,24 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         .baseline_y = y + font->ad_inf.ascent //add max ascent to get proper positioning for the text basline
     };
 
-    this->useGraphicsState(&defFontRenderState);
+    this->SetRenderState(&defFontRenderState);
 
     if (!defFontRenderStateCreated) {
-        this->iniDynamicGraphicsState(nFontRenderVerts);
-        this->vertexStructureDefineBegin(sizeof(genericFontVert));
-        this->defineVertexPart(0, vertexClassPart(genericFontVert, pos));
-        this->defineVertexPart(1, vertexClassPart(genericFontVert, tex));
-        this->vertexStructureDefineEnd();
+        this->VertexDefineBegin(sizeof(genericFontVert));
+        this->DefineVertexPart(0, vertexClassPart(genericFontVert, pos));
+        this->DefineVertexPart(1, vertexClassPart(genericFontVert, tex));
+        this->VertexDefineEnd();
         defFontRenderStateCreated = true;
 
-        str_proj_mat = mat4::CreateOrthoProjectionMatrix(0.0f, win->w, win->h, 0.0f, -1.0f, 1000.0f);
+        str_proj_mat = mat4::CreateOrthoProjectionMatrix(0.0f, this->getOutputWidth(), this->getOutputHeight(), 0.0f, -1.0f, 1000.0f);
     }
 
     if (!defFontShader.good()) {
         defFontShader = Shader::LoadShaderFromFile(DEF_FONT_SHADER_VERT_SRC, DEF_FONT_SHADER_FRAG_SRC);
     }
 
-    this->render_begin();
-    this->setCurrentShader(&defFontShader);
+    this->RenderBegin();
+    this->SetShader(&defFontShader);
 
     defFontShader.SetMat4("screen_project", &str_proj_mat);
     font->msdf_dat.MSDF.gl_texture.bind();
@@ -3298,11 +3305,6 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
         //
         for (p = 0; p < o_char.nParts; p++) {
-            if (this->vert_space() < 6) {
-                this->render_flush();
-                this->render_begin(false);
-            }
-
             CharPart cp = o_char.spriteParts[p];
 
             //compute needed render constants
@@ -3345,8 +3347,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             };
 
             //TODO: actually render ts
-            this->push_verts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert));
-            this->render_flush();
+            this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);
+            this->RenderFlush();
         }
 
         x = cx_max;
@@ -3358,5 +3360,5 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         s_ctx.cur_char++;
     }
 
-    this->render_flush();
+    this->RenderFlush();
 }
