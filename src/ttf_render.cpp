@@ -64,12 +64,16 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
 MsdfGpuContext *CreateMsdfGPUAccelerationContext_Dynamic(u32 w, u32 h) {
     MsdfGpuContext *ctx = new MsdfGpuContext;
 
-    //load graphics
-    ctx->g.Load();
+    RenderStateDescriptor def_desc = {
+        .dynamic = true
+    };
 
-    ctx->g.vertexStructureDefineBegin(sizeof(msdf_vert));
-    ctx->g.defineVertexPart(0, vertexClassPart(msdf_vert, pos));
-    ctx->g.vertexStructureDefineEnd();
+    //load graphics
+    ctx->g = graphics(def_desc);
+
+    ctx->g.VertexDefineBegin(sizeof(msdf_vert));
+    ctx->g.DefineVertexPart(0, vertexClassPart(msdf_vert, pos));
+    ctx->g.VertexDefineEnd();
 
     ctx->fb.w = w;
     ctx->fb.h = h;
@@ -3092,12 +3096,6 @@ Copyright muffinshades & Lambdana software 2026-present
 ///textrendering through graphics related code=
 constexpr size_t n_gf_buf_verts = 0xffff;
 
-void graphics::ini_generic_font_state() {
-    defFontRenderState = CreateNewRenderState(fontRenderDesc);
-
-    gfont_s_ready = true;
-}
-
 struct str_pre_metrics {
     i32 maxW, maxH;
     size_t str_len;
@@ -3179,6 +3177,12 @@ static RenderStateDescriptor fontRenderDesc = {
     .use_indicies = false,
     .max_batch_verts = nFontRenderVerts
 };
+
+void graphics::ini_generic_font_state() {
+    defFontRenderState = CreateNewRenderState(fontRenderDesc);
+
+    defFontRenderStateCreated = true;
+}
 
 //todo: set these paths
 #define DEF_FONT_SHADER_VERT_SRC "../../src/basic_font_vert.glsl"

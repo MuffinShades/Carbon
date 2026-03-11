@@ -12,14 +12,14 @@ void ColorPicker::graphicsPreCompute(graphics *g) {
 
     this->gs.s = _ColorPicker_Stock::getShader();
 
-    g->useGraphicsState(&this->gs);
-    g->iniStaticGraphicsState();
+    //g->useGraphicsState(&this->gs);
+   // g->iniStaticGraphicsState();
 
     //define the vertex's for the color picker
-    g->vertexStructureDefineBegin(sizeof(ColorPick_Vertex));
-    g->defineVertexPart(0, vertexClassPart(ColorPick_Vertex, pos));
-    g->defineVertexPart(1, vertexClassPart(ColorPick_Vertex, color));
-    g->vertexStructureDefineEnd();
+    //g->vertexStructureDefineBegin(sizeof(ColorPick_Vertex));
+    //g->defineVertexPart(0, vertexClassPart(ColorPick_Vertex, pos));
+    //g->defineVertexPart(1, vertexClassPart(ColorPick_Vertex, color));
+    //g->vertexStructureDefineEnd();
 
     //s/v die
     ColorPick_Vertex vtx[] = RECT_VERTS_EX(
@@ -28,15 +28,15 @@ void ColorPicker::graphicsPreCompute(graphics *g) {
     );
 
 
-    g->useDefaultGraphicsState();
+   //g->useDefaultGraphicsState();
 }
 
 void ColorPicker::render(graphics *g) {
     if (!g)
         return;
 
-    g->useGraphicsState(&this->gs);
+    //g->useGraphicsState(&this->gs);
 
-    g->render_no_geo_update();
-    g->useDefaultGraphicsState();
+    //g->render_no_geo_update();
+    //g->useDefaultGraphicsState();
 }

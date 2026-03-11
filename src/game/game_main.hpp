@@ -86,7 +86,7 @@ void scene_setup() {
 }
 
 void render() {
-    g->render_begin();
+    g->RenderBegin();
 
     lookMat = p.getCam()->getLookMatrix();
 
@@ -108,19 +108,21 @@ extern i32 game_main() {
     glfwSetKeyCallback(win.wHandle, kb_callback);
     mouseEnableUpdate(win.wHandle);
 
-    g = new graphics(&win);
+    RenderStateDescriptor desc = {
+        .dynamic = true
+    };
 
-    g->Load();
+    g = new graphics(desc);
 
-    g->vertexStructureDefineBegin(sizeof(Vertex));
-    g->defineVertexPart(0, vertexClassPart(Vertex, posf));
-    g->defineVertexPart(1, vertexClassPart(Vertex, n));
-    g->defineVertexPart(2, vertexClassPart(Vertex, tex));
-    g->vertexStructureDefineEnd();
+    g->VertexDefineBegin(sizeof(Vertex));
+    g->DefineVertexPart(0, vertexClassPart(Vertex, posf));
+    g->DefineVertexPart(1, vertexClassPart(Vertex, n));
+    g->DefineVertexPart(2, vertexClassPart(Vertex, tex));
+    g->VertexDefineEnd();
 
     //shader setup
     s = Shader::LoadShaderFromFile("src/shaders/def_vert.glsl", "src/shaders/def_frag.glsl");
-    g->setCurrentShader(&s);
+    g->SetShader(&s);
 
     //texture setup
     tex = new BindableTexture("assets/vox/rocc2.png");
@@ -134,7 +136,7 @@ extern i32 game_main() {
     scene_setup();
     
     //window resize / seutp
-    g->WinResize(WIN_W,WIN_H);
+    g->Resize(WIN_W,WIN_H);
     glfwSwapInterval(0);
 
     f32 lastFrame = 0,t,dt;

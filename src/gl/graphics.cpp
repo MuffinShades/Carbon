@@ -612,7 +612,7 @@ void graphics2::setOutputDevice(OutputDevice *device) {
 
         std::cout << "bound to fbo: " << fbo << std::endl;
 
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo); 
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         glViewport(0, 0, fb->w, fb->h);
 
         if (!fb->texHandle && fb->ty == FrameBuffer::Texture)
@@ -752,10 +752,10 @@ void graphics::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
         return;
     }
 
-    if (!state->_p_inf._null) {
+    /*if (!state->_p_inf._null) {
         std::cout << "Graphics Warning | Failed to configure render state: cannot configure null render state! \n\tMake sure you have set a valid render state and are not using a deleted state." << std::endl;
         return;
-    }
+    }*/
 
     state->_p_inf._desc = desc;
 
@@ -801,6 +801,7 @@ void graphics::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
     glBindVertexArray(0);
 
     state->_p_inf._ini = true;
+    state->_p_inf._null = false;
 }
 
 void delete_overflow_buffer(_OverflowBufferCell *root) {
@@ -933,7 +934,7 @@ void graphics::VertexDefineBegin(size_t v_obj_sz) {
         return;
     }
 
-    if (!state->_p_inf._null || !state->_p_inf._ini || !state->vbo) {
+    if (state->_p_inf._null || !state->_p_inf._ini || !state->vbo) {
         std::cout << "Graphics Warning | Failed to begin vertex define: cannot define vertex for undefined render state! \n\tVBO: " << state->vbo << "\n\tnull: " << state->_p_inf._null << "\n\tini: " << state->_p_inf._ini << std::endl;
         return;
     }
@@ -1371,7 +1372,7 @@ void graphics::SetOutputDevice(OutputDevice* device) {
 
 void graphics::RestoreDefaultOutputDevice() {
     if (!state || state->_p_inf._null || !state->_p_inf._ini) {
-        std::cout << "Graphics Error | Cannot unlock invalid state!" << std::endl;
+        std::cout << "Graphics Error | Cannot change output device of an invalid state!" << std::endl;
         return;
     }
 
@@ -1420,4 +1421,19 @@ u32 graphics::getOutputHeight() {
     }
 
     return state->dim.h;
+}
+
+void graphics::Resize(u32 w, u32 h) {
+    if (!state || state->_p_inf._null || !state->_p_inf._ini) {
+        std::cout << "Graphics Error | Cannot resize invalid state!" << std::endl;
+        return;
+    }
+
+    if (state->cur_process == RenderState::Process::Locked) {
+        std::cout << "Graphics Error | Cannot resize whilsts render state is locked!" << std::endl;
+        return;
+    }
+
+    state->dim.w = w;
+    state->dim.h = h;
 }

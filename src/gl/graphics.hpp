@@ -335,7 +335,7 @@ constructors
 
 class graphics {
 private:
-    RenderState default_state = {._p_inf = {._null = true}};
+    RenderState default_state = {._p_inf = {._null = false}};
     RenderState *state = nullptr, *prev_state = nullptr;
 
     void _IniCurrentGraphicsState(RenderStateDescriptor desc);

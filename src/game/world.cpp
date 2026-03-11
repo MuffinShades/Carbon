@@ -151,16 +151,16 @@ void World::render(graphics *g, ControllableCamera *cam) {
 
     Chunk *c;
 
-    Shader *s = g->getCurrentShader();
+    Shader *s = g->GetCurrentShader();
 
     forrange(this->nChunks) {
         c = (this->chunkBuffer+i);
 
         if (c->async_gen_info.gen_stage == 1) {
-            g->useGraphicsState(&c->gs);
-            g->iniStaticGraphicsState();
-            g->bindMeshToVbo(&c->mesh);
-            g->useDefaultGraphicsState();
+            //g->useGraphicsState(&c->gs);
+            //g->iniStaticGraphicsState();
+            //g->bindMeshToVbo(&c->mesh);
+            //g->useDefaultGraphicsState();
             this->chunkBuffer[i].async_gen_info.gen_stage = 2;
 
             graphicsState gs = this->chunkBuffer[i].gs;
@@ -184,14 +184,14 @@ void World::render(graphics *g, ControllableCamera *cam) {
         //if (alpha < phi || alpha > phi + mu_pi)
          //   continue;
 
-        g->useGraphicsState(&c->gs);
+        //g->useGraphicsState(&c->gs);
 
         s->SetMat4("model_mat", &c->modelMat);
 
-        g->render_no_geo_update();
+        //g->render_no_geo_update();
     }
 
-    g->useDefaultGraphicsState();
+    //g->useDefaultGraphicsState();
 }
 
 void World::genChunks(graphics *g) {
