@@ -953,6 +953,8 @@ void graphics::VertexDefineBegin(size_t v_obj_sz) {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
+    glBindVertexArray(state->vao);
+
     state->vertex_size = v_obj_sz;
     state->cur_process = RenderState::Process::VertexDefine;
 }

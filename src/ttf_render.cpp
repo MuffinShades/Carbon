@@ -2184,7 +2184,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     msdf_gen_shader.SetVec4("glyphDim", &glyph_dim_vec);
 
     //render
-    msdf_vert out_rect[] = RECT_VERTS(region_vec.x, region_vec.y, region_vec.z, region_vec.w, 0.0 COMMA glyph_dim_vec.x COMMA glyph_dim_vec.y COMMA glyph_dim_vec.x COMMA glyph_dim_vec.w);
+    msdf_vert out_rect[] = RECT_VERTS(region_vec.x, region_vec.y, region_vec.z, region_vec.w, 0.0 COMMA (f32) glyph_dim_vec.x COMMA (f32) glyph_dim_vec.y COMMA (i32) glyph_dim_vec.x COMMA (i32) glyph_dim_vec.w);
 
     ctx->g.RenderBegin();
     ctx->g.PushVerts(out_rect, sizeof(out_rect) / sizeof(msdf_vert), true);
@@ -3332,22 +3332,22 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             //verticies
             genericFontVert glyph_rect_base[] = { 
                 s_ctx.x, part_y, z, 
-                cp.sheet_loc.x, cp.sheet_loc.y, 
+                (f32) cp.sheet_loc.x, (f32)cp.sheet_loc.y, 
 
                 (s_ctx.x), (part_y+part_h), z, 
-                cp.sheet_loc.x, cp.sheet_loc.y+cp.sheet_loc.h, 
+                (f32) cp.sheet_loc.x, (f32) (cp.sheet_loc.y+cp.sheet_loc.h), 
 
                 (s_ctx.x+part_w), (part_y), z, 
-                cp.sheet_loc.x+cp.sheet_loc.w, cp.sheet_loc.y, 
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w), (f32) cp.sheet_loc.y, 
             
                 (s_ctx.x+part_w), (part_y+part_h), z, 
-                cp.sheet_loc.x+cp.sheet_loc.w, cp.sheet_loc.y+cp.sheet_loc.h, 
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w), (f32) (cp.sheet_loc.y+cp.sheet_loc.h), 
             
                 (s_ctx.x+part_w), (part_y), z, 
-                cp.sheet_loc.x+cp.sheet_loc.w, cp.sheet_loc.y,  
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w), (f32) cp.sheet_loc.y,  
             
                 (s_ctx.x), (part_y+part_h), z, 
-                cp.sheet_loc.x, cp.sheet_loc.y+cp.sheet_loc.h, 
+                (f32) cp.sheet_loc.x, (f32) (cp.sheet_loc.y+cp.sheet_loc.h), 
             };
 
             //TODO: actually render ts

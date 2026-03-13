@@ -1221,10 +1221,12 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     //combine glyph buffers
     Glyph *o_gs_glyphs = gs.glyphs;
-    size_t n_o_glyphs = tg + 1;
+    size_t n_o_glyphs = tg;
 
     gs.nGlyphs = cc.size() + n_o_glyphs;
     gs.glyphs = new Glyph[gs.nGlyphs];
+
+    std::cout << "Decoded: " << n_o_glyphs << "glfs and " << gs.nGlyphs << "parts" << std::endl;
 
     in_memcpy(gs.glyphs, o_gs_glyphs, n_o_glyphs * sizeof(Glyph));
     in_memcpy(gs.glyphs + n_o_glyphs, cc.data(), cc.size() * sizeof(Glyph));

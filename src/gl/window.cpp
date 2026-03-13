@@ -73,6 +73,8 @@ void Window::intCreate() {
         nullptr
     );
 
+    std::cout << "hand: " << this->wHandle << std::endl;
+
     if (!this->wHandle) {
         std::cout << "Failed to create Window!" << std::endl;
         this->wHandle = nullptr;
@@ -110,10 +112,15 @@ bool Window::Update() {
 }
 
 bool Window::winIni() {
-    glfwInit();
+    if (!glfwInit()) {
+        std::cout << "Failed to load glfw!" << std::endl;
+        return false;
+    }
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true); 
+
     return true;
 }
