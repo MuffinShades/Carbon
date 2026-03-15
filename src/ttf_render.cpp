@@ -3275,8 +3275,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         Character o_char; //TODO: set this to the missing char for easy escape if given char does not exist
 
         if (font->map.ty == CharMapType::Direct) {
+            std::cout << "Reading direct char: " << (i32)cc << " / " << font->map.hash_inf.sz << std::endl;
             if (cc < font->map.hash_inf.sz) o_char = font->map.hash_map[cc].ochar;
         } else {
+            std::cout << "Reading indirect char" << std::endl;
             const u32 hVal = compute_basic_hash_32(font->map.hash_inf.nBits, &cc, 1);
             CharLink *lnk = (font->map.hash_map+hVal);
 
