@@ -2897,7 +2897,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             break;
         }
         case CharMapType::Hash: {
-
+            std::cout << "ttf_warning: implement hashing stuff" << std::endl;
             break;
         }
         default:
@@ -3167,8 +3167,8 @@ struct genericFontVert {
     f32 tex[2];
 };
 
-static RenderState defFontRenderState;
-static bool defFontRenderStateCreated = false;
+static RenderState *defFontRenderState;
+static bool defFontRenderStateCreated = false, defFontVertexDef = false;
 static Shader defFontShader;
 static mat4 str_proj_mat;
 constexpr size_t nFontRenderVerts = 2048;
@@ -3217,14 +3217,18 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         .baseline_y = y + font->ad_inf.ascent //add max ascent to get proper positioning for the text basline
     };
 
-    this->SetRenderState(&defFontRenderState);
+    const u32 screenW = this->getOutputWidth();
+    const u32 screenH = this->getOutputHeight();
 
-    if (!defFontRenderStateCreated) {
+    this->SetRenderState(defFontRenderState);
+    this->Resize(screenW, screenH);
+
+    if (!defFontVertexDef) {
         this->VertexDefineBegin(sizeof(genericFontVert));
         this->DefineVertexPart(0, vertexClassPart(genericFontVert, pos));
         this->DefineVertexPart(1, vertexClassPart(genericFontVert, tex));
         this->VertexDefineEnd();
-        defFontRenderStateCreated = true;
+        defFontVertexDef = true;
 
         str_proj_mat = mat4::CreateOrthoProjectionMatrix(0.0f, this->getOutputWidth(), this->getOutputHeight(), 0.0f, -1.0f, 1000.0f);
     }
@@ -3311,6 +3315,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
 
+            std::cout << "Metrics: " << cp.sheet_loc.x << " " << cp.sheet_loc.y << " " << cp.sheet_loc.w << " " << cp.sheet_loc.h << std::endl << " | " << metrics.WemRatio << " | " << (cp.size.xMax - cp.size.xMin) << " " << (cp.size.yMax - cp.size.yMin) << std::endl;
+
             //compute needed render constants
             part_w = (cp.size.xMax - cp.size.xMin) * metrics.WemRatio;
             part_h = part_w * o_char.dim.hw_ratio;
@@ -3349,6 +3355,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 (s_ctx.x), (part_y+part_h), z, 
                 (f32) cp.sheet_loc.x, (f32) (cp.sheet_loc.y+cp.sheet_loc.h), 
             };
+
+            std::cout << "rendering character \"" << cc << "\" " << s_ctx.x << ", " << part_y << " | " << part_w << " " << part_h << std::endl;
 
             //TODO: actually render ts
             this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);

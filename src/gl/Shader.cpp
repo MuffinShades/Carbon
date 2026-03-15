@@ -8,7 +8,7 @@ void Shader::__error_check(u32 shader, ShaderType type) {
     std::cout << "Checking shader errors..." << std::endl;
 
 	if (type != ShaderType::program) {
-		glGetShaderiv(shader, GL_LINK_STATUS, &s);
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &s);
 
 		if (!s) {
 			glGetShaderInfoLog(shader, 1024, NULL, infLog);
@@ -44,7 +44,8 @@ Shader::Shader(const char *vertex_data, const char *fragment_data) {
 	//add source code to fragment shader
 	glShaderSource(this->frag, 1, &fragment_data, NULL);
 	glCompileShader(this->frag);
-	//check for errors
+
+     //check for errors
 	__error_check(this->frag, ShaderType::frag);
 
 	//create the program
@@ -56,6 +57,7 @@ Shader::Shader(const char *vertex_data, const char *fragment_data) {
 	glAttachShader(this->PGRM, this->frag);
 	//link the program to the GPU
 	glLinkProgram(this->PGRM);
+
 	//check errors
 	__error_check(this->PGRM, ShaderType::program);
     

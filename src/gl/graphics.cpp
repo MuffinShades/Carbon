@@ -757,6 +757,7 @@ void graphics::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
         return;
     }*/
 
+    state->_p_inf._null = false;
     state->_p_inf._desc = desc;
 
     //create buffer objects
@@ -801,7 +802,6 @@ void graphics::_IniCurrentGraphicsState(RenderStateDescriptor desc) {
     glBindVertexArray(0);
 
     state->_p_inf._ini = true;
-    state->_p_inf._null = false;
 }
 
 void delete_overflow_buffer(_OverflowBufferCell *root) {
@@ -860,15 +860,16 @@ void graphics::_StoreExtraIndicies(void *i_buf, size_t sz) {
     //TODO: store the extra indicies and handle all that
 }
 
-RenderState graphics::CreateBlankRenderState() {
-    return {}; //most underwelming function ever
+RenderState *graphics::CreateBlankRenderState() {
+    RenderState *rs = new RenderState;
+    ZeroMem(rs, 1);
+    return rs; //most underwelming function ever
 }
 
-RenderState graphics::CreateNewRenderState(RenderStateDescriptor desc) {
-    RenderState rs = {};
-
-    rs._p_inf._desc = desc;
-
+RenderState *graphics::CreateNewRenderState(RenderStateDescriptor desc) {
+    RenderState *rs = new RenderState;
+    ZeroMem(rs, 1);
+    rs->_p_inf._desc = desc;
     return rs;
 }
 
@@ -878,9 +879,18 @@ void graphics::SetRenderState(RenderState *s) {
         return;
     }
 
-    if (!s->_p_inf._null) {
-        std::cout << "Graphics Warning | Failed to set render state: cannot configure null render state! \n\tMake sure you have set a valid render state and are not using a deleted state." << std::endl;
+    if (s->_p_inf._null) {
+        std::cout << "Graphics Warning | Failed to set render state: cannot set null render state! \n\tMake sure you have set a valid render state and are not using a deleted state." << std::endl;
         return;
+    }
+
+    if (state) {
+        if (state->_p_inf._protect.nBindings > 0)
+            state->_p_inf._protect.nBindings--;
+        else {
+            std::cout << "Graphics Warning | State is bound but also isn't... schrodinger's render state" << std::endl;
+            state->_p_inf._protect.nBindings = 0;
+        }
     }
 
     prev_state = state;
@@ -891,6 +901,7 @@ void graphics::SetRenderState(RenderState *s) {
 
     FrameBuffer *fb = nullptr;
 
+    if (state->oDevice) {
     switch (state->oDevice->type) {
     case OutputDevice::FrameBuffer:
         fb = (FrameBuffer*) state->oDevice->device;
@@ -908,9 +919,12 @@ void graphics::SetRenderState(RenderState *s) {
         this->RestoreDefaultOutputDevice();
         break;
     }
+    }
 
     if (!s->_p_inf._ini)
         this->_IniCurrentGraphicsState(s->_p_inf._desc);
+
+    s->_p_inf._protect.nBindings++;
 }
 
 RenderState *graphics::GetCurrentRenderState() {
@@ -925,7 +939,7 @@ void graphics::RestoreLastRenderState() {
 
 void graphics::RestoreDefaultRenderState() {
     prev_state = state;
-    state = &this->default_state;
+    state = this->default_state;
 }
 
 void graphics::VertexDefineBegin(size_t v_obj_sz) {
@@ -954,6 +968,7 @@ void graphics::VertexDefineBegin(size_t v_obj_sz) {
     }
 
     glBindVertexArray(state->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
 
     state->vertex_size = v_obj_sz;
     state->cur_process = RenderState::Process::VertexDefine;
@@ -1030,9 +1045,9 @@ void graphics::DeleteRenderState(RenderState *state) {
 
     ZeroMem(state, sizeof(RenderState));
 
+
     //ensure that if this state is bound it will properly trigger an error somewhere :)
-    state->_p_inf._null = true;
-    state->_p_inf._ini = false;
+    _safe_free_a(state);
 }
 
 //render functions
@@ -1075,7 +1090,7 @@ bool render_precheck(graphics *g) {
         return false;
     }
 
-    if (g->state->cur_process != RenderState::Process::None) {
+    if (g->state->cur_process != RenderState::Process::None && g->state->cur_process != RenderState::Process::Render) {
         std::cout << "Graphics Warning | Cannot render whilsts state is busy with something else!" << std::endl;
         return false;
     }
@@ -1090,13 +1105,6 @@ bool render_precheck(graphics *g) {
 
 void graphics::RenderBegin(i32 w, i32 h) {
     if (!render_precheck(this)) return;
-
-    glEnable(GL_DEPTH_TEST);
-	glEnable(GL_ALPHA_TEST);
-	glDepthMask(GL_TRUE);
-	glDepthFunc(GL_LEQUAL);
-    glEnable(GL_CULL_FACE);  
-    glCullFace(GL_FRONT);
 
     if (w >= 0)
         state->dim.w = w;
@@ -1390,21 +1398,24 @@ void graphics::RestoreDefaultOutputDevice() {
 //constructors
 //TODO: incorporate default render state within these johns
 graphics::graphics() {
-    this->state = &this->default_state;
-
+    this->state = new RenderState;
     RenderStateDescriptor def_desc;
-
     this->_IniCurrentGraphicsState(def_desc);
+    this->state->_p_inf._protect.nBindings++;
+    this->default_state = this->state;
 }
 
 graphics::graphics(RenderStateDescriptor desc) {
-    this->state = &this->default_state;
+    this->state = new RenderState;
+    this->default_state = this->state;
     this->_IniCurrentGraphicsState(desc);
+    this->state->_p_inf._protect.nBindings++;
 }
 
 graphics::graphics(RenderState *def_state) {
-    this->default_state = *def_state;
+    this->default_state = def_state;
     this->state = def_state;
+    this->state->_p_inf._protect.nBindings++;
 }
 
 u32 graphics::getOutputWidth() {
@@ -1435,6 +1446,13 @@ void graphics::Resize(u32 w, u32 h) {
         std::cout << "Graphics Error | Cannot resize whilsts render state is locked!" << std::endl;
         return;
     }
+
+    glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_ALPHA_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LEQUAL);
+    glEnable(GL_CULL_FACE);  
+    glCullFace(GL_FRONT);
 
     state->dim.w = w;
     state->dim.h = h;

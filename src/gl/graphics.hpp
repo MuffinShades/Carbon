@@ -300,6 +300,9 @@ struct RenderState {
         bool _ini = false;
         bool _vert_def = false;
         bool _null = false;
+        struct {
+            i32 nBindings = 0;
+        } _protect;
         RenderStateDescriptor _desc;
     } _p_inf;
     enum class Process {
@@ -335,7 +338,7 @@ constructors
 
 class graphics {
 private:
-    RenderState default_state = {._p_inf = {._null = false}};
+    RenderState *default_state = nullptr;
     RenderState *state = nullptr, *prev_state = nullptr;
 
     void _IniCurrentGraphicsState(RenderStateDescriptor desc);
@@ -347,8 +350,8 @@ private:
     static OutputDevice _OutputDev_Default;
 public:
     //render states
-    RenderState CreateBlankRenderState();
-    RenderState CreateNewRenderState(RenderStateDescriptor desc);
+    RenderState *CreateBlankRenderState();
+    RenderState *CreateNewRenderState(RenderStateDescriptor desc);
     void SetRenderState(RenderState *state);
     RenderState *GetCurrentRenderState();
     void RestoreLastRenderState();
@@ -392,6 +395,12 @@ public:
     graphics();
     graphics(RenderStateDescriptor desc);
     graphics(RenderState *def_state);
+
+    void free() {
+        if (state == this->default_state)
+            state = nullptr;
+        delete[] this->default_state;
+    }
 
     void Resize(u32 w, u32 h);
 
