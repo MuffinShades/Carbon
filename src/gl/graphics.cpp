@@ -496,8 +496,8 @@ void FrameBuffer::texAttach(u32 w, u32 h) {
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); 
 
@@ -1134,7 +1134,10 @@ void graphics::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
         return;
     }
 
+    std::cout << "vpush: " << state->c_vert << ", " << n_verts << " / " << state->_p_inf._desc.max_batch_verts << std::endl;
+
     if (state->c_vert + n_verts >= state->_p_inf._desc.max_batch_verts) {
+        std::cout << "auto flushing..." << std::endl;
         if (auto_flush_old) {
             if (state->_p_inf._desc.use_indicies) {
                 _StoreExtraVerts(verts, n_verts * state->vertex_size);
@@ -1156,6 +1159,7 @@ void graphics::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
     case RenderState::__gs_fmt::_dynamic:
         glBufferSubData(GL_ARRAY_BUFFER, state->c_vert * state->vertex_size, n_verts * state->vertex_size, verts);
         state->c_vert += n_verts;
+        std::cout << "added verts: " << state->c_vert << std::endl;
         break;
     case RenderState::__gs_fmt::_static:
         if ((i32) state->suppress < (i32) RenderState::SupressionLevel::NothingWarnings)
@@ -1289,6 +1293,8 @@ void graphics::RenderFlush() {
     if (state->_p_inf._desc.use_indicies) {
         nPoints = state->c_ind;
     }
+
+    std::cout << "Flushing: " << nPoints << std::endl;
 
     state->cur_shader->use();
     glBindVertexArray(state->vao);

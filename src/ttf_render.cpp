@@ -2879,15 +2879,35 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         //ochar.nParts = 
         ochar.nParts = g.compound ? g.compound_inf.nGlyphParts : 1;
         ochar.spriteParts = new CharPart[ochar.nParts];
+        ZeroMem(ochar.spriteParts, ochar.nParts);
 
         if (g.compound) {
             for (j = 0; j < ochar.nParts; j++) {
                 CharPart *part = ochar.spriteParts + j;
 
                 part->offset = g.compound_inf.glyph_parts[j].pos_mat;
+                std::cout << "compound glyph isn't working cause you didnt add the info right dipshit" << std::endl;
             }
         } else {
             //TODO: add single part for non compound glyph
+
+            CharPart *part = ochar.spriteParts;
+
+            part->offset.a = 1.0f;
+            part->offset.b = 0.0f;
+            part->offset.c = 0.0f;
+            part->offset.d = 1.0f;
+            part->offset.e = 0.0f;
+            part->offset.f = 0.0f;
+            part->offset.m = 1.0f;
+            part->offset.n = 1.0f;
+            part->sheet_loc = c_pos[i];
+            part->size = {
+                .xMax = (i32) g.xMax,
+                .xMin = (i32) g.xMin,
+                .yMax = (i32) g.yMax,
+                .yMin = (i32) g.yMin
+            };
         }
 
         //TODO: add hash thing
@@ -3214,7 +3234,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         .cur_char = (char*) str,
         .x = x,
         .left_edge = x,
-        .baseline_y = y + font->ad_inf.ascent //add max ascent to get proper positioning for the text basline
+        .baseline_y = y /*+ font->ad_inf.ascent*/ //add max ascent to get proper positioning for the text basline
     };
 
     const u32 screenW = this->getOutputWidth();
@@ -3230,7 +3250,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         this->VertexDefineEnd();
         defFontVertexDef = true;
 
-        str_proj_mat = mat4::CreateOrthoProjectionMatrix(0.0f, this->getOutputWidth(), this->getOutputHeight(), 0.0f, -1.0f, 1000.0f);
+        str_proj_mat = mat4::CreateOrthoProjectionMatrix(this->getOutputWidth(), 0.0f, this->getOutputHeight(), 0.0f, -1.0f, 1.0f);
+
+        std::cout << "Created projection matrix for: " << this->getOutputWidth() << " " << this->getOutputHeight() << std::endl;
+        std::cout << "" << std::endl;
     }
 
     if (!defFontShader.good()) {
@@ -3293,7 +3316,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         }
 
         //render glyph parts
-        f32 part_w, part_h, part_y, part_x, HemRatio, cx_max = x;
+        f32 part_w, part_h, part_y, part_x, HemRatio, cx_max = s_ctx.x;
 
         /********************************
             Transforms' Format:
@@ -3337,38 +3360,52 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x * (1.0f / metrics.WemRatio)) + (gp_transform_mat2[2] * cp.size.yMax) + cp.offset.e) * metrics.WemRatio;
             part_y = s_ctx.baseline_y - cp.offset.n * ((gp_transform_mat2[1] * s_ctx.x * (1.0f / metrics.WemRatio)) +  (gp_transform_mat2[3] * cp.size.yMax) + cp.offset.f) * HemRatio;
 
+            const f32 dbg_iw = 1.0f / screenW,
+                      dbg_ih = 1.0f / screenH;
+
+            part_x *= dbg_iw;
+            part_y *= dbg_ih;
+            part_w *= dbg_iw;
+            part_h *= dbg_ih;
+
+            const f32 iTexX = 1.0f / font->msdf_dat.MSDF.gl_texture.width(),
+                      iTexY = 1.0f / font->msdf_dat.MSDF.gl_texture.height();
+
             //verticies
             genericFontVert glyph_rect_base[] = { 
-                s_ctx.x, part_y, z, 
-                (f32) cp.sheet_loc.x, (f32)cp.sheet_loc.y, 
+                part_x, part_y, z, 
+                (f32) cp.sheet_loc.x * iTexX, (f32)cp.sheet_loc.y * iTexY, 
 
-                (s_ctx.x), (part_y+part_h), z, 
-                (f32) cp.sheet_loc.x, (f32) (cp.sheet_loc.y+cp.sheet_loc.h), 
+                (part_x), (part_y+part_h), z, 
+                (f32) cp.sheet_loc.x * iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
 
-                (s_ctx.x+part_w), (part_y), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w), (f32) cp.sheet_loc.y, 
+                (part_x+part_w), (part_y), z, 
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) cp.sheet_loc.y* iTexY, 
             
-                (s_ctx.x+part_w), (part_y+part_h), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w), (f32) (cp.sheet_loc.y+cp.sheet_loc.h), 
+                (part_x+part_w), (part_y+part_h), z, 
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
             
-                (s_ctx.x+part_w), (part_y), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w), (f32) cp.sheet_loc.y,  
+                (part_x+part_w), (part_y), z, 
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) cp.sheet_loc.y* iTexY,  
             
-                (s_ctx.x), (part_y+part_h), z, 
-                (f32) cp.sheet_loc.x, (f32) (cp.sheet_loc.y+cp.sheet_loc.h), 
+                (part_x), (part_y+part_h), z, 
+                (f32) cp.sheet_loc.x* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
             };
 
-            std::cout << "rendering character \"" << cc << "\" " << s_ctx.x << ", " << part_y << " | " << part_w << " " << part_h << std::endl;
+            std::cout << "rendering character \"" << cc << "\" " << part_x << ", " << part_y << " | " << part_w << " " << part_h << " | " << font->ad_inf.ascent << std::endl;
 
             //TODO: actually render ts
             this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);
-            this->RenderFlush();
+
+            cx_max = part_x * screenW + part_w * screenW * metrics.WemRatio;
         }
 
-        x = cx_max;
+        s_ctx.x = cx_max + 70.0f;
 
         break; //end of switch statement default branch
         }
+
+        //this->RenderFlush();
 
         //advance to next character
         s_ctx.cur_char++;

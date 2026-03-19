@@ -15,5 +15,6 @@ void main() {
     texp = msdf_tex;
     //gl_Position = screen_project * vec4((glf_transform * pos.xy) * glf_transform_ext.zw + glf_transform_ext.xy, pos.z, 1.0);
 
-    gl_Position = screen_project * vec4(pos, 1.0);
+    //gl_Position = screen_project * vec4(pos.xy, 0.0, 1.0) + vec4(0.0, 0.0, pos.z, 0.0);
+    gl_Position = vec4(pos, 1.0);
 }
