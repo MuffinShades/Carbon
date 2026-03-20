@@ -177,10 +177,10 @@ mat4 mat4::CreateOrthoProjectionMatrix(float right, float left, float bottom, fl
 	dat[15] = 1.0f;*/
 
 	f32 dat[16] = {
-		2.0f / (right - left), 0.0f, 0.0f, -((right + left) / (right - left)),
-		0.0f, 2.0f / (top - bottom), 0.0f, -((top + bottom) / (top - bottom)),
-		0.0f, 0.0f, -2.0f / (zFar - zNear), -((zFar + zNear) / (zFar - zNear)),
-		0.0f, 0.0f, 0.0f, 1.0f
+		2.0f / (right - left), 0.0f, 0.0f, 0.0f,
+		0.0f, 2.0f / (top - bottom), 0.0f, 0.0f,
+		0.0f, 0.0f, -2.0f / (zFar - zNear), 0.0f,
+		-((right + left) / (right - left)), -((top + bottom) / (top - bottom)), -((zFar + zNear) / (zFar - zNear)), 1.0f
 	};
 
 	return mat4(dat);

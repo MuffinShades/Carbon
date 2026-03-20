@@ -3255,6 +3255,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         str_proj_mat = mat4::CreateOrthoProjectionMatrix(this->getOutputWidth(), 0.0f, this->getOutputHeight(), 0.0f, -1.0f, 1.0f);
 
         std::cout << "Created projection matrix for: " << this->getOutputWidth() << " " << this->getOutputHeight() << std::endl;
+        auto *uu = str_proj_mat.glPtr();
+        for (i32 u = 0; u < 16; u++) {
+            std::cout << "mat: " << uu[u] << std::endl;
+        }
         std::cout << "" << std::endl;
     }
 
@@ -3287,6 +3291,9 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         //carriage return (basically home button)
         case 0x0D:
             s_ctx.x = s_ctx.left_edge;
+            break;
+        case 0x20:
+            s_ctx.x += font->ad_inf.unitsPerEm * metrics.pRatio;
             break;
         default:
 
@@ -3371,10 +3378,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
             cx_max = part_x + part_w;
 
-            part_x = (part_x - screenW * 0.5f) * dbg_iw * 2.0f;
-            part_y = (part_y - screenH * 0.5f) * dbg_ih * 2.0f;
-            part_w = part_w * dbg_iw * 2.0f;
-            part_h = part_h * dbg_ih * 2.0f;
+            //part_x = (part_x - screenW * 0.5f) * dbg_iw * 2.0f;
+            //part_y = (part_y - screenH * 0.5f) * dbg_ih * 2.0f;
+            //part_w = part_w * dbg_iw * 2.0f;
+            //part_h = part_h * dbg_ih * 2.0f;
 
             const f32 iTexX = 1.0f / font->msdf_dat.MSDF.gl_texture.width(),
                       iTexY = 1.0f / font->msdf_dat.MSDF.gl_texture.height();

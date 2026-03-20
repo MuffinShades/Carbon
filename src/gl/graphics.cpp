@@ -1457,8 +1457,8 @@ void graphics::Resize(u32 w, u32 h) {
 	//glEnable(GL_ALPHA_TEST);
 	glDepthMask(GL_TRUE);
 	glDepthFunc(GL_LEQUAL);
-    glEnable(GL_CULL_FACE);  
-    glCullFace(GL_FRONT);
+    //glEnable(GL_CULL_FACE);  
+   // glCullFace(GL_FRONT);
 
     state->dim.w = w;
     state->dim.h = h;
