@@ -3124,7 +3124,7 @@ struct str_pre_metrics {
 
     //basically just multiply a glyph's width (xMax - xMin) by this value to get its output screen pixel width
     //then compute the output height of the glyph using the ratio of the glyphs height to width and the compute pixel width above
-    f32 WemRatio;
+    f32 pRatio;
 
     i32 tab_distance = 0;
 };
@@ -3168,7 +3168,9 @@ str_pre_metrics computePreStringMetrics(FontInst *font, f32 x, f32 y, f32 z, con
     //pt based calculations
     const f32 px_per_pt = ptInch * standardDPI;
     const i32 px_w = prop.scale.pt * px_per_pt;
-    metrics.WemRatio = px_w / ((f32) font->ad_inf.unitsPerEm); //width based em ratio
+    //metrics.WemRatio = px_w / ((f32) font->ad_inf.unitsPerEm); //width based em ratio
+
+    metrics.pRatio = (standardDPI * prop.scale.pt) / (72.0f * font->ad_inf.unitsPerEm);
 
     //compute font line height
     metrics.line_h = abs(font->ad_inf.descent - font->ad_inf.ascent);
@@ -3340,11 +3342,11 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
 
-            std::cout << "Metrics: " << cp.sheet_loc.x << " " << cp.sheet_loc.y << " " << cp.sheet_loc.w << " " << cp.sheet_loc.h << std::endl << " | " << metrics.WemRatio << " | " << (cp.size.xMax - cp.size.xMin) << " " << (cp.size.yMax - cp.size.yMin) << std::endl;
+            std::cout << "Metrics: " << cp.sheet_loc.x << " " << cp.sheet_loc.y << " " << cp.sheet_loc.w << " " << cp.sheet_loc.h << std::endl << " | " << metrics.pRatio << " | " << (cp.size.xMax - cp.size.xMin) << " " << (cp.size.yMax - cp.size.yMin) << std::endl;
 
             //compute needed render constants
-            part_w = (cp.size.xMax - cp.size.xMin) * metrics.WemRatio;
-            part_h = part_w * o_char.dim.hw_ratio;
+            part_w = (cp.size.xMax - cp.size.xMin) * metrics.pRatio;
+            part_h = (cp.size.yMax - cp.size.yMin) * metrics.pRatio;
 
             HemRatio = part_h / (cp.size.yMax - cp.size.yMin); 
             //part_y = s_ctx.baseline_y - (cp.size.yMax) * HemRatio;
@@ -3357,16 +3359,22 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             gp_transform_mat2[2] = cp.offset.c * im;
             gp_transform_mat2[3] = cp.offset.d * in;
 
-            part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x * (1.0f / metrics.WemRatio)) + (gp_transform_mat2[2] * cp.size.yMax) + cp.offset.e) * metrics.WemRatio;
-            part_y = s_ctx.baseline_y - cp.offset.n * ((gp_transform_mat2[1] * s_ctx.x * (1.0f / metrics.WemRatio)) +  (gp_transform_mat2[3] * cp.size.yMax) + cp.offset.f) * HemRatio;
+            //part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x) + (gp_transform_mat2[2] * cp.size.yMax * metrics.pRatio) + cp.offset.e);
+            //part_y = s_ctx.baseline_y - cp.offset.n * ((gp_transform_mat2[1] * s_ctx.x) +  (gp_transform_mat2[3] * cp.size.yMin * metrics.pRatio + part_h) + cp.offset.f);
+            part_y = s_ctx.baseline_y;
+            part_x = s_ctx.x;
 
             const f32 dbg_iw = 1.0f / screenW,
                       dbg_ih = 1.0f / screenH;
 
-            part_x *= dbg_iw;
-            part_y *= dbg_ih;
-            part_w *= dbg_iw;
-            part_h *= dbg_ih;
+            std::cout << "rendering character \"" << cc << "\" " << part_x << ", " << part_y << " | " << part_w << " " << part_h << " | " << font->ad_inf.ascent << " " << s_ctx.baseline_y << std::endl;
+
+            cx_max = part_x + part_w;
+
+            part_x = (part_x - screenW * 0.5f) * dbg_iw * 2.0f;
+            part_y = (part_y - screenH * 0.5f) * dbg_ih * 2.0f;
+            part_w = part_w * dbg_iw * 2.0f;
+            part_h = part_h * dbg_ih * 2.0f;
 
             const f32 iTexX = 1.0f / font->msdf_dat.MSDF.gl_texture.width(),
                       iTexY = 1.0f / font->msdf_dat.MSDF.gl_texture.height();
@@ -3392,15 +3400,13 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 (f32) cp.sheet_loc.x* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
             };
 
-            std::cout << "rendering character \"" << cc << "\" " << part_x << ", " << part_y << " | " << part_w << " " << part_h << " | " << font->ad_inf.ascent << std::endl;
-
             //TODO: actually render ts
             this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);
 
-            cx_max = part_x * screenW + part_w * screenW * metrics.WemRatio;
+            std::cout << "CXMAX: " << cx_max << std::endl;
         }
 
-        s_ctx.x = cx_max + 70.0f;
+        s_ctx.x = cx_max;
 
         break; //end of switch statement default branch
         }
