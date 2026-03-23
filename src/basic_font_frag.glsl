@@ -19,7 +19,19 @@ float median(float a, float b, float c) {
 }
 
 void main() {
+    /*ivec2 texDim = textureSize(msdf_texture, 0);
+    
+    int x, y;
+
+    for (x = -1; x <= 1; x++) {
+        for (y = -1; y <= 1; y++) {
+            FragColor = FragColor + texture(msdf_texture, vec2(texp.x + x * 1.2 * (1.0 / texDim.x), texp.y + y * 1.7 * (1.0 / texDim.y)));
+        }
+    }*/
+
     FragColor = texture(msdf_texture, texp);
+
+    //FragColor = mix(vec4(0.0,0.0,0.0,0.0), vec4(1.0, 1.0, 1.0, 1.0), FragColor.w);
 
     float sigDist = median( FragColor.x, FragColor.y, FragColor.z);
     float wo = fwidth( sigDist );

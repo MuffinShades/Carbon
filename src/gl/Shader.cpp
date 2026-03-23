@@ -68,6 +68,68 @@ Shader::Shader(const char *vertex_data, const char *fragment_data) {
 	//glDeleteShader(fragment);
 }
 
+Shader::Shader(const char *vertex_data, const char *fragment_data, const char *tcs_data, const char *tes_data) {
+    //vertex and fragment shaders
+
+	//create vertex shader
+	this->vert = glCreateShader(GL_VERTEX_SHADER);
+
+	//add source code to shader
+	glShaderSource(this->vert, 1, &vertex_data, NULL);
+	glCompileShader(this->vert);
+
+	//check for errors
+	__error_check(this->vert, ShaderType::vert);
+
+    //fragment
+
+	this->frag = glCreateShader(GL_FRAGMENT_SHADER);
+
+	//add source code to fragment shader
+	glShaderSource(this->frag, 1, &fragment_data, NULL);
+	glCompileShader(this->frag);
+
+    //check for errors
+	__error_check(this->frag, ShaderType::frag);
+
+    //tcs
+    this->tcs = glCreateShader(GL_TESS_CONTROL_SHADER);
+
+    glShaderSource(this->tcs, 1, &tcs_data, NULL);
+    glCompileShader(this->tcs);
+
+    __error_check(this->tcs, ShaderType::tcs);
+
+    //tes
+    this->tes = glCreateShader(GL_TESS_EVALUATION_SHADER);
+
+    glShaderSource(this->tes, 1, &tes_data, NULL);
+    glCompileShader(this->tes);
+
+    __error_check(this->tes, ShaderType::tes);
+
+	//create the program
+	this->PGRM = glCreateProgram();
+
+    std::cout << "CREATED PROGRAM: " << this->PGRM << std::endl; 
+	//add the shaders
+	glAttachShader(this->PGRM, this->vert);
+	glAttachShader(this->PGRM, this->frag);
+    glAttachShader(this->PGRM, this->tcs);
+	glAttachShader(this->PGRM, this->tes);
+	//link the program to the GPU
+	glLinkProgram(this->PGRM);
+
+	//check errors
+	__error_check(this->PGRM, ShaderType::program);
+    
+
+    std::cout << "Shader gen done" << std::endl;
+	//delete shaders since were done
+	//glDeleteShader(vertex);
+	//glDeleteShader(fragment);
+}
+
 i32 Shader::SetVec2(std::string label, vec2 *v) {
     if (this->PGRM == NULL)
         return 1;
@@ -268,6 +330,62 @@ Shader Shader::LoadShaderFromFile(std::string vert_path, std::string frag_path) 
 
     _safe_free_a(vertCode);
     _safe_free_a(fragCode);
+
+    return s;
+}
+
+Shader Shader::LoadShaderFromFile(std::string vert_path, std::string frag_path, std::string tcs_path, std::string tes_path) {
+    if (vert_path.length() == 0 || frag_path.length() == 0 || tcs_path.length() == 0 || tes_path.length() == 0) {
+        std::cout << "Invalid shader path!" << std::endl;
+        return {};
+    }
+
+    std::cout << "loading shaders from: " << vert_path << " and " << frag_path << " and these also: " << tcs_path << " " << tes_path << std::endl;
+
+    //file v_file = FileWrite::readFromBin(Path::GetOSPath(vert_path)),
+    //     f_file = FileWrite::readFromBin(Path::GetOSPath(frag_path));
+
+    file v_file = FileWrite::readFromBin(vert_path),
+         f_file = FileWrite::readFromBin(frag_path),
+         c_file = FileWrite::readFromBin(tcs_path),
+         e_file = FileWrite::readFromBin(tes_path);
+
+    if (v_file.len == 0 || f_file.len == 0 || c_file.len == 0 || e_file.len == 0 || !v_file.dat || !f_file.dat || !c_file.dat || !e_file.dat) {
+        std::cout << "Failed to read shader file! Likely invalid path!" << std::endl;
+        if (v_file.dat) _safe_free_a(v_file.dat);
+        if (f_file.dat) _safe_free_a(f_file.dat);
+        if (c_file.dat) _safe_free_a(c_file.dat);
+        if (e_file.dat) _safe_free_a(e_file.dat);
+        return {};
+    }
+
+    const char *vertCode = CovertBytesToString(v_file.dat, v_file.len, true),
+               *fragCode = CovertBytesToString(f_file.dat, f_file.len, true),
+               *tcsCode = CovertBytesToString(c_file.dat, c_file.len, true),
+               *tesCode = CovertBytesToString(e_file.dat, e_file.len, true);
+
+    if (!vertCode || !fragCode || !tcsCode || !tesCode) {
+        std::cout << "Failed to convert vertex or fragment data!" << std::endl;
+        if (vertCode) _safe_free_a(vertCode);
+        if (fragCode) _safe_free_a(fragCode);
+        if (tcsCode) _safe_free_a(tcsCode);
+        if (tesCode) _safe_free_a(tesCode);
+        return {};
+    }
+
+    std::cout << "E" << std::endl;
+
+    Shader s = Shader(
+        vertCode,
+        fragCode,
+        tcsCode,
+        tesCode
+    );
+
+    _safe_free_a(vertCode);
+    _safe_free_a(fragCode);
+    _safe_free_a(tcsCode);
+    _safe_free_a(tesCode);
 
     return s;
 }

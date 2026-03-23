@@ -454,6 +454,8 @@ void main() {
         1.0
     );
 
+    FragColor.w = median( dr.d > 0.0 ? 1.0 : 0.0, dg.d > 0.0 ? 1.0 : 0.0, db.d > 0.0 ? 1.0 : 0.0) >= 1.0 ? 1.0 : 0.0;
+
 
     //float sigDist = median( FragColor.x, FragColor.y, FragColor.z);
     //float wo = fwidth( sigDist );

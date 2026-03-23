@@ -9,8 +9,9 @@
 
 class Shader {
 public:
-    u32 PGRM = 0, vert, frag;
+    u32 PGRM = 0, vert, frag, tcs, tes;
 	Shader(const char *vertex_data, const char *fragment_data);
+	Shader(const char *vertex_data, const char *fragment_data, const char *tcs_data, const char *tes_data);
 	Shader() {
 
 	}
@@ -29,11 +30,14 @@ public:
 	bool good() {return this->PGRM != 0;}
 	static Shader LoadShaderFromResource(std::string asset_path, std::string map_loc, std::string vert_id, std::string frag_id);
 	static Shader LoadShaderFromFile(std::string vert_path, std::string frag_path);
+	static Shader LoadShaderFromFile(std::string vert_path, std::string frag_path, std::string tcs_path, std::string tes_path);
 private:
 	enum class ShaderType {
 		program,
 		frag,
-		vert
+		vert,
+		tcs,
+		tes
 	};
 	void __error_check(u32 shader, ShaderType type);
 };

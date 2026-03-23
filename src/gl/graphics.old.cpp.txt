@@ -23,6 +23,452 @@
 
 #define vbo_bind(vbo) glBindBuffer(GL_ARRAY_BUFFER, (vbo))
 
+graphicsState graphics2::generic_font_state;
+
+void graphics2::Load() {
+    //opengl settings
+    //glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_ALPHA_TEST);
+	//glDepthMask(GL_TRUE);
+	//glDepthFunc(GL_LEQUAL);
+
+    this->interalState = {
+        .g_fmt = graphicsState::__gs_fmt::_dynamic
+    };
+
+    this->cur_state = &this->interalState;
+
+    //vertex array
+    vao_create(this->cur_state->vao);
+    glBindVertexArray(this->cur_state->vao);
+    
+
+    //buffer allocation
+    //glGenBuffers(1, &this->cur_state->vbo);
+    //glBindBuffer(GL_ARRAY_BUFFER, this->cur_state->vbo);
+
+    //define_vattrib_struct(2, Vertex, modColor);
+    //define_vattrib_struct(3, Vertex, texId);
+
+    //
+}
+
+void graphics2::iniStaticGraphicsState() {
+    if (!this->cur_state || this->cur_state->g_fmt != graphicsState::__gs_fmt::_null)
+        return;
+    //vertex array
+    vao_create(this->cur_state->vao);
+
+    //buffer allocation
+    glGenBuffers(1, &this->cur_state->vbo);
+
+    this->cur_state->g_fmt = graphicsState::__gs_fmt::_static;
+}
+
+void graphics2::iniDynamicGraphicsState(size_t nBufferVerts) {
+    if (!this->cur_state || this->cur_state->g_fmt != graphicsState::__gs_fmt::_null)
+        return;
+
+    this->batch_size = nBufferVerts;
+    //vertex array
+    vao_create(this->cur_state->vao);
+
+    //buffer allocation
+    glGenBuffers(1, &this->cur_state->vbo);
+
+    if (this->cur_state->vmem)
+        _safe_free_a(this->cur_state->vmem);
+    this->cur_state->vmem = nullptr;
+
+    this->cur_state->g_fmt = graphicsState::__gs_fmt::_dynamic;
+}
+
+bool graphics2::useGraphicsState(graphicsState *gs) {
+    if (!this->using_foreign_gs)
+        this->interalState.nv = this->_c_vert;
+    else if (this->cur_state) {
+        this->cur_state->nv = this->_c_vert;
+    }
+
+    this->_c_vert = gs->nv;
+    this->cur_state = gs;
+    this->using_foreign_gs = true;
+
+    if (!this->cur_state->vao || !this->cur_state->vbo)
+        return false;
+
+    return true;
+}
+
+void graphics2::useDefaultGraphicsState() {
+    if (this->cur_state) {
+        this->cur_state->nv = this->_c_vert;
+    }
+
+    this->_c_vert = this->interalState.nv;
+    this->cur_state = &this->interalState;
+    this->using_foreign_gs = false;
+}
+
+#define PROJ_ZMIN  0.1f
+#define PROJ_ZMAX  100.0f
+
+//when le window resizes
+void graphics2::WinResize(const size_t w, const size_t h) {
+    this->winW = (f32) w;
+    this->winH = (f32) h;
+
+    glViewport(0.0f, 0.0f, this->winW, this->winH);
+
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glEnable(GL_DEPTH_TEST);
+	glEnable(GL_ALPHA_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LEQUAL);
+    glEnable(GL_CULL_FACE);  
+    glCullFace(GL_FRONT);
+
+    this->proj_matrix = mat4::CreatePersepctiveProjectionMatrix(
+        90.0f,
+        this->winW / this->winH,
+        0.1f, 1000.0f
+    );
+}
+
+void graphics2::push_verts(void *v, size_t n) {
+    if (!this->cur_state) {
+        std::cout << "Error, no state bound!" << std::endl;
+        return;
+    }
+
+    if (this->rs_state != ReserveState::None) {
+        return;
+    }
+
+    if (!v || n == 0)
+        return;
+    if (!cur_state->vmem) {
+        std::cout << "Warning vmem is not allocated! Did you call graphics::Load?" << std::endl;
+
+        if (cur_state->__int_prop.v_obj_sz > 0)
+            this->vmem_alloc(this->batch_size * cur_state->__int_prop.v_obj_sz);
+        return;
+    }
+
+    size_t bsz;
+    const size_t vos = this->cur_state->__int_prop.v_obj_sz;
+
+    if ((bsz = (this->_c_vert + n) * vos) > this->batch_size) {
+        std::cout << "Warning reached end of allocated gpu memory! " << bsz << " / " << this->batch_size << " | Adding: " << n << " verts!" << std::endl;
+        return;
+    }
+
+    //std::cout << "Adding: " << n << " verts" << std::endl;
+
+    in_memcpy(
+        ((byte*)cur_state->vmem) + (this->_c_vert * vos),
+         v, n * vos
+    );
+
+    this->_c_vert += n;
+}
+
+size_t graphics2::vert_space() {
+    const size_t vos = this->cur_state->__int_prop.v_obj_sz;
+    return (this->batch_size - this->_c_vert * vos) / vos + 1;
+}
+
+void graphics2::vmem_alloc(size_t sz) {
+    if (!cur_state->vbo_alloc) {
+        if (!cur_state->vbo) {
+            glGenBuffers(1, &cur_state->vbo);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, cur_state->vbo);
+        gpu_dynamic_alloc(sz);
+        cur_state->vbo_alloc = true;
+    }
+
+    this->free_state();
+    cur_state->vmem = (void*) new byte[sz];
+
+    if (!cur_state->vmem) {
+        std::cout << "failed to allocate vmemory!" << std::endl;
+    }
+
+    ZeroMem<byte>((byte*)cur_state->vmem, sz);
+}
+
+void graphics2::vmem_clear() {
+    if (!cur_state->vmem) {
+
+        if (cur_state->__int_prop.v_obj_sz > 0)
+            this->vmem_alloc(this->batch_size * cur_state->__int_prop.v_obj_sz);
+        this->_c_vert = 0;
+        return;
+    }
+
+    ZeroMem(cur_state->vmem, this->batch_size * cur_state->__int_prop.v_obj_sz);
+    this->_c_vert = 0;
+}
+
+void graphics2::shader_bind() {
+    this->shader_bound = true;
+    this->s->use();
+}
+
+void graphics2::shader_unbind() {
+    this->shader_bound = false;
+    glUseProgram(0);
+}
+
+void graphics2::render_begin(bool clear) {
+    if (this->using_default_device && clear)
+        glViewport(0, 0, this->winW, this->winH);
+    if (clear)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (!cur_state->vmem && cur_state->__int_prop.v_obj_sz > 0)
+        this->vmem_alloc(this->batch_size * cur_state->__int_prop.v_obj_sz);
+    if (!this->s) return;
+    if (!this->shader_bound)
+        this->shader_bind();
+    
+    glBindVertexArray(this->cur_state->vao);
+    vbo_bind(this->cur_state->vbo);
+}
+
+void graphics2::render_flush() {
+    if (this->rs_state == ReserveState::Mush) {
+        std::cout << "cannot render when mushing!" << std::endl;
+        return;
+    }
+
+    this->render_noflush();
+    this->flush();
+}
+
+void graphics2::bindMeshToVbo(Mesh *m) {
+    if (!this->cur_state)
+        return;
+
+    if (this->cur_state->g_fmt != graphicsState::__gs_fmt::_static) {
+        std::cout << "Cannot bind mesh to non static graphics state!" << std::endl;
+        return;
+    }
+
+    this->bind_vao();
+
+    vbo_bind(this->cur_state->vbo);
+
+    //glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * m->size(), (void *) m->data());
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * m->size(), (void *) m->data(), GL_STATIC_DRAW);
+
+    this->_c_vert = m->size();
+
+    vbo_bind(0);
+}
+
+void graphics2::render_noflush() {
+    if (!this->cur_state)
+        return;
+
+    if (this->rs_state == ReserveState::Mush) {
+        std::cout << "cannot non mush render when mushing!" << std::endl;
+        return;
+    }
+
+    //copy over buffer data to gpu memory
+    vbo_bind(this->cur_state->vbo);
+
+    const size_t vos = cur_state->__int_prop.v_obj_sz;
+
+    if (cur_state->g_fmt == graphicsState::__gs_fmt::_static) {
+        this->s->use();
+        return;
+    } else {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vos * this->_c_vert, (void *) cur_state->vmem);
+    }
+
+    //set program variables
+    this->bind_vao();
+    //this->s->SetMat4("proj_mat", &this->proj_matrix);
+    
+    glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+}
+
+void graphics2::render_bind() {
+    this->bind_vao();
+}
+
+void graphics2::render_no_geo_update() {
+    if (this->rs_state == ReserveState::Mush) {
+        std::cout << "cannot no geo render when mushing!" << std::endl;
+        return;
+    };
+
+    this->s->use();
+    this->bind_vao();
+    this->s->SetMat4("proj_mat", &this->proj_matrix);
+
+    //std::cout << "Drawing " << this->_c_vert << std::endl;
+
+    glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+}
+
+void graphics2::flush() {
+    //if (!this->using_foreign_gs)
+    //    this->vmem_clear();
+
+    this->_c_vert = 0;
+}
+
+const size_t graphics2::getEstimatedMemoryUsage() {
+    return sizeof(Vertex) * this->batch_size;
+}
+
+void graphics2::free_state() {
+    _safe_free_a(cur_state->vmem);
+    this->_c_vert = 0;
+}
+
+//banana
+/*void graphics::FillRect(float x, float y, float w, float h) {
+    vec2 p1 = vec2(x + w, y);
+	vec2 p2 = vec2(x, y);
+	vec2 p3 = vec2(x + w, y + h);
+	vec2 p4 = vec2(x, y + h);
+
+    Vertex vertices[] = {
+		//triangle 1 (0, 1, 3)
+		p3.x, p3.y, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+		p1.x, p1.y, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+		p4.x, p4.y, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+
+		//triangle 2 (1,2,3)
+		p1.x, p1.y, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+		p2.x, p2.y, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+		p4.x, p4.y, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+	};
+
+    this->push_verts(vertices, 6);
+}*/
+
+void graphics2::setCurrentShader(Shader *s) {
+    if (s) {
+        if (!this->using_foreign_gs)
+            this->def_shader = s;
+        this->s = s;
+    }
+    this->shader_bind();
+}
+
+Shader* graphics2::getCurrentShader() {
+    return this->s;
+}
+
+void graphics2::mesh_single_bind(Mesh *m) {
+    if (this->rs_state == ReserveState::MeshBind) {
+        return;
+    }
+
+    if (this->rs_state == ReserveState::Mush) {
+        std::cout << "cannot bind to mesh when mushing!" << std::endl;
+        return;
+    }
+
+    const Vertex* dat;
+    size_t nv;
+    if (!m || !(dat = m->data()) || (nv = m->size()) == 0) return;
+
+    //store and swap
+    if (!this->rs_state != ReserveState::MeshBind) {
+        //this->vstore = this->vmem;
+        this->interalState.nv = this->_c_vert;
+    }
+    this->cur_state->vmem = const_cast<Vertex*>(dat);
+    this->_c_vert = nv;
+
+    this->rs_state = ReserveState::MeshBind;
+}
+
+void graphics2::mesh_unbind() {
+    if (this->rs_state == ReserveState::Mush) {
+        std::cout << "cannot mesh unbind when mushing!" << std::endl;
+        return;
+    }
+
+    if (this->rs_state != ReserveState::MeshBind)
+        return;
+
+    //swap
+    /*if (this->vstore) {
+        this->vmem = this->vstore;
+        this->_c_vert = this->interalState.nv;
+        this->vstore = nullptr;
+    }*/
+
+    this->_c_vert = this->interalState.nv;
+
+    this->rs_state = ReserveState::None;
+}
+
+void graphics2::mush_begin() {
+    if (!this->cur_state)
+        return;
+
+    if (this->rs_state != ReserveState::None) {
+        //todo: say something about this
+        return;
+    }
+
+    this->mesh_unbind();
+    this->rs_state = ReserveState::Mush;
+    this->mush_offset = 0;
+    vbo_bind(this->cur_state->vbo);
+}
+
+void graphics2::mush_render(Mesh *m) {
+    if (!m)
+        return;
+
+    if (!this->rs_state != ReserveState::Mush) {
+        std::cout << "Cannot mush render since mushing has not began!" << std::endl;
+        return;
+    }
+
+    const size_t nv = m->size(), nv_bytes = nv * sizeof(Vertex);
+
+    if ((this->mush_offset + nv_bytes) > this->batch_size) {
+        //set program variables
+        this->s->SetMat4("proj_mat", &this->proj_matrix);
+        this->bind_vao();
+
+        glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+
+        this->mush_offset = 0;
+        this->_c_vert = 0;
+    }
+
+    glBufferSubData(GL_ARRAY_BUFFER, this->mush_offset, nv_bytes, (void *) m->data());
+    this->_c_vert += nv;
+    this->mush_offset += nv_bytes;
+}
+
+void graphics2::mush_end() {
+    if (this->rs_state != ReserveState::Mush) return;
+
+    //final render
+    this->s->SetMat4("proj_mat", &this->proj_matrix);
+    this->bind_vao();
+
+    glDrawArrays(GL_TRIANGLES, 0, this->_c_vert);
+    //////////////
+
+
+    this->rs_state = ReserveState::None;
+    vbo_bind(0);
+    this->flush();
+}
+
 void FrameBuffer::bind() {
     if (!this->handle)
         std::cout << "Warning: binding to zero framebuffer! Framebuffer may have failed to generate!" << std::endl;
@@ -148,6 +594,70 @@ FrameBuffer::FrameBuffer(FrameBuffer::fb_type ty, u32 w, u32 h, FrameBufferExtIn
         this->free();
         break;
     }
+}
+
+void graphics2::setOutputDevice(OutputDevice *device) {
+    if (!device) return;
+
+    u32 fbo;
+    FrameBuffer *fb;
+
+    switch (device->type) {
+    case OutputDevice::FrameBuffer:
+        fb = (FrameBuffer*) device->device;
+
+        if (!fb) {
+            std::cout << "Error, null frame buffer output device!" << std::endl;
+             return;
+        }
+
+        fbo = fb->getHandle();
+
+        std::cout << "bound to fbo: " << fbo << std::endl;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glViewport(0, 0, fb->w, fb->h);
+
+        if (!fb->texHandle && fb->ty == FrameBuffer::Texture)
+            fb->texAttach(fb->w, fb->h);
+
+        this->using_default_device = false;
+        break;
+    default:
+        std::cout << "Error, cannot bind to unknown output device!" << std::endl;
+        return;
+    }
+}
+
+void graphics2::restoreDefaultOutputDevice() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, this->winW, this->winH);
+    this->using_default_device = true;
+}
+
+void graphics2::vertexStructureDefineBegin(size_t vObjSz) {
+    if (!this->cur_state) {
+        std::cout << "Failed to start vertex struct definitions!" << std::endl;
+        return;
+    }
+
+    glBindVertexArray(this->cur_state->vao);
+    vbo_bind(this->cur_state->vbo);
+    this->cur_state->__int_prop.v_obj_sz = vObjSz;
+}
+
+void graphics2::vertexStructureDefineEnd() {
+    //ok
+}
+
+void graphics2::defineVertexPart(i32 n, __mu_glVInf inf) {
+    glVertexAttribPointer(n, inf.p_sz / sizeof(f32), GL_FLOAT, GL_FALSE, inf.sz, (void*)inf.off);
+    glEnableVertexAttribArray(n);
+}
+
+void graphics2::defineIntegerVertexPart(i32 n, __mu_glVInf inf) {
+    glVertexAttribIPointer(n, inf.p_sz / sizeof(i32), GL_INT, inf.sz, (void*)inf.off);
+    glEnableVertexAttribArray(n); 
 }
 
 Bitmap FrameBuffer::extractBitmap() {
@@ -785,12 +1295,10 @@ void graphics::RenderFlush() {
 
     state->cur_shader->use();
     glBindVertexArray(state->vao);
-    
     if (state->_p_inf._desc.use_indicies)
-        glDrawElements(state->_p_inf._desc.render_primitive, nPoints, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, nPoints, GL_UNSIGNED_INT, 0);
     else
-        glDrawArrays(state->_p_inf._desc.render_primitive, 0, nPoints);
-    
+        glDrawArrays(GL_TRIANGLES, 0, nPoints);
     glBindVertexArray(0);
 
     state->c_vert = 0;
@@ -866,7 +1374,7 @@ void graphics::SetOutputDevice(OutputDevice* device) {
         glViewport(0, 0, fb->w, fb->h);
 
         if (!fb->texHandle && fb->ty == FrameBuffer::Texture)
-            fb->texAttach(fb->w, fb->h, {});
+            fb->texAttach(fb->w, fb->h);
         
         break;
     default:
@@ -954,8 +1462,4 @@ void graphics::Resize(u32 w, u32 h) {
 
     state->dim.w = w;
     state->dim.h = h;
-}
-
-void SetTesselationVertNum(size_t n_tes) {
-    glPatchParameteri(GL_PATCH_VERTICES, n_tes);
 }

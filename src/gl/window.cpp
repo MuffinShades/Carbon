@@ -1,5 +1,7 @@
 #include "window.hpp"
 
+#define DISABLE_OPENGL_DBG_MSG true
+
 //from learnopengl
 void APIENTRY glDebugOutput(GLenum source, 
                             GLenum type, 
@@ -9,6 +11,9 @@ void APIENTRY glDebugOutput(GLenum source,
                             const char *message, 
                             const void *userParam)
 {
+    if (DISABLE_OPENGL_DBG_MSG) return;
+
+
     // ignore non-significant error/warning codes
     if(id == 131169 || id == 131185 || id == 131218 || id == 131204) return; 
 

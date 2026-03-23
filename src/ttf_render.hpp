@@ -95,8 +95,11 @@ extern "C" {
 
 struct MsdfGpuContext {
     FrameBuffer fb;
+    FrameBuffer cc_fb; //curve correction frame buffer
     graphics g;
     u32 curveBuffer = 0;
+    RenderStateDescriptor def_desc, cc_desc;
+    RenderState *cc_rstate = nullptr;
     bool good = false;
 };
 

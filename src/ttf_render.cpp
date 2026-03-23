@@ -14,6 +14,10 @@
 
 #define MSDF_ACCEL_SHADER_PATH_VERT "../../src/msdf_gl_accel_vert.glsl"
 #define MSDF_ACCEL_SHADER_PATH_FRAG "../../src/msdf_gl_accel.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_VERT "../../src/msdf_precision_correction_vert.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_FRAG "../../src/msdf_precision_correction_frag.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TCS "../../src/msdf_precision_correction_tcs.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TES "../../src/msdf_precision_correction_tes.glsl"
 
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 
@@ -26,6 +30,7 @@ constexpr f32 smol_number = 1.175e-38f; //number that is smol
  */
 
 static Shader msdf_gen_shader;
+static Shader msdf_gen_cc_shader;
 
 struct msdf_vert {
     f32 pos[3];
@@ -33,15 +38,27 @@ struct msdf_vert {
     i32 curve_range[2];
 }; 
 
+struct con_correct_vert {
+    f32 pos[3];
+    i32 curve_idx;
+};
+
 MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     MsdfGpuContext *ctx = new MsdfGpuContext;
 
-    RenderStateDescriptor def_desc = {
+    //normal render descriptor
+    ctx->def_desc = {
         .dynamic = true
     };
 
+    //contour correction descriptor
+    ctx->cc_desc = {
+        .dynamic = true,
+        .render_primitive = GL_PATCHES
+    };
+
     //load graphics
-    ctx->g = graphics(def_desc);
+    ctx->g = graphics(ctx->def_desc);
 
     ctx->g.VertexDefineBegin(sizeof(msdf_vert));
     ctx->g.DefineVertexPart(0, vertexClassPart(msdf_vert, pos));
@@ -49,8 +66,29 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     ctx->g.DefineIntegerVertexPart(2, vertexClassPart(msdf_vert, curve_range));
     ctx->g.VertexDefineEnd();
 
+    //load cc graphics
+    ctx->cc_rstate = ctx->g.CreateNewRenderState(ctx->cc_desc);
+    ctx->g.SetRenderState(ctx->cc_rstate);
+
+    ctx->g.VertexDefineBegin(sizeof(con_correct_vert));
+    ctx->g.DefineVertexPart(0, vertexClassPart(con_correct_vert, pos));
+    ctx->g.DefineIntegerVertexPart(0, vertexClassPart(con_correct_vert, curve_idx));
+    ctx->g.VertexDefineEnd();
+
+    ctx->g.RestoreDefaultRenderState(); //restore the default state
+
     //set output device
-    ctx->fb = FrameBuffer(FrameBuffer::Texture, w, h);
+    FrameBufferExtInf inf = {
+        .mipmap = true
+    };
+
+    FrameBufferExtInf cc_inf = {
+        .color_fmt = GL_RGBA16UI,
+        .data_color_fmt = GL_RGBA_INTEGER
+    };
+
+    ctx->fb = FrameBuffer(FrameBuffer::Texture, w, h, inf);
+    ctx->cc_fb = FrameBuffer(FrameBuffer::Texture, w, h, cc_inf); //contour correction buffer
 
     std::cout << "Creating context: " << w << " " << h << std::endl;
 
@@ -2156,6 +2194,8 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     if (!msdf_gen_shader.good())
         msdf_gen_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_SHADER_PATH_VERT, MSDF_ACCEL_SHADER_PATH_FRAG);
 
+    
+
     if (!ctx->good)
         std::cout << "warning bad context!" << std::endl;
 
@@ -2198,6 +2238,41 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     return 0;
 }
 
+/*
+
+TODO: actually properly implement this function
+
+This will basically render each glyph by just rendering their outlines to a certain scaled bitmap by rounding down each point to the nearest pixel
+    * if two lines don't matematically intersect but two curves write to the same point, then there is a feature that is too small
+      to represent on the grid
+    * For msdf --> add the curves and their color regardless of scale
+
+f32: t_resol --> time resolution for rendering the curves
+
+*/
+
+struct glf_scale_artifact {
+    
+};
+
+struct glf_scale_correction_info {
+    size_t nArtifacts = 0;
+    glf_scale_artifact *artifacts = nullptr;
+};
+
+glf_scale_correction_info arender_msdf_correction_map(MsdfGpuContext *a_ctx, u32 curve_resolu) {
+    glf_scale_correction_info res;
+
+    if (!a_ctx) {
+        std::cout << "Correction Map Render error: invalid gpu context!" << std::endl;
+        return res;
+    }
+
+    
+
+    return res;
+}
+
 //////////////////////////////////////////////
 // version of gpu accel for multiple glyphs //
 //////////////////////////////////////////////
@@ -2227,13 +2302,24 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     if (!msdf_gen_shader.good())
         msdf_gen_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_SHADER_PATH_VERT, MSDF_ACCEL_SHADER_PATH_FRAG);
 
+    if (!msdf_gen_cc_shader.good())
+        msdf_gen_cc_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_CC_SHADER_PATH_VERT, MSDF_ACCEL_CC_SHADER_PATH_FRAG, MSDF_ACCEL_CC_SHADER_PATH_TCS, MSDF_ACCEL_CC_SHADER_PATH_TES);
+
+    //set shaders and tesselation params
     ctx->g.SetShader(&msdf_gen_shader);
+
+    ctx->g.SetRenderState(ctx->cc_rstate);
+    ctx->g.SetShader(&msdf_gen_cc_shader);
+    ctx->g.SetTesselationVertNum(3);
+
+    ctx->g.RestoreDefaultRenderState();
     ctx->g.RenderBegin();
 
     constexpr size_t N_RECT_VERTS = 6;
     size_t nextCurveInsert = 0;
 
     MsdfGenContext g_ctx;
+
 
     i32 i, j;
     for (i = 0; i < nGlyphs; i++) {
@@ -2392,6 +2478,20 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         }
 
         DeleteMsdfGenContext(&g_ctx);
+
+        //swap and render correction stuff
+
+        --Delete this line and continue to code the thing below this--
+
+        ctx->g.SetRenderState(ctx->cc_rstate);
+
+        con_correct_vert *curve_verts = {
+
+        };
+
+        ctx->g.RenderBegin();
+        ctx->g.PushVerts(curve_verts, 3, true);
+        ctx->g.RestoreDefaultRenderState();
     }
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ctx->curveBuffer);
@@ -2679,7 +2779,10 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     //param checks and shit
     FontInst font;
 
+    
+
     const f32 padding_per_32 = 1.0f;
+    const f32 inter_glyph_padding = 1.0f;
 
     // get all the glyphs
     GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
@@ -2694,8 +2797,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     //set some info needed later for spacing calculations
     font.ad_inf.unitsPerEm = f.header.unitsPerEm;
-    font.ad_inf.ascent = f.h_inf.ascent;
-    font.ad_inf.descent = f.h_inf.descent;
+    font.ad_inf.ascent = f.header.yMax;
+    font.ad_inf.descent = f.header.yMin;
 
     //compute scale
     f32 scale = 1.0f, p_const = 32.0f;
@@ -2761,6 +2864,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     font.map.hash_map = new CharLink[font.map.hash_inf.sz];
     ZeroMem(font.map.hash_map, font.map.hash_inf.sz);
 
+    const f32 ig_pad_2 = inter_glyph_padding * 2.0f;
+
     //genereate the sprite sheet layout
     while (i < glyphs.nGlyphs) {
         Glyph g = gly[i]; //get the current glyph
@@ -2789,9 +2894,9 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             Rn = rgn_stack[j];
 
             //make sure it fits
-            if ((Rn.w < gw && Rn.w > 0) || (Rn.h < gh && Rn.h > 0)) continue;
+            if ((Rn.w < gw + ig_pad_2 && Rn.w > 0) || (Rn.h < gh + ig_pad_2 && Rn.h > 0)) continue;
 
-            const u32 fit = mu_max(Rn.x + gw, sheet_w) * mu_max(Rn.y + gh, sheet_h);
+            const u32 fit = mu_max(Rn.x + gw + ig_pad_2, sheet_w) * mu_max(Rn.y + gh + ig_pad_2, sheet_h);
 
             if (fit < smallest_fit) {
                 low_age = Rn.age;
@@ -2827,16 +2932,16 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         }
 
         c_pos[i] = {
-            .x = (u32) target_rgn.x,
-            .y = (u32) target_rgn.y,
+            .x = (u32) (target_rgn.x + inter_glyph_padding),
+            .y = (u32) (target_rgn.y + inter_glyph_padding),
             .w = (u32) (fit_rotated ? gh : gw),
             .h = (u32) (fit_rotated ? gw : gh),
             .rotate_90 = fit_rotated
         };
 
         //sizing adjust
-        sheet_w = mu_max(sheet_w, target_rgn.x + gw);
-        sheet_h = mu_max(sheet_h, target_rgn.y + gh);
+        sheet_w = mu_max(sheet_w, target_rgn.x + gw + ig_pad_2);
+        sheet_h = mu_max(sheet_h, target_rgn.y + gh + ig_pad_2);
 
         //Split the target region up accordingly and then continue yk
         //just gonna split on the vertical cause why not
@@ -2845,8 +2950,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
         //top rgn
         SpriteRegion r1 = {
-            .x = target_rgn.x + gw,
-            .y = target_rgn.y,
+            .x = target_rgn.x + gw + (i32) ig_pad_2,
+            .y = target_rgn.y + (i32) inter_glyph_padding,
             .w = -1,
             .h = gh,
             .age = target_rgn.age + 1
@@ -2859,8 +2964,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
         if (abs(h2) >= 1) {
             SpriteRegion r2 = {
-                .x = target_rgn.x,
-                .y = target_rgn.y + gh,
+                .x = target_rgn.x + (i32) inter_glyph_padding,
+                .y = target_rgn.y + gh + (i32) ig_pad_2,
                 .w = -1,
                 .h = h2,
                 .age = target_rgn.age + 1
@@ -2996,6 +3101,8 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     if (accel) {
         font.msdf_dat.mode = MsdfMode::GL_Texture;
         font.msdf_dat.MSDF.gl_texture = BindableTexture(a_ctx->fb.getTextureHandle(), a_ctx->fb.w, a_ctx->fb.h);
+        font.msdf_dat.MSDF.gl_texture.bind();
+        glGenerateMipmap(GL_TEXTURE_2D);
     }
 
     //font._dbg_ctx = a_ctx;
@@ -3014,7 +3121,6 @@ void ttfRender::_msdfRenderDebug(Glyph g, MsdfGpuContext** ctx) {
     CharSpritePos r_pos;
 
     if (!*ctx) {
-        std::cout << "Creating context!" << std::endl;
         *ctx = CreateMsdfGPUAccelerationContext_Dynamic(256, 256);
     }
 
@@ -3126,7 +3232,9 @@ struct str_pre_metrics {
     //then compute the output height of the glyph using the ratio of the glyphs height to width and the compute pixel width above
     f32 pRatio;
 
-    i32 tab_distance = 0;
+    f32 tab_distance = 0;
+    f32 space_distance = 0;
+    f32 tab_size = 4;
 };
 
 //precomputations needed for text rendering
@@ -3173,7 +3281,12 @@ str_pre_metrics computePreStringMetrics(FontInst *font, f32 x, f32 y, f32 z, con
     metrics.pRatio = (standardDPI * prop.scale.pt) / (72.0f * font->ad_inf.unitsPerEm);
 
     //compute font line height
-    metrics.line_h = abs(font->ad_inf.descent - font->ad_inf.ascent);
+    metrics.line_h = abs(font->ad_inf.ascent - font->ad_inf.descent);
+    metrics.space_distance = font->ad_inf.unitsPerEm * metrics.pRatio * 0.33f;
+    metrics.tab_distance = metrics.space_distance * metrics.tab_size;
+
+    //std::cout << "Line h: " << metrics.line_h << std::endl;
+    //std::cout << std::endl;
 
     //
     return metrics;
@@ -3254,12 +3367,12 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
         str_proj_mat = mat4::CreateOrthoProjectionMatrix(this->getOutputWidth(), 0.0f, this->getOutputHeight(), 0.0f, -1.0f, 1.0f);
 
-        std::cout << "Created projection matrix for: " << this->getOutputWidth() << " " << this->getOutputHeight() << std::endl;
+        //std::cout << "Created projection matrix for: " << this->getOutputWidth() << " " << this->getOutputHeight() << std::endl;
         auto *uu = str_proj_mat.glPtr();
-        for (i32 u = 0; u < 16; u++) {
-            std::cout << "mat: " << uu[u] << std::endl;
-        }
-        std::cout << "" << std::endl;
+        //for (i32 u = 0; u < 16; u++) {
+        //    std::cout << "mat: " << uu[u] << std::endl;
+        //}
+        //std::cout << "" << std::endl;
     }
 
     if (!defFontShader.good()) {
@@ -3281,7 +3394,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         switch (cc) {
         //New Line
         case 0x0A:
-            s_ctx.baseline_y += metrics.line_h;
+            s_ctx.baseline_y += metrics.line_h * metrics.pRatio;
             s_ctx.x = s_ctx.left_edge;
             break;
         //Tab
@@ -3293,7 +3406,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             s_ctx.x = s_ctx.left_edge;
             break;
         case 0x20:
-            s_ctx.x += font->ad_inf.unitsPerEm * metrics.pRatio;
+            s_ctx.x += metrics.space_distance;
             break;
         default:
 
@@ -3307,10 +3420,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         Character o_char; //TODO: set this to the missing char for easy escape if given char does not exist
 
         if (font->map.ty == CharMapType::Direct) {
-            std::cout << "Reading direct char: " << (i32)cc << " / " << font->map.hash_inf.sz << std::endl;
+            //std::cout << "Reading direct char: " << (i32)cc << " / " << font->map.hash_inf.sz << std::endl;
             if (cc < font->map.hash_inf.sz) o_char = font->map.hash_map[cc].ochar;
         } else {
-            std::cout << "Reading indirect char" << std::endl;
+            //std::cout << "Reading indirect char" << std::endl;
             const u32 hVal = compute_basic_hash_32(font->map.hash_inf.nBits, &cc, 1);
             CharLink *lnk = (font->map.hash_map+hVal);
 
@@ -3349,7 +3462,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
 
-            std::cout << "Metrics: " << cp.sheet_loc.x << " " << cp.sheet_loc.y << " " << cp.sheet_loc.w << " " << cp.sheet_loc.h << std::endl << " | " << metrics.pRatio << " | " << (cp.size.xMax - cp.size.xMin) << " " << (cp.size.yMax - cp.size.yMin) << std::endl;
+            //std::cout << "Metrics: " << cp.sheet_loc.x << " " << cp.sheet_loc.y << " " << cp.sheet_loc.w << " " << cp.sheet_loc.h << std::endl << " | " << metrics.pRatio << " | " << (cp.size.xMax - cp.size.xMin) << " " << (cp.size.yMax - cp.size.yMin) << std::endl;
 
             //compute needed render constants
             part_w = (cp.size.xMax - cp.size.xMin) * metrics.pRatio;
@@ -3368,13 +3481,13 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
             //part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x) + (gp_transform_mat2[2] * cp.size.yMax * metrics.pRatio) + cp.offset.e);
             //part_y = s_ctx.baseline_y - cp.offset.n * ((gp_transform_mat2[1] * s_ctx.x) +  (gp_transform_mat2[3] * cp.size.yMin * metrics.pRatio + part_h) + cp.offset.f);
-            part_y = s_ctx.baseline_y;
+            part_y = s_ctx.baseline_y - (cp.size.yMin * metrics.pRatio) - part_h;
             part_x = s_ctx.x;
 
             const f32 dbg_iw = 1.0f / screenW,
                       dbg_ih = 1.0f / screenH;
 
-            std::cout << "rendering character \"" << cc << "\" " << part_x << ", " << part_y << " | " << part_w << " " << part_h << " | " << font->ad_inf.ascent << " " << s_ctx.baseline_y << std::endl;
+            //std::cout << "rendering character \"" << cc << "\" " << part_x << ", " << part_y << " | " << part_w << " " << part_h << " | " << font->ad_inf.ascent << " " << s_ctx.baseline_y << std::endl;
 
             cx_max = part_x + part_w;
 
@@ -3389,28 +3502,28 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             //verticies
             genericFontVert glyph_rect_base[] = { 
                 part_x, part_y, z, 
-                (f32) cp.sheet_loc.x * iTexX, (f32)cp.sheet_loc.y * iTexY, 
+                (f32) cp.sheet_loc.x * iTexX, (f32)(cp.sheet_loc.y+cp.sheet_loc.h) * iTexY, 
 
                 (part_x), (part_y+part_h), z, 
-                (f32) cp.sheet_loc.x * iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
+                (f32) cp.sheet_loc.x * iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
 
                 (part_x+part_w), (part_y), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) cp.sheet_loc.y* iTexY, 
-            
-                (part_x+part_w), (part_y+part_h), z, 
                 (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
             
+                (part_x+part_w), (part_y+part_h), z, 
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
+            
                 (part_x+part_w), (part_y), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) cp.sheet_loc.y* iTexY,  
+                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY,  
             
                 (part_x), (part_y+part_h), z, 
-                (f32) cp.sheet_loc.x* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
+                (f32) cp.sheet_loc.x* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
             };
 
             //TODO: actually render ts
             this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);
 
-            std::cout << "CXMAX: " << cx_max << std::endl;
+            //std::cout << "CXMAX: " << cx_max << std::endl;
         }
 
         s_ctx.x = cx_max;

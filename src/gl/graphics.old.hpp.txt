@@ -90,6 +90,22 @@ public:
     u32 getTextureHandle() {return this->texHandle;}
 };
 
+struct graphicsState {
+    u32 vao = 0, vbo = 0, ibo = 0;
+    bool vbo_alloc = false;
+    Shader *s = nullptr;
+    size_t nv = 0;
+    void *vmem = nullptr, *vstore = nullptr;
+    enum class __gs_fmt {
+        _null,
+        _static,
+        _dynamic
+    } g_fmt = __gs_fmt::_null;
+    struct {
+        size_t v_obj_sz = 0;
+    } __int_prop;
+};
+
 struct GenericFontProperties {
     struct {
         i32 pt;
@@ -123,6 +139,132 @@ struct CustomFontProperties {
     } shader;
 };
 
+class graphics2 {
+private:
+    graphicsState interalState;
+    graphicsState *cur_state = nullptr;
+    Window *win = nullptr;
+    mat4 proj_matrix;
+    size_t _c_vert = 0, mush_offset = 0;
+
+    void vmem_alloc(size_t sz);
+    void vmem_clear();
+
+    void bind_vao() {
+        if (!this->cur_state)
+            return;
+
+        if (this->cur_state->vao != 0)
+            glBindVertexArray(this->cur_state->vao);
+        else
+           std::cout << "Failed to bind to vao!" << std::endl;
+    }
+
+    Shader *s = nullptr, *def_shader = nullptr;
+
+    enum ReserveState {
+        None,
+        Mush,
+        MeshBind,
+        VertexDef
+    } rs_state = ReserveState::None;
+
+    //flags
+    bool using_foreign_gs = false;
+    bool using_indicies = false;
+    bool shader_bound = false;
+    bool using_default_device = true;
+
+    void shader_bind();
+    void shader_unbind();
+
+    f32 winW, winH;
+
+    //
+    static graphicsState generic_font_state;
+
+    bool gfont_s_ready = false;
+
+    void ini_generic_font_state();
+
+    size_t batch_size = 0xfffff;
+public:
+    enum class StockRenderType {
+        Line
+        
+    };  
+
+    graphics2(Window *w) {
+        if (w != nullptr)
+            this->win = w;
+        else
+            return;
+
+        this->winW = this->win->w;
+        this->winH = this->win->h;
+    }
+
+    graphics2() {
+        this->winW = 0;
+        this->winH = 0;
+    }
+
+    void Load();
+    void WinResize(const size_t w, const size_t h);
+    void render_begin(bool clear = true);
+    void render_flush();
+    void render_noflush();
+    void render_no_geo_update();
+    void render_bind();
+    void flush();
+    void mush_begin();
+    void mush_render(Mesh *m);
+    void mush_end();
+    void mesh_single_bind(Mesh* m);
+    void mesh_unbind();
+    void setCurrentShader(Shader *s);
+    void bindMeshToVbo(Mesh *m);
+
+    void vertexStructureDefineBegin(size_t vObjSz);
+    void defineVertexPart(i32 n, __mu_glVInf inf);
+    void defineIntegerVertexPart(i32 n, __mu_glVInf inf);
+    void vertexStructureDefineEnd();
+
+    void enableIndicies();
+    void disableIndicies();
+
+    void set_indicies(void *i, size_t n);
+    void push_indicies(void *i, size_t n);
+    void clear_indicies();
+
+    void push_verts(void *v, size_t n);
+    void set_verts(void *v, size_t n);
+    void clear_verts();
+    size_t vert_space();
+
+    //graphics states
+    void iniStaticGraphicsState();
+    void iniDynamicGraphicsState(size_t nBufferVerts);
+    bool useGraphicsState(graphicsState *gs);
+    void useDefaultGraphicsState();
+
+    //frame buffers
+    void setOutputDevice(OutputDevice* device);
+    void restoreDefaultOutputDevice();
+
+    //text
+    void RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop);
+    void RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, CustomFontProperties prop);
+    f32 ComputeStringWidth(struct FontInst *font, const char* str);
+    f32 ComputeStringHeight(struct FontInst *font, const char* str);
+
+    Shader* getCurrentShader();
+    //void DrawImage();
+    //void FillRect(float x, float y, float w, float h);
+    void free_state();
+    const size_t getEstimatedMemoryUsage();
+};
+
 struct BasicVertex {
     f32 x,y,z;
 };
@@ -137,7 +279,6 @@ struct RenderStateDescriptor {
     size_t vertex_overflow_buffer_cell_verts = 0xfff;
     size_t indicie_overflow_buffer_cell_verts = 0xfff;
     bool auto_store_extra = true;
-    u32 render_primitive = GL_TRIANGLES;
 };
 
 struct _OverflowBufferCell {
@@ -240,9 +381,6 @@ public:
     void ClearOutput();
     void LockState(); //locks rendering and output
     void UnlockState();
-
-    //tesselation
-    void SetTesselationVertNum(size_t n_tes);
 
     //text
     void RenderString(struct FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop);
