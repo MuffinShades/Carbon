@@ -1,7 +1,7 @@
 #version 430 core
 
 layout (location = 0) in vec2 pos;
-layout(location = 1) in int curve;
+layout (location = 1) in int curve;
 
 out flat int tCurve;
 out vec2 txp;

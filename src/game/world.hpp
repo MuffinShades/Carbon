@@ -40,7 +40,7 @@ struct Chunk {
     Mesh mesh;
     vec3 pos;
     mat4 modelMat;
-    graphicsState gs;
+    RenderState gs;
     struct {
         graphics *g;
         class World *w;

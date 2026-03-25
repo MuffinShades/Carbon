@@ -55,8 +55,8 @@ i32 solve_re_cubic_32_a(f32 a, f32 b, f32 c, f32 d, f32 re_roots[3]) {
     const f32 eta = acosf(r / sqrtf(-q3)) * one_third;
     const f32 r13 = 2.0f * sqrt(q);
 
-    const f32 rot_1 = 2.0f * mu_pi * one_third,
-              rot_2 = 4.0f * mu_pi * one_third;
+    constexpr f32 rot_1 = 2.0f * mu_pi * one_third,
+                  rot_2 = 4.0f * mu_pi * one_third;
 
     re_roots[0] = -xi + r13*cosf(eta + 0);
     re_roots[1] = -xi + r13*cosf(eta + rot_1);

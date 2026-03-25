@@ -179,7 +179,7 @@ f32 RigidBody3::boundingRadius() {
     return this->br;
 }
 
-graphicsState *RigidBody3::getGraphicsState(graphics *g) {
+RenderState *RigidBody3::getGraphicsState(graphics *g) {
     if (!this->made_gs)
         this->makeGraphicsState(g);
 

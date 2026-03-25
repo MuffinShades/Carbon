@@ -1678,7 +1678,7 @@ gpu_light_curve BtoLightCurve(BCurve c, uvec3 color) {
     return gc;
 }
 
-MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, bool accel = false) {
+/*MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, bool accel = false) {
     MsdfGenContext ctx = {
         .curves = nullptr,
         .nCurves = 0
@@ -1834,6 +1834,170 @@ MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, bool accel = false) {
 
     _safe_free_a(glyph_contours);
     _safe_free_a(glyphEdges.curveBuff);
+
+    return ctx;
+}*/
+
+void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, bool accel = false) {
+    //clean the glyph up
+    gPData cleanDat = cleanGlyphPoints(tGlyph);
+
+    //get num points
+    const size_t nPoints = cleanDat.p.size();
+
+    //blank glyph so blank sdf
+    if (nPoints < 3)
+        return;
+
+    //curve and edge generation, glyph clean up, and more
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+
+    i32 c;
+
+    const size_t nGlyphEdges = glyphEdges.edges.size();
+
+    Contour *glyph_contours = new Contour[tGlyph.nContours];
+    ZeroMem(glyph_contours, tGlyph.nContours);
+    u32 cur_min_idx = 0, e_idx = 0;
+
+    size_t nCurves = 0;
+
+    for (c = 0; c < tGlyph.nContours; c++) { //oh my fucking god C++???!?!?!?! No way!!! :O
+        Contour *cur_c = glyph_contours + c;
+        *cur_c = Contour();
+
+        //compute min and max points
+        cur_c->minPoint = cur_min_idx;
+        cur_c->maxPoint = tGlyph.modifiedContourEnds[c] + cur_c->minPoint;
+
+        cur_min_idx += tGlyph.modifiedContourEnds[c];
+
+        //assign edges
+        e_idx = 0;
+        for (Edge e : glyphEdges.edges) {
+            if (
+                (e.inital_point_index >= cur_c->minPoint && e.inital_point_index < cur_c->maxPoint) ||
+                (e.final_point_index > cur_c->minPoint && e.final_point_index <= cur_c->maxPoint)
+            ) {
+                cur_c->edge_idxs.push_back(e_idx);
+            }
+
+            nCurves += e.nCurves;
+            e_idx++;
+        }
+    }
+
+    //now color le edges
+    i32 i, j;
+
+    uvec3 cur_color;
+
+    if (accel) {
+        ctx->curves = new gpu_light_curve[nCurves];
+        ZeroMem((gpu_light_curve*) ctx->curves, nCurves);
+        ctx->curveSize = sizeof(gpu_light_curve);
+        ctx->curveType = MsdfGenContext::LightCurve;
+    } else {
+        ctx->curves = new MsdfCurve[nCurves];
+        ZeroMem((MsdfCurve*) ctx->curves, nCurves);
+        ctx->curveSize = sizeof(MsdfCurve);
+        ctx->curveType = MsdfGenContext::NormalCurve;
+    }
+
+    gpu_light_curve *lc_buff = (gpu_light_curve*) ctx->curves;
+    MsdfCurve *nc_buff = (MsdfCurve*) ctx->curves;
+    
+    ctx->nCurves = nCurves;
+    
+    Edge E;
+
+    size_t cpi = 0;
+
+    BCurve qu;
+
+    for (c = 0; c < tGlyph.nContours; c++) {
+        Contour ct = glyph_contours[c];
+
+        const size_t ncEdges = ct.edge_idxs.size();
+        u32 t_edge;
+
+        if (ncEdges == 0)
+            continue;
+        else if (ncEdges == 1) {
+            t_edge = ct.edge_idxs[0];
+            E = glyphEdges.edges[t_edge];
+            E.color = uvec3(1,1,1);
+
+            //add new curves
+            for (j = 0; j < E.nCurves; j++) {
+                qu = E.curves[j];
+
+                if (!qu.solve_inf.good) {
+                    qu.solve_inf.a_base = compute_a_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_a_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                    qu.solve_inf.b_base = compute_b_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_b_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                    qu.solve_inf.c_base = compute_c_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_c_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                    qu.solve_inf.d_base = compute_d_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_d_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                }
+
+                if (accel)
+                    lc_buff[cpi++] = BtoLightCurve(qu, cur_color);
+                else
+                    nc_buff[cpi++] = BtoMsdfCurve(qu, cur_color);
+            }
+
+            continue;
+        }
+
+        cur_color = uvec3(1,0,1);
+
+        for (i = 0; i < ncEdges; i++) {
+            t_edge = ct.edge_idxs[i];
+            E = glyphEdges.edges[t_edge];
+
+            if (!E.curves)
+                continue;
+
+            //add new curves
+            for (j = 0; j < E.nCurves; j++) {
+                qu = E.curves[j];
+
+                if (!qu.solve_inf.good) {
+                    qu.solve_inf.a_base = compute_a_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_a_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                    qu.solve_inf.b_base = compute_b_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_b_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                    qu.solve_inf.c_base = compute_c_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_c_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                    qu.solve_inf.d_base = compute_d_base_coord(qu.p[0].x,qu.p[1].x,qu.p[2].x) + compute_d_base_coord(qu.p[0].y,qu.p[1].y,qu.p[2].y);
+                }
+
+                if (accel)
+                    lc_buff[cpi++] = BtoLightCurve(qu, cur_color);
+                else
+                    nc_buff[cpi++] = BtoMsdfCurve(qu, cur_color);
+            }
+
+            if (cur_color.y == 0) {
+                cur_color.y = 1;
+                cur_color.z = 0;
+            } else if (cur_color.x == 1 && cur_color.y == 1) {
+                cur_color.x = 0;
+                cur_color.z = 1;
+            } else {
+                cur_color.x = 1;
+                cur_color.z = 0;
+            }
+        }
+    }
+
+    _safe_free_a(glyph_contours);
+    _safe_free_a(glyphEdges.curveBuff);
+}
+
+MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, bool accel = false) {
+    MsdfGenContext ctx = {
+        .curves = nullptr,
+        .nCurves = 0
+    };
+
+    ConfigureGenContext(&ctx, tGlyph, accel);
 
     return ctx;
 }
@@ -2308,18 +2472,18 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     //set shaders and tesselation params
     ctx->g.SetShader(&msdf_gen_shader);
 
-    ctx->g.SetRenderState(ctx->cc_rstate);
-    ctx->g.SetShader(&msdf_gen_cc_shader);
-    ctx->g.SetTesselationVertNum(3);
+    //ctx->g.SetRenderState(ctx->cc_rstate);
+    //ctx->g.SetShader(&msdf_gen_cc_shader);
+    //ctx->g.SetTesselationVertNum(3);
 
-    ctx->g.RestoreDefaultRenderState();
+    //ctx->g.RestoreDefaultRenderState();
     ctx->g.RenderBegin();
 
     constexpr size_t N_RECT_VERTS = 6;
     size_t nextCurveInsert = 0;
 
+    MsdfGenContext *g_ctx_store = new MsdfGenContext[nGlyphs];
     MsdfGenContext g_ctx;
-
 
     i32 i, j;
     for (i = 0; i < nGlyphs; i++) {
@@ -2365,7 +2529,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         gh = tg.yMax - tg.yMin;
 
         //generate the glpyh context
-        g_ctx = CreateMsdfGenContext(tg, true);
+        ConfigureGenContext(g_ctx_store+i, tg, true);
+        g_ctx = g_ctx_store[i];
 
         if (nextCurveInsert + g_ctx.nCurves >= MAX_BUFFER_CURVES) {
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ctx->curveBuffer);
@@ -2477,26 +2642,74 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
             ctx->g.PushVerts(out_rect, NV, true);
         }
 
-        DeleteMsdfGenContext(&g_ctx);
+        //DeleteMsdfGenContext(&g_ctx);
 
         //swap and render correction stuff
-
-        --Delete this line and continue to code the thing below this--
-
-        ctx->g.SetRenderState(ctx->cc_rstate);
-
-        con_correct_vert *curve_verts = {
-
-        };
-
-        ctx->g.RenderBegin();
-        ctx->g.PushVerts(curve_verts, 3, true);
-        ctx->g.RestoreDefaultRenderState();
     }
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ctx->curveBuffer);
+
     ctx->g.RenderFlush();
 
+    ///////////
+    ctx->g.SetRenderState(ctx->cc_rstate);
+    ctx->g.SetTesselationVertNum(3);
+    ctx->g.SetShader(&msdf_gen_cc_shader);
+    ctx->g.SetOutputDevice(ctx->cc_fb.device());
+
+    msdf_gen_cc_shader.SetInt("curve_detail", 32);
+
+    const u32 cc_fb_tHand = ctx->cc_fb.getTextureHandle();
+
+
+    std::cout << "Warning delete the two lines below since theyre only for debug!!!" << std::endl;
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
+
+    ctx->g.RenderBegin();
+
+    for (i = 0; i < nGlyphs; i++) {
+        g_ctx = g_ctx_store[i];
+        g_pos = pos[i];
+
+        if (tg.char_id < 0) {
+            continue;
+        }
+
+        gpu_light_curve *gcuBuf = (gpu_light_curve*)g_ctx.curves;
+        gpu_light_curve cgcu;
+
+        const f32 space_cc_normal_x = 1.0f / (ctx->cc_fb.w),
+                  space_cc_normal_y = 1.0f / (ctx->cc_fb.h);
+
+        //region_vec = vec4((g_pos.x * space_cc_normal_x) * 2.0f - 1.0f, (g_pos.y * space_cc_normal_y) * 2.0f - 1.0f, (g_pos.w * space_cc_normal_x) * 2.0f, (g_pos.h * space_cc_normal_y) * 2.0f);
+
+        const f32 pxt_A =  (1.0f / (tg.xMax - tg.xMin)) * g_pos.w,
+                  pxt_B = space_cc_normal_x * 2.0f,
+                  pyt_A = (1.0f / (tg.yMax - tg.yMin)) * g_pos.h,
+                  pyt_B = space_cc_normal_y * 2.0f;
+
+        for (j = 0; j < g_ctx.nCurves; j++) {
+            cgcu = gcuBuf[j];
+
+            con_correct_vert curve_verts[] = {
+                (cgcu.p0[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p0[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
+                (cgcu.p1[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p1[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
+                (cgcu.p2[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p2[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
+            };
+
+            ctx->g.PushVerts(curve_verts, 3, true);
+        }
+
+        DeleteMsdfGenContext(&g_ctx);
+    }
+
+    ctx->g.RenderFlush();
+
+    _safe_free_a(g_ctx_store);
     return 0;
 }
 

@@ -163,7 +163,7 @@ void World::render(graphics *g, ControllableCamera *cam) {
             //g->useDefaultGraphicsState();
             this->chunkBuffer[i].async_gen_info.gen_stage = 2;
 
-            graphicsState gs = this->chunkBuffer[i].gs;
+            RenderState gs = this->chunkBuffer[i].gs;
 
             //std::cout << "render info: " << gs.vao << " | " << gs.vbo << " | " << gs.nv << std::endl;
         }

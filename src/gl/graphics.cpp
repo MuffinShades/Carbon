@@ -613,6 +613,15 @@ void graphics::RenderBegin(i32 w, i32 h) {
     state->cur_process = RenderState::Process::Render;
 }
 
+void graphics::RenderContinue() {
+    if (!render_precheck(this)) return;
+
+    glBindVertexArray(state->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+    
+    state->cur_process = RenderState::Process::Render;
+}
+
 //TODO: all these actually important functions
 void graphics::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
     if (!verts || n_verts == 0) {
@@ -956,6 +965,6 @@ void graphics::Resize(u32 w, u32 h) {
     state->dim.h = h;
 }
 
-void SetTesselationVertNum(size_t n_tes) {
+void graphics::SetTesselationVertNum(size_t n_tes) {
     glPatchParameteri(GL_PATCH_VERTICES, n_tes);
 }

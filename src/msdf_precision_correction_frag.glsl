@@ -20,14 +20,19 @@ in flat int tCurve;
 in vec2 txp;
 in float t;
 
-uniform sampler2D f_tex;
+uniform usampler2D f_tex;
 
 out uvec4 FragColor;
 
 void main() {
-    const f32 i255 = 1.0 / 255.0;
+    const float i255 = 1.0 / 255.0;
 
-    vec4 prev_samp = texture(f_tex, txp);
+    //uvec4 prev_samp = texture(f_tex, txp);
 
-    
+    FragColor = uvec4(65535, 65535, 65535, 65535);
+
+    //if (prev_samp.x > 0)
+        //FragColor = uvec4(65535, 0, 65535, 65535);
+    //else
+        //FragColor = uvec4(65535, 0, 0, 65535);
 }

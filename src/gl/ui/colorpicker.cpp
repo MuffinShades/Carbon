@@ -10,7 +10,7 @@ void ColorPicker::graphicsPreCompute(graphics *g) {
     if (!g) 
         return;
 
-    this->gs.s = _ColorPicker_Stock::getShader();
+    //this->gs.s = _ColorPicker_Stock::getShader();
 
     //g->useGraphicsState(&this->gs);
    // g->iniStaticGraphicsState();

@@ -1,6 +1,6 @@
 #version 430 core
 
-layout (verticies = 3) out;
+layout (vertices = 3) out;
 
 uniform int curve_detail;
 

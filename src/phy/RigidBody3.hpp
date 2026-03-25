@@ -29,7 +29,7 @@ private:
     
     */
     mat4 m_mat = mat4(1), r_mat = mat4(1), s_mat = mat4(1), central_trans_mat = mat4();
-    graphicsState gs;
+    RenderState gs;
 
     bool made_gs = false;
 
@@ -54,7 +54,7 @@ public:
     RigidBody3(enum rb_simple_type s_ty, vec3 dim, f32 density, Material material);
 
     void makeGraphicsState(graphics *g);
-    graphicsState *getGraphicsState(graphics *g);
+    RenderState *getGraphicsState(graphics *g);
     void tick(f32 dt);
     mat4 getMat();
     bool inView(Camera* cam);
@@ -72,7 +72,7 @@ public:
 class RBodyScene3 {
 private:
     vec3 g = {0,0,0};
-    graphicsState sgs;
+    RenderState sgs;
     std::vector<RigidBody3*> objs;
 
     vec3 *checkNormalBuffer = nullptr;

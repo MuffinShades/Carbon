@@ -98,7 +98,7 @@ protected:
     UIDimension size; 
     UIScalarDimension bounds;
     f32 zIndex = 0;
-    graphicsState gs;
+    RenderState gs;
     mat4 u_model;
 
     virtual void dimUpdate(UIScalarDimension parentBounds) {};

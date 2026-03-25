@@ -232,6 +232,7 @@ public:
     void SetShader(Shader *shader);
     Shader* GetCurrentShader();
     void RenderBegin(i32 w = -1, i32 h = -1);
+    void RenderContinue();
     void PushVerts(void *verts, size_t n_verts, bool auto_flush_old);
     void SetVerts(void *verts, size_t n_verts, bool flush_current);
     void PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_old);
