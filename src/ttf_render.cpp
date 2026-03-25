@@ -72,7 +72,7 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
 
     ctx->g.VertexDefineBegin(sizeof(con_correct_vert));
     ctx->g.DefineVertexPart(0, vertexClassPart(con_correct_vert, pos));
-    ctx->g.DefineIntegerVertexPart(0, vertexClassPart(con_correct_vert, curve_idx));
+    ctx->g.DefineIntegerVertexPart(1, vertexClassPart(con_correct_vert, curve_idx));
     ctx->g.VertexDefineEnd();
 
     ctx->g.RestoreDefaultRenderState(); //restore the default state
@@ -2657,8 +2657,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     ctx->g.SetShader(&msdf_gen_cc_shader);
     ctx->g.SetOutputDevice(ctx->cc_fb.device());
 
-    msdf_gen_cc_shader.SetInt("curve_detail", 32);
-
     const u32 cc_fb_tHand = ctx->cc_fb.getTextureHandle();
 
 
@@ -2670,6 +2668,10 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
 
     ctx->g.RenderBegin();
+
+    constexpr i32 bcc_detail = 32; //num segments for each curve being rendered
+
+    msdf_gen_cc_shader.SetInt("curve_detail", bcc_detail);
 
     for (i = 0; i < nGlyphs; i++) {
         g_ctx = g_ctx_store[i];
@@ -2708,6 +2710,9 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     }
 
     ctx->g.RenderFlush();
+
+    //for debug stuff
+    font->msdf_dat.MSDF.__dbg.cc_tex = BindableTexture(cc_fb_tHand, ctx->cc_fb.w, ctx->cc_fb.h);
 
     _safe_free_a(g_ctx_store);
     return 0;

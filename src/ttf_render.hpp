@@ -155,6 +155,9 @@ struct __msdf_dim {
 struct __msdf_tex {
     Bitmap *bitmap = nullptr;
     BindableTexture gl_texture;
+    struct {
+        BindableTexture cc_tex;
+    } __dbg;
 };
 
 struct __msdf_data {
