@@ -9,6 +9,6 @@ void main() {
 
     if (gl_InvocationID == 0) {
         gl_TessLevelOuter[0] = 1.0;
-        gl_TessLevelOuter[1] = float(curve_detail);
+        gl_TessLevelOuter[1] = float(50.0);
     }
 }

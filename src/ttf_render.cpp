@@ -83,8 +83,8 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     };
 
     FrameBufferExtInf cc_inf = {
-        .color_fmt = GL_RGBA16UI,
-        .data_color_fmt = GL_RGBA_INTEGER
+        .color_fmt = GL_RGBA8,
+        .data_color_fmt = GL_RGBA
     };
 
     ctx->fb = FrameBuffer(FrameBuffer::Texture, w, h, inf);
@@ -2661,25 +2661,27 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
 
     std::cout << "Warning delete the two lines below since theyre only for debug!!!" << std::endl;
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
+    //glActiveTexture(GL_TEXTURE1);
+    //glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
+    //glActiveTexture(GL_TEXTURE0);
+    //glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
 
-    ctx->g.RenderBegin();
+    ctx->g.RenderBegin(ctx->cc_fb.w, ctx->cc_fb.h);
 
     constexpr i32 bcc_detail = 32; //num segments for each curve being rendered
 
     msdf_gen_cc_shader.SetInt("curve_detail", bcc_detail);
 
     for (i = 0; i < nGlyphs; i++) {
-        g_ctx = g_ctx_store[i];
-        g_pos = pos[i];
+        tg = tGlyphs[i];
 
         if (tg.char_id < 0) {
             continue;
         }
+
+        g_ctx = g_ctx_store[i];
+        g_pos = pos[i];
 
         gpu_light_curve *gcuBuf = (gpu_light_curve*)g_ctx.curves;
         gpu_light_curve cgcu;
@@ -2694,13 +2696,21 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
                   pyt_A = (1.0f / (tg.yMax - tg.yMin)) * g_pos.h,
                   pyt_B = space_cc_normal_y * 2.0f;
 
+        std::cout << "drawing: " << g_ctx.nCurves << "curves" << std::endl;
+
         for (j = 0; j < g_ctx.nCurves; j++) {
             cgcu = gcuBuf[j];
 
-            con_correct_vert curve_verts[] = {
+            /*con_correct_vert curve_verts[] = {
                 (cgcu.p0[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p0[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
                 (cgcu.p1[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p1[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
                 (cgcu.p2[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p2[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
+            };*/
+
+            con_correct_vert curve_verts[] = {
+                1.0f, 0.0f, 0.0f, j,
+                1.0f, 1.0f, 0.0f, j,
+                0.0f, 1.0f, 0.0f, j,
             };
 
             ctx->g.PushVerts(curve_verts, 3, true);
@@ -2710,6 +2720,11 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     }
 
     ctx->g.RenderFlush();
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     //for debug stuff
     font->msdf_dat.MSDF.__dbg.cc_tex = BindableTexture(cc_fb_tHand, ctx->cc_fb.w, ctx->cc_fb.h);

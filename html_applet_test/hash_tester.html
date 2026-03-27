@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <textarea placeholder="enter function" id='fn_i'></textarea>
+        <canvas id='c'></canvas>
+        <input type="number" placeholder='output_range' id='range'>
+        <button id='tbtn'>Test</button>
+        <script>
+            const can = document.querySelector('#c');
+            const ctx = can.getContext('2d');
+
+            const range = document.getElementById('range');
+
+            can.width = 255;
+            can.height = 255;
+
+            function hsh(v) {
+                /*return (((((v[0] ^ v[2]) & 0b11110000) >> 4) |
+                         (((v[0] ^ v[1]) & 0b00001111) >> 0)) << 8) |
+                         (((v[2] ^ v[1]) & 0b11110000) >> 4) |
+                         (((v[2] ^ v[0]) & 0b00001111) >> 0) % 0xffff;*/
+
+                /*var sum = 0;
+
+                for (var i in v) {
+                    sum += v[i] ^ (i ^ v[0] + 0xf6) * 7;
+                    sum ^= ~(65535);
+                }
+
+                return (sum % 65535) & 65535;*/
+
+                //return (v[0] + v[1] * 255 + v[2] * 255 * 255) & 65535;
+
+                return (v[0] + v[1] + v[2]) % 255; 
+            }
+
+            function check() {
+                //var fn = new Function('v', document.getElementById("fn_i").value);
+                var fn = hsh;
+                var rec = [];
+
+                var d = 128;
+
+                var nTests = d * d * d;
+
+                const A = d * d, B = nTests, C = 1/d, D = 1/A;
+
+                const R = range.value;
+
+                var x,y,z,r,max = 0;
+
+                for (var i = 0; i < nTests; i++) {
+                    x = i % d;
+                    y = Math.floor((i % A) * C);
+                    z = Math.floor((i % B) * D);
+
+                    r = Math.min(R,Math.max(0,Math.floor(fn([x, y, z]))));
+                    if (typeof rec[r] != 'number') rec[r] = 0;
+                    if (++rec[r] > max)
+                        max = rec[r];
+                }
+
+                ctx.clearRect(0,0,can.width,can.height);
+
+                const W = 1;
+
+                ctx.fillStyle = '#000';
+
+                for (var i = 0; i < R; i++) {
+                    ctx.fillRect(Math.ceil((i / R) * can.width), 0, W, Math.ceil((rec[i] / max) * can.height)); 
+                }
+
+                console.log(max);
+            }
+
+            document.querySelector('#tbtn').addEventListener('click', check);
+        </script>
+    </body>
+</html>

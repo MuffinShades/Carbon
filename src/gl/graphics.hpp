@@ -81,8 +81,10 @@ public:
     friend class graphics2;
 
     OutputDevice *device() {
-        this->od.device = (void*) this;
-        this->od.type = OutputDevice::FrameBuffer;
+        if (!this->od.device) {
+            this->od.device = (void*) this;
+            this->od.type = OutputDevice::FrameBuffer;
+        }
 
         return &this->od;
     }

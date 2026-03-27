@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html style='position: absolute; top: 0; left: 0;'>
+    <body style='position: absolute; top: 0; left: 0; background: #999;'>
+        <canvas id='c' width="500" height="500" style='position: absolute; top: 0; left: 0; background: #fff;'></canvas>
+        <script>
+            var point = function(x,y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            const pointR = 5;
+
+            var curve = function(p0, p1, p2) {
+                this.p = [p0,p1,p2];
+                this.color = `rgb(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255})`;
+                this.draw = function() {
+                    ctx.strokeStyle = this.color;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(this.p[0].x, this.p[0].y);
+
+                    const t_res = 1.0 / 30;
+
+                    var bx, by;
+
+                    for (var t = 0.0; t <= 1.0; t += t_res) {
+                        bx = this.p[0].x * (1.0 - t) * (1.0 - t) + this.p[1].x * (1.0 - t) * t * 2.0 + this.p[2].x * t * t;
+                        by = this.p[0].y * (1.0 - t) * (1.0 - t) + this.p[1].y * (1.0 - t) * t * 2.0 + this.p[2].y * t * t;
+
+                        ctx.lineTo(bx, by);
+                    }
+
+                    ctx.lineTo(this.p[2].x, this.p[2].y);
+
+                    ctx.stroke();
+
+                    ctx.fillStyle = this.color;
+
+                    for (var i = 0; i < this.p.length; i++) {
+                        ctx.beginPath();
+                        ctx.arc(this.p[i].x, this.p[i].y, pointR, 0, 2 * Math.PI, false);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            const can = document.getElementById('c');
+            const ctx = can.getContext('2d');
+
+            var curves = [];
+
+            const NC = 2;
+
+            for (var i = 0; i < NC; i++) {
+                curves[i] = new curve(new point(Math.random() * 500, Math.random() * 500), new point(Math.random() * 500, Math.random() * 500), new point(Math.random() * 500, Math.random() * 500));
+            }
+
+            const i9 = 1/9, i54 = 1/54, one_third = 1/3;
+
+            function cube_root(v) {
+                if (v < 0)
+                    return -Math.pow(-v, one_third);
+                else
+                    return Math.pow(v, one_third);
+            }
+
+            var dPolyDeriveRoots = {
+                D: function(a, b, c){
+                    return -4*a*a + 4*a*b;
+                },
+                C: function(a,b,c) {
+                    return 12*a*a - 24*a*b + 4*a*c + 8*b*b;
+                },
+                B: function(a,b,c) {
+                    return -12*a*a + 36*a*b - 12*a*c - 24*b*b + 12*b*c;
+                },
+                A: function(a,b,c) {
+                    return 4*a*a - 16*a*b + 8*a*c + 16*b*b - 16*b*c + 4*c*c;
+                }
+            };
+
+            var poly_solve = {
+                lin: function(a,b) {
+                    return [-b/a];
+                },
+                quad: function(a,b,c) {
+                    if (a == 0)
+                        return this.lin(a,b,c);
+
+                    const i = b*b - 4*a*c;
+
+                    if (i < 0)
+                        return [];
+
+                    if (i == 0) {
+                        return [-b / (2*a)];
+                    }
+
+                    const r = sqrt(i);
+                    const i2a = 1 / (2*a);
+
+                    return [(-b+r) * i2a, (-b-r)*i2a];
+                },
+                cubi: function(a,b,c,d) {
+                    if (a == 0)
+                        return this.quad(b,c,d);
+
+                    const ia = 1 / a;
+
+                    b *= ia; c *= ia; d *= ia;
+
+                    var bs = b*b,
+                        q = (3 * c - bs) * i9,
+                        r = (-(27 * d) + b * (9 * c - 2 * bs)) * i54,
+                        q3 = q * q * q,
+                        dis = q3 + r * r;
+                    
+                    const xi = (b * one_third);
+
+                    if (dis > 0) {
+                        const root_dis = Math.sqrt(dis);
+
+                        var s = cube_root(r + root_dis),
+                            t = cube_root(r - root_dis);
+
+                        return [-xi + s + t];
+                    }
+
+                    if (dis == 0) {
+                        const crt_r = cube_root(r);
+                        
+                        return [-xi + 2 * crt_r, -(crt_r + xi)];
+                    }
+
+                    q *= -1;
+
+                    const eta = Math.acos(r / Math.sqrt(-q3)) * one_third,
+                        r13 = 2 * Math.sqrt(q);
+
+                    const rot_1 = 2 * Math.PI * one_third,
+                          rot_2 = 4 * Math.PI * one_third;
+
+                    return [
+                        -xi + r13*Math.cos(eta + 0),
+                        -xi + r13*Math.cos(eta + rot_1),
+                        -xi + r13*Math.cos(eta + rot_2)
+                    ];
+                }
+            }
+
+            function minDist(ca, cb) {
+                var pa0 = ca.p[0], pa1 = ca.p[1], pa2 = ca.p[2],
+                    pb0 = cb.p[0], pb1 = cb.p[1], pb2 = cb.p[2];
+
+                const Ax = pa0.x - pb0.x, Bx = pa1.x - pb1.x, Cx = pa2.x-pb2.x,
+                      Ay = pa0.y - pb0.y, By = pa1.y - pb1.y, Cy = pa2.y-pb2.y;
+
+                var Ddt = function(t) {
+                    return (
+                        (1.0-t)*(1.0-t)*Ax + 2.0*t*(1.0-t)*Bx + t*t*Cx
+                    )**2 + (
+                        (1.0-t)*(1.0-t)*Ay + 2.0*t*(1.0-t)*By + t*t*Cy
+                    )**2;
+                }
+
+                var roots = poly_solve.cubi(
+                    dPolyDeriveRoots.A(Ax, Bx, Cx) + dPolyDeriveRoots.A(Ay, By, Cy),
+                    dPolyDeriveRoots.B(Ax, Bx, Cx) + dPolyDeriveRoots.B(Ay, By, Cy),
+                    dPolyDeriveRoots.C(Ax, Bx, Cx) + dPolyDeriveRoots.C(Ay, By, Cy),
+                    dPolyDeriveRoots.D(Ax, Bx, Cx) + dPolyDeriveRoots.D(Ay, By, Cy),
+                );
+
+                var minDist = Ddt(0), minT = 0;
+
+                var d = Ddt(1);
+
+                if (d < minDist) {
+                    minT = 1;
+                    minDist = d;
+                }
+
+                for (var l = 0; l < roots.length; l++) {
+                    const R = roots[l];
+
+                    if (R <= 0 || R >= 1) continue;
+
+                    d = Ddt(R);
+
+                    if (d < minDist) {
+                        minDist = d;
+                        minT = R;
+                    }
+                }
+
+                return {
+                    dist: minDist,
+                    time: minT
+                }
+            }
+
+            setInterval(function() {
+                ctx.clearRect(0,0,can.width, can.height);
+
+                for (var i = 0; i < curves.length; i++) 
+                    curves[i].draw();
+
+                if (NC >= 2) {
+                    var c0 = curves[0], c1 = curves[1];
+
+                    const md = minDist(c0, c1);
+
+                    //console.log(md);
+
+                    const t = md.time;
+
+                    var bx, by;
+
+                    ctx.strokeStyle = '#0ff';
+                    ctx.beginPath();
+
+                    bx = c0.p[0].x * (1.0 - t) * (1.0 - t) + c0.p[1].x * (1.0 - t) * t * 2.0 + c0.p[2].x * t * t;
+                    by = c0.p[0].y * (1.0 - t) * (1.0 - t) + c0.p[1].y * (1.0 - t) * t * 2.0 + c0.p[2].y * t * t;
+
+                    ctx.moveTo(bx,by);
+
+                    bx = c1.p[0].x * (1.0 - t) * (1.0 - t) + c1.p[1].x * (1.0 - t) * t * 2.0 + c1.p[2].x * t * t;
+                    by = c1.p[0].y * (1.0 - t) * (1.0 - t) + c1.p[1].y * (1.0 - t) * t * 2.0 + c1.p[2].y * t * t;
+
+                    ctx.lineTo(bx,by);
+
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.arc(0, 0, 30, 0, 2 * Math.PI, false);
+                ctx.fill();
+            }, 1000/60);
+
+            var movCurve = -1;
+            var movPoint = -1;
+
+            function mousePClick(c, mx, my) {
+                for (var i = 0; i < c.p.length; i++) {
+                    var sd = (mx - c.p[i].x)**2 + (my - c.p[i].y)**2;
+
+                    if (sd <= pointR * pointR)
+                        return i;
+                }
+
+                return -1;
+            }
+
+            can.addEventListener('mousedown', function(e) {
+                var rect = e.target.getBoundingClientRect();
+                var mx = e.clientX - rect.left;
+                var my = e.clientY - rect.top;
+
+                if (movCurve == -1) {
+                    for (var i = 0; i < curves.length; i++) {
+                        var m;
+
+                        if ((m = mousePClick(curves[i], mx, my)) != -1) {
+                            movCurve = i;
+                            movPoint = m;
+                            console.log(m);
+                            break;
+                        }
+                        console.log(m);
+                    }
+                }
+            })
+
+            can.addEventListener('mousemove', function(e) {
+                var rect = e.target.getBoundingClientRect();
+                var mx = e.clientX - rect.left;
+                var my = e.clientY - rect.top;
+
+                if (movCurve != -1) {
+                    var C = curves[movCurve];
+
+                    if (C) {
+                        C.p[movPoint].x = mx;
+                        C.p[movPoint].y = my;
+                    }
+                }
+            })
+
+            can.addEventListener('mouseup', function(e) {
+                var rect = e.target.getBoundingClientRect();
+                var mx = e.clientX - rect.left;
+                var my = e.clientY - rect.top;
+
+                movCurve = -1;
+            })
+        </script>
+    </body>
+</html>

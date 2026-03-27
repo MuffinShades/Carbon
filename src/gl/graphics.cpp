@@ -871,6 +871,9 @@ void graphics::SetOutputDevice(OutputDevice* device) {
         state->dim.w = fb->w;
         state->dim.h = fb->h;
 
+
+        std::cout << "setting framebuffer " << fb->w << "x" << fb->h << std::endl;
+
         glBindFramebuffer(GL_FRAMEBUFFER, fbo); 
         glViewport(0, 0, fb->w, fb->h);
 
