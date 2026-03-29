@@ -20,6 +20,7 @@
 #define MSDF_ACCEL_CC_SHADER_PATH_TES "../../src/msdf_precision_correction_tes.glsl"
 
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
+constexpr f32 chonk_number = 3.402e38f; //number that is chonk
 
 /**
  *
@@ -2435,6 +2436,80 @@ glf_scale_correction_info arender_msdf_correction_map(MsdfGpuContext *a_ctx, u32
     
 
     return res;
+}
+
+struct bcurve_dist {
+    f32 t = 0.0f, s = 0.0f;
+    f32 square_dist = chonk_number;
+};
+
+struct cmdl_precompute {
+    f32 J,K,L,M,N,O,P,Q,T,U;
+};
+
+cmdl_precompute precomp_cure_min_dist_lite(gpu_light_curve c0, gpu_light_curve c1) {
+
+}
+
+bcurve_dist curve_min_dist_lite(const f32 px, gpu_light_curve c0, gpu_light_curve c1) {
+
+    //TODO: optimize these by precomputing all of the constant variables since many don't involve t
+    //;implement and use the cmdl_precompute struct each time the function is called
+    auto Fx = [=](f32 t, vec2 A, vec2 B, vec2 C, vec2 D, vec2 E, vec2 F) {
+        const f32 t2 = t*t,
+                      L = A.y-2.0f*B.y+C.y,  M = A.x-2.0f*B.x+C.x, 
+                      N = 2.0f*D.x-2.0f*E.x,    O = 2.0f*D.y-2.0f*E.y,
+                      P = -2.0f*A.x+2.0f*B.x,   Q = -2.0f*A.y+2.0f*B.y,
+                      J = -D.x+2.0f*E.x-F.x, K = -D.y+2.0f*E.y-F.y,
+                      Sn = (2.0f*L*N - 2.0f*M*O)*t + (N*Q - O*P),
+                      Sd = (4.0f*K*M - 4.0f*J*L)*t + (2.0f*P*K - 2.0f*J*Q),
+                      S = Sn / Sd, S2 = S*S;
+        return powf(M*t2+P*t+A.x+J*S2+N*S-D.x, 2.0f) + powf(L*t2+Q*t+A.y+K*S2+O*S-D.y, 2.0f);
+    };
+
+    auto dFx = [=](f32 t, vec2 A, vec2 B, vec2 C, vec2 D, vec2 E, vec2 F) {
+        const f32 t2 = t*t,
+                      L = A.y-2.0f*B.y+C.y,  M = A.x-2.0f*B.x+C.x, 
+                      N = 2.0f*D.x-2.0f*E.x,    O = 2.0f*D.y-2.0f*E.y,
+                      P = -2.0f*A.x+2.0f*B.x,   Q = -2.0f*A.y+2.0f*B.y,
+                      J = -D.x+2.0f*E.x-F.x, K = -D.y+2.0f*E.y-F.y,
+                      T = (2.0f*L*N - 2.0f*M*O), U = (4.0f*K*M - 4.0f*J*L),
+                      Sn = T*t + (N*Q - O*P),
+                      Sd = U*t + (2.0f*P*K - 2.0f*J*Q),
+                      S = Sn / Sd, S2 = S*S,
+                      ds = (T*Sd - Sn*U) / (Sd * Sd), ds2 = ds * ds;
+
+        return 2.0f*(M*t2+P*t+A.x+J*S2+N*S-D.x)*(2.0f*M*t+P+2.0f*J*S*ds+N*ds)+2.0f*(L*t2+Q*t+A.y+K*S2+O*S-D.y)*(2.0f*L*t+Q+2.0f*K*S*ds+O*ds);
+    };
+
+    i32 i;
+    f32 tst = 0.5, min = 0.0, max = 1.0;
+
+    //const iel2 = 1.0 / Math.log(2.0);
+    const f32 iel2 = (1.0f / logf(2.0f));
+    const f32 N = ceilf(logf(px) * iel2);
+
+    f32 sd, D;
+
+    for (i = 0; i < N; i++) {
+        sd = mu_sign(Fx(t));
+        D = dFx(t);
+
+        if (sd < 0) 
+            min = t; 
+        else
+            max = t;
+
+        tst = (max - min) * 0.5 + min;
+    }
+
+    bcurve_dist dist;
+
+    dist.t = tst;
+    //TODO: compute dist.s
+    dist.square_dist = Fx(tst);
+    
+    return {};
 }
 
 //////////////////////////////////////////////

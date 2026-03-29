@@ -293,6 +293,16 @@
                 movCurve = -1;
             })
 
+            /*
+
+            A --> Curve 0 p0
+            B --> Curve 0 p1
+            C --> Curve 0 p2
+            D --> Curve 1 p0
+            E --> Curve 1 p1
+            F --> Curve 1 p2
+
+            */
             var HH = function(t, A, B, C, D, E, F) {
                 const t2 = t*t,
                       L = A.y-2*B.y+C.y,  M = A.x-2*B.x+C.x, 
@@ -304,8 +314,8 @@
                       S = Sn / Sd, S2 = S*S;
                 return Math.pow(M*t2+P*t+A.x+J*S2+N*S-D.x, 2) + Math.pow(L*t2+Q*t+A.y+K*S2+O*S-D.y, 2);
             }
-
-            var dHH = function(t, p0, p1, p2) {
+            
+            var dHH = function(t, A, B, C, D, E, F) {
                 const t2 = t*t,
                       L = A.y-2*B.y+C.y,  M = A.x-2*B.x+C.x, 
                       N = 2*D.x-2*E.x,    O = 2*D.y-2*E.y,
