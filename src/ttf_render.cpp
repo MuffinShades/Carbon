@@ -3772,3 +3772,4 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
     this->RenderFlush();
 }
+

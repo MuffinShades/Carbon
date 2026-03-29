@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <textarea placeholder='enter df/dx as function of x' id='dfdx'></textarea>
+        <textarea placeholder='enter d^2f/dx^2 as js func' id='dfdx2'></textarea>
+        <input type='number' placeholder='pix prec' id='prec-in'>
+        <button id="mb">Min Est</button>
+        <div id='output'></div>
+        <script>
+            const output = document.getElementById('output');
+            const prec_in = document.getElementById('prec-in');
+
+            document.getElementById('mb').addEventListener('click', function() {
+                const dfdx = new Function("x", "return "+document.getElementById('dfdx').value);
+                const dfdx2 = new Function("x", "return "+document.getElementById('dfdx2').value);
+                const px = prec_in.value;
+
+                var mid = 0.5, min = 0.0, max = 1.0;
+
+                const iel2 = 1.0 / Math.log(2.0);
+                const N = Math.ceil(Math.log(px) * iel2);
+
+                for (var i = 0; i < N; i++) {
+                    var sd = Math.sign(dfdx2(mid));
+
+                    var D = dfdx(mid);
+
+                    if (sd < 0) 
+                        min = mid; 
+                    else
+                        max = mid;
+
+                    mid = (max - min) * 0.5 + min;
+                }
+
+                output.innerHTML = "T Estimate: " + mid.toString() + " | N Steps: " + N.toString();
+            })
+        </script>
+    </body>
+</html>

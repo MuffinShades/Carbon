@@ -292,6 +292,33 @@
 
                 movCurve = -1;
             })
+
+            var HH = function(t, A, B, C, D, E, F) {
+                const t2 = t*t,
+                      L = A.y-2*B.y+C.y,  M = A.x-2*B.x+C.x, 
+                      N = 2*D.x-2*E.x,    O = 2*D.y-2*E.y,
+                      P = -2*A.x+2*B.x,   Q = -2*A.y+2*B.y,
+                      J = -D.x+2*E.x-F.x, K = -D.y+2*E.y-F.y,
+                      Sn = (2*L*N - 2*M*O)*t + (N*Q - O*P),
+                      Sd = (4*K*M - 4*J*L)*t + (2*P*K - 2*J*Q),
+                      S = Sn / Sd, S2 = S*S;
+                return Math.pow(M*t2+P*t+A.x+J*S2+N*S-D.x, 2) + Math.pow(L*t2+Q*t+A.y+K*S2+O*S-D.y, 2);
+            }
+
+            var dHH = function(t, p0, p1, p2) {
+                const t2 = t*t,
+                      L = A.y-2*B.y+C.y,  M = A.x-2*B.x+C.x, 
+                      N = 2*D.x-2*E.x,    O = 2*D.y-2*E.y,
+                      P = -2*A.x+2*B.x,   Q = -2*A.y+2*B.y,
+                      J = -D.x+2*E.x-F.x, K = -D.y+2*E.y-F.y,
+                      T = (2*L*N - 2*M*O), U = (4*K*M - 4*J*L);
+                      Sn = T*t + (N*Q - O*P),
+                      Sd = U*t + (2*P*K - 2*J*Q),
+                      S = Sn / Sd, S2 = S*S;
+                const ds = (T*Sd - Sn*U) / (Sd * Sd), ds2 = ds * ds;
+
+                return 2*(M*t2+P*t+A.x+J*S2+N*S-D.x)*(2*M*t+P+2*J*S*ds+N*ds)+2*(L*t2+Q*t+A.y+K*S2+O*S-D.y)*(2*L*t+Q+2*K*S*ds+O*ds);
+            }
         </script>
     </body>
 </html>
