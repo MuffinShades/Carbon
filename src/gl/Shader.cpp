@@ -135,8 +135,8 @@ i32 Shader::SetVec2(std::string label, vec2 *v) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform2f(loc, v->x, v->y);
 
@@ -148,8 +148,8 @@ i32 Shader::SetVec3(std::string label, vec3 *v) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform3f(loc, v->x, v->y, v->z);
 
@@ -187,8 +187,8 @@ i32 Shader::SetiVec2(std::string label, vec2 *v) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform2i(loc, (i32) v->x, (i32) v->y);
 
@@ -200,8 +200,8 @@ i32 Shader::SetiVec3(std::string label, vec3 *v) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform3i(loc, (i32) v->x, (i32) v->y, (i32) v->z);
 
@@ -213,8 +213,8 @@ i32 Shader::SetiVec4(std::string label, vec4 *v) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform4i(loc, (i32) v->x, (i32) v->y, (i32) v->z, (i32) v->w);
 
@@ -230,8 +230,8 @@ i32 Shader::SetInt(std::string label, i32 val) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform1i(loc, val);
 
@@ -243,8 +243,8 @@ i32 Shader::SetFloat(std::string label, f32 v) {
         return 1;
 
     GLint loc = glGetUniformLocation(this->PGRM, label.c_str());
-    if (loc == NULL)
-        return 2;
+    //if (loc == NULL)
+    //    return 2;
 
     glUniform1f(loc, v);
 

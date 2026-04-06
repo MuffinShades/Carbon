@@ -84,7 +84,7 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     };
 
     FrameBufferExtInf cc_inf = {
-        .color_fmt = GL_RGBA8,
+        .color_fmt = GL_RGBA32F,
         .data_color_fmt = GL_RGBA
     };
 
@@ -1847,8 +1847,11 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, bool accel = false) 
     const size_t nPoints = cleanDat.p.size();
 
     //blank glyph so blank sdf
-    if (nPoints < 3)
+    if (nPoints < 3) {
+        ctx->nCurves = 0;
+        ctx->curves = nullptr;
         return;
+    }
 
     //curve and edge generation, glyph clean up, and more
     glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
@@ -2448,10 +2451,10 @@ struct cmdl_precompute {
 };
 
 cmdl_precompute precomp_cure_min_dist_lite(gpu_light_curve c0, gpu_light_curve c1) {
-
+    return {};
 }
 
-bcurve_dist curve_min_dist_lite(const f32 px, gpu_light_curve c0, gpu_light_curve c1) {
+/*bcurve_dist curve_min_dist_lite(const f32 px, gpu_light_curve c0, gpu_light_curve c1) {
 
     //TODO: optimize these by precomputing all of the constant variables since many don't involve t
     //;implement and use the cmdl_precompute struct each time the function is called
@@ -2510,7 +2513,7 @@ bcurve_dist curve_min_dist_lite(const f32 px, gpu_light_curve c0, gpu_light_curv
     dist.square_dist = Fx(tst);
     
     return {};
-}
+}*/
 
 //////////////////////////////////////////////
 // version of gpu accel for multiple glyphs //
@@ -2561,15 +2564,17 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     MsdfGenContext g_ctx;
 
     i32 i, j;
+
     for (i = 0; i < nGlyphs; i++) {
         tg = tGlyphs[i];
-        g_pos = pos[i];
 
         if (tg.char_id < 0) {
         _char_id_fail:
             std::cout << "error invalid char id! @ i = " << i << " / " << nGlyphs << std::endl;
             continue;
         }
+
+        g_pos = pos[i];
 
         //add spritesheet character info for compound glyphs
         //TODO: support the hash map
@@ -2598,12 +2603,16 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         }
         //
 
-        if (g_pos.w == 0 || g_pos.h == 0) continue; //dimension check (dont add null glyphs)
+        if (g_pos.w == 0 || g_pos.h == 0) {
+            std::cout << "ttf_render warning: character " << i << " is very small" << std::endl;
+            continue; //dimension check (dont add null glyphs)
+        }
 
         gw = tg.xMax - tg.xMin;
         gh = tg.yMax - tg.yMin;
 
         //generate the glpyh context
+        std::cout << "Configuring context: " << i << std::endl;
         ConfigureGenContext(g_ctx_store+i, tg, true);
         g_ctx = g_ctx_store[i];
 
@@ -2732,6 +2741,15 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     ctx->g.SetShader(&msdf_gen_cc_shader);
     ctx->g.SetOutputDevice(ctx->cc_fb.device());
 
+    constexpr i32 bcc_detail = 32; //num segments for each curve being rendered
+
+    vec2 oDim = vec2(ctx->cc_fb.w, ctx->cc_fb.h);
+
+    std::cout << oDim.x << " ||||||||||||||| " << oDim.y << std::endl;
+
+    msdf_gen_cc_shader.SetInt("curve_detail", bcc_detail);
+    msdf_gen_cc_shader.SetVec2("output_dim", &oDim);
+
     const u32 cc_fb_tHand = ctx->cc_fb.getTextureHandle();
 
 
@@ -2742,21 +2760,31 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     //glActiveTexture(GL_TEXTURE0);
     //glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
 
+    i32 old_depthFn;
+    glGetIntegerv(GL_DEPTH_FUNC, &old_depthFn);
+
+    glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_SUBTRACT, GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
+
     ctx->g.RenderBegin(ctx->cc_fb.w, ctx->cc_fb.h);
-
-    constexpr i32 bcc_detail = 32; //num segments for each curve being rendered
-
-    msdf_gen_cc_shader.SetInt("curve_detail", bcc_detail);
 
     for (i = 0; i < nGlyphs; i++) {
         tg = tGlyphs[i];
 
-        if (tg.char_id < 0) {
+        if (tg.char_id < 0 || tg.xMax == tg.xMin || tg.yMax == tg.yMin) {
             continue;
         }
 
         g_ctx = g_ctx_store[i];
         g_pos = pos[i];
+
+        if (g_pos.w == 0 || g_pos.h == 0) {
+            std::cout << "ttf error: poor glyph sheet construction skipping cur char" << std::endl;
+            continue;
+        }
 
         gpu_light_curve *gcuBuf = (gpu_light_curve*)g_ctx.curves;
         gpu_light_curve cgcu;
@@ -2776,17 +2804,21 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         for (j = 0; j < g_ctx.nCurves; j++) {
             cgcu = gcuBuf[j];
 
-            /*con_correct_vert curve_verts[] = {
-                (cgcu.p0[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p0[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
-                (cgcu.p1[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p1[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
-                (cgcu.p2[0] * pxt_A + g_pos.x) * pxt_B - 1.0f, (cgcu.p2[1] * pyt_A + g_pos.y) * pyt_B - 1.0f, 0.0f, j,
-            };*/
+            constexpr f32 CURVE_Z_CORRECT_PREC = 0.0001f;
+            constexpr f32 CURVE_Z_CORRECT_BASE = 0.5f;
+            const f32 cz = j * CURVE_Z_CORRECT_PREC + CURVE_Z_CORRECT_BASE;
 
             con_correct_vert curve_verts[] = {
+                (cgcu.p0[0] * pxt_A + g_pos.x) , (cgcu.p0[1] * pyt_A + g_pos.y) , cz, j,
+                (cgcu.p1[0] * pxt_A + g_pos.x) , (cgcu.p1[1] * pyt_A + g_pos.y) , cz, j,
+                (cgcu.p2[0] * pxt_A + g_pos.x) , (cgcu.p2[1] * pyt_A + g_pos.y) , cz, j,
+            };
+
+            /*con_correct_vert curve_verts[] = {
                 1.0f, 0.0f, 0.0f, j,
                 1.0f, 1.0f, 0.0f, j,
                 0.0f, 1.0f, 0.0f, j,
-            };
+            };*/
 
             ctx->g.PushVerts(curve_verts, 3, true);
         }
@@ -2800,6 +2832,9 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    //restore depth functio and other stuff
+    glDepthFunc(old_depthFn);
 
     //for debug stuff
     font->msdf_dat.MSDF.__dbg.cc_tex = BindableTexture(cc_fb_tHand, ctx->cc_fb.w, ctx->cc_fb.h);
