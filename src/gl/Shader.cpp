@@ -389,3 +389,73 @@ Shader Shader::LoadShaderFromFile(std::string vert_path, std::string frag_path, 
 
     return s;
 }
+
+void Shader::alloc_qstack() {
+    if (this->Qry_Stack) return;
+    this->Qry_Stack = new _uquery_val[_qstack_sz_delta];
+    ZeroMem(this->Qry_Stack, _qstack_sz_delta);
+    
+    this->qstack_sz = _qstack_sz_delta;
+    this->qs_cur = this->Qry_Stack;
+    this->Qs_end = this->Qry_Stack + _qstack_sz_delta;
+}
+
+void Shader::free_qstack() {
+    if (this->Qry_Stack)
+        delete[] this->Qry_Stack;
+
+    this->Qry_Stack = nullptr;
+    this->qstack_sz = 0;
+}
+
+void Shader::inc_qstack_sz() {
+    if (!this->Qry_Stack)
+        this->alloc_qstack();
+
+    const size_t newSz = this->qstack_sz + _qstack_sz_delta;
+
+    auto *qs_new = new _uquery_val[newSz];
+    ZeroMem(this->Qry_Stack, newSz);
+    in_memcpy(qs_new, this->Qry_Stack, this->qstack_sz * sizeof(_uquery_val));
+    
+    const size_t curOff = (size_t) ((uintptr_t)this->qs_cur - (uintptr_t)this->Qry_Stack);
+
+    this->Qs_end = qs_new + newSz;
+    this->qs_cur = qs_new + curOff;
+
+    delete[] this->Qry_Stack;
+
+    this->Qry_Stack = qs_new;
+    this->qstack_sz = newSz;
+}
+
+void Shader::dec_qstack_sz() {
+    if (!this->Qry_Stack)
+        this->alloc_qstack();
+}
+
+Shader::_uquery_val *Shader::Qry_stack_pop() {
+    if (!this->Qry_Stack)
+        this->alloc_qstack();
+
+    _uquery_val *val = this->qs_cur;
+
+    if (this->qs_cur > this->Qry_Stack)
+        this->qs_cur--;
+
+    return val;
+}
+
+void Shader::Qry_stack_push(Shader::_uquery_val uqv) {
+    if (!this->Qry_Stack)
+        this->alloc_qstack();
+
+    if (++this->qs_cur >= this->Qs_end)
+        this->inc_qstack_sz();
+
+    *this->qs_cur = uqv;
+}
+
+void Shader::Delete() {
+    this->free_qstack();
+}

@@ -18,6 +18,8 @@
 #define MSDF_ACCEL_CC_SHADER_PATH_FRAG "../../src/msdf_precision_correction_frag.glsl"
 #define MSDF_ACCEL_CC_SHADER_PATH_TCS "../../src/msdf_precision_correction_tcs.glsl"
 #define MSDF_ACCEL_CC_SHADER_PATH_TES "../../src/msdf_precision_correction_tes.glsl"
+#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_VERT "../../src/msdf_pc_appl_vert.glsl"
+#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_FRAG "../../src/msdf_pc_appl_frag.glsl"
 
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 constexpr f32 chonk_number = 3.402e38f; //number that is chonk
@@ -32,6 +34,7 @@ constexpr f32 chonk_number = 3.402e38f; //number that is chonk
 
 static Shader msdf_gen_shader;
 static Shader msdf_gen_cc_shader;
+static Shader msdf_gen_cc_composite_shader;
 
 struct msdf_vert {
     f32 pos[3];
@@ -42,6 +45,11 @@ struct msdf_vert {
 struct con_correct_vert {
     f32 pos[3];
     i32 curve_idx;
+};
+
+struct con_correct_composite_vert {
+    f32 pos[3];
+    f32 tex[2];
 };
 
 MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
@@ -56,6 +64,10 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     ctx->cc_desc = {
         .dynamic = true,
         .render_primitive = GL_PATCHES
+    };
+
+    ctx->cc_composite_desc = {
+        .dynamic = true
     };
 
     //load graphics
@@ -76,6 +88,15 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     ctx->g.DefineIntegerVertexPart(1, vertexClassPart(con_correct_vert, curve_idx));
     ctx->g.VertexDefineEnd();
 
+    //load cc composite graphics
+    ctx->cc_composite_rstate = ctx->g.CreateNewRenderState(ctx->cc_composite_desc);
+    ctx->g.SetRenderState(ctx->cc_composite_rstate);
+
+    ctx->g.VertexDefineBegin(sizeof(con_correct_composite_vert));
+    ctx->g.DefineVertexPart(0, vertexClassPart(con_correct_composite_vert, pos));
+    ctx->g.DefineVertexPart(1, vertexClassPart(con_correct_composite_vert, tex));
+    ctx->g.VertexDefineEnd();
+
     ctx->g.RestoreDefaultRenderState(); //restore the default state
 
     //set output device
@@ -88,8 +109,14 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
         .data_color_fmt = GL_RGBA
     };
 
+    FrameBufferExtInf cc_composite_inf = {
+        .color_fmt = GL_RGBA8,
+        .data_color_fmt = GL_RGBA
+    };
+
     ctx->fb = FrameBuffer(FrameBuffer::Texture, w, h, inf);
     ctx->cc_fb = FrameBuffer(FrameBuffer::Texture, w, h, cc_inf); //contour correction buffer
+    ctx->cc_composite_fb = FrameBuffer(FrameBuffer::Texture, w, h, cc_composite_inf);
 
     std::cout << "Creating context: " << w << " " << h << std::endl;
 
@@ -2547,6 +2574,9 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     if (!msdf_gen_cc_shader.good())
         msdf_gen_cc_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_CC_SHADER_PATH_VERT, MSDF_ACCEL_CC_SHADER_PATH_FRAG, MSDF_ACCEL_CC_SHADER_PATH_TCS, MSDF_ACCEL_CC_SHADER_PATH_TES);
 
+    if (!msdf_gen_cc_composite_shader.good())
+        msdf_gen_cc_composite_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_VERT, MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_FRAG);
+
     //set shaders and tesselation params
     ctx->g.SetShader(&msdf_gen_shader);
 
@@ -2748,10 +2778,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     std::cout << oDim.x << " ||||||||||||||| " << oDim.y << std::endl;
 
     msdf_gen_cc_shader.SetInt("curve_detail", bcc_detail);
-    msdf_gen_cc_shader.SetVec2("output_dim", &oDim);
-
-    const u32 cc_fb_tHand = ctx->cc_fb.getTextureHandle();
-
 
     std::cout << "Warning delete the two lines below since theyre only for debug!!!" << std::endl;
     //glActiveTexture(GL_TEXTURE1);
@@ -2814,12 +2840,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
                 (cgcu.p2[0] * pxt_A + g_pos.x) , (cgcu.p2[1] * pyt_A + g_pos.y) , cz, j,
             };
 
-            /*con_correct_vert curve_verts[] = {
-                1.0f, 0.0f, 0.0f, j,
-                1.0f, 1.0f, 0.0f, j,
-                0.0f, 1.0f, 0.0f, j,
-            };*/
-
             ctx->g.PushVerts(curve_verts, 3, true);
         }
 
@@ -2828,16 +2848,32 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
     ctx->g.RenderFlush();
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     //restore depth functio and other stuff
     glDepthFunc(old_depthFn);
 
+    //composite render
+    ctx->g.SetRenderState(ctx->cc_composite_rstate);
+    ctx->g.RenderBegin();
+
+    const con_correct_composite_vert cc_composite_verts[] = RECT_VERTS_EX(
+        -1.0f, -1.0f, 2.0f, 2.0f, 
+        0.0f COMMA 0.0f, 1.0f COMMA 0.0f, 1.0f COMMA 1.0f, 0.0f COMMA 1.0f
+    );
+
+    ctx->g.SetShader(&msdf_gen_cc_composite_shader);
+    ctx->g.RenderBegin();
+    ctx->g.PushVerts((void *) cc_composite_verts, 6, true);
+    ctx->g.RenderFlush();
+
+    const u32 cc_composite_fb_tHand = ctx->cc_composite_fb.getTextureHandle();
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, cc_composite_fb_tHand);
+
     //for debug stuff
-    font->msdf_dat.MSDF.__dbg.cc_tex = BindableTexture(cc_fb_tHand, ctx->cc_fb.w, ctx->cc_fb.h);
+    font->msdf_dat.MSDF.__dbg.cc_tex = BindableTexture(cc_composite_fb_tHand, ctx->cc_composite_fb.w, ctx->cc_composite_fb.h);
 
     _safe_free_a(g_ctx_store);
     return 0;
