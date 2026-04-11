@@ -26,6 +26,7 @@ target_include_directories(carbon PUBLIC
    ${PROJECT_SOURCE_DIR}/gl_lib/glfw/include 
    ${PROJECT_SOURCE_DIR}/gl_lib/glad/include/glad
    ${PROJECT_SOURCE_DIR}/gl_lib/glad/include/KHR
+   ${PROJECT_SOURCE_DIR}/nvda/nsight090/include
 )
 
 if (WIN32) #Windows

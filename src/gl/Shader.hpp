@@ -56,24 +56,32 @@ private:
 		_F //floating point
 	};
 
+#define NUQUERY_DAT_BYTES 256
+
+	bool uni_save = false;
+
 	struct _uquery_val {
 		i32 loc = -1;
 		_univ_super_ty sty = _univ_super_ty::unknown;
 		_univ_ty ty;
-		byte DAT[64] = {0};
+		byte DAT[NUQUERY_DAT_BYTES] = {0};
 	};
 
 	//todo: implement this for persistant uniforms
 	_uquery_val *Qry_Stack = nullptr, *Qs_end = nullptr, * qs_cur = nullptr;
 	size_t qstack_sz = 0;
 
-	const size_t _qstack_sz_delta = 0xff; //how much query stack is changed by
+	size_t _qstack_sz_delta = 0xff; //how much query stack is changed by
 
 	void alloc_qstack();
 	void free_qstack();
+	void clr_qstack();
 	void inc_qstack_sz();
-	void dec_qstack_sz();
 
 	_uquery_val *Qry_stack_pop();
 	void Qry_stack_push(_uquery_val uqv);
+
+	void usaveRestore();
+
+	friend class graphics;
 };

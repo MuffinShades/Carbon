@@ -641,8 +641,9 @@ void graphics::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
             if (state->_p_inf._desc.use_indicies) {
                 _StoreExtraVerts(verts, n_verts * state->vertex_size);
             } else {
-                this->RenderFlush();
+                this->RenderFlush(false);
                 this->RenderBegin();
+                state->cur_shader->usaveRestore();
             }
         } else {
             std::cout << "Graphics Warning | Extra verticies! Max sure to called RenderFlush or enable auto flush!" << std::endl;
@@ -720,8 +721,9 @@ void graphics::PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_o
 
     if (state->c_ind + n_indicies >= state->_p_inf._desc.max_batch_indicies) {
         if (auto_flush_old) {
-            this->RenderFlush();
+            this->RenderFlush(false);
             this->RenderBegin();
+            state->cur_shader->usaveRestore();
         } else {
             std::cout << "Graphics Warning | Extra indicies! Max sure to called RenderFlush or enable auto flush!" << std::endl;
 
@@ -783,7 +785,7 @@ void graphics::SetIndicies(void *indicies, size_t n_indicies, bool flush_current
     }
 }
 
-void graphics::RenderFlush() {
+void graphics::RenderFlush(bool qstack_clr) {
     if (!render_precheck(this)) return;
 
     size_t nPoints = state->c_vert;
@@ -799,6 +801,9 @@ void graphics::RenderFlush() {
         glDrawElements(state->_p_inf._desc.render_primitive, nPoints, GL_UNSIGNED_INT, 0);
     else
         glDrawArrays(state->_p_inf._desc.render_primitive, 0, nPoints);
+
+    if (qstack_clr)
+        state->cur_shader->clr_qstack();
     
     glBindVertexArray(0);
 

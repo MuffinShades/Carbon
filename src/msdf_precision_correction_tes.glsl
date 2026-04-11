@@ -15,7 +15,7 @@ void main() {
          p1 = gl_in[1].gl_Position.xyz,
          p2 = gl_in[2].gl_Position.xyz;
 
-    o_dim = vec2(134.0, 1000.0);
+    o_dim = vec2(184, 1100);
 
     float i_t = 1.0 - t;
 

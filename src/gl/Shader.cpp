@@ -140,6 +140,28 @@ i32 Shader::SetVec2(std::string label, vec2 *v) {
 
     glUniform2f(loc, v->x, v->y);
 
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(f32);
+
+        if (dat_access_max < 2) {
+            std::cout << "Cannot save vec2! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_F,
+            .ty = _univ_ty::_vec2
+        };
+
+        f32 *i_dat = (f32*) uqv.DAT;
+
+        i_dat[0] = v->x;
+        i_dat[1] = v->y;
+            
+        this->Qry_stack_push(uqv);
+    }
+
     return 0;
 }
 
@@ -152,6 +174,29 @@ i32 Shader::SetVec3(std::string label, vec3 *v) {
     //    return 2;
 
     glUniform3f(loc, v->x, v->y, v->z);
+
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(f32);
+
+        if (dat_access_max < 3) {
+            std::cout << "Cannot save vec3! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_F,
+            .ty = _univ_ty::_vec3
+        };
+
+        f32 *i_dat = (f32*) uqv.DAT;
+
+        i_dat[0] = v->x;
+        i_dat[1] = v->y;
+        i_dat[2] = v->z;
+            
+        this->Qry_stack_push(uqv);
+    }
 
     return 0;
 }
@@ -166,6 +211,30 @@ i32 Shader::SetVec4(std::string label, vec4 *v) {
 
     glUniform4f(loc, v->x, v->y, v->z, v->w);
 
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(f32);
+
+        if (dat_access_max < 4) {
+            std::cout << "Cannot save vec4! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_F,
+            .ty = _univ_ty::_vec4
+        };
+
+        f32 *i_dat = (f32*) uqv.DAT;
+
+        i_dat[0] = v->x;
+        i_dat[1] = v->y;
+        i_dat[2] = v->z;
+        i_dat[3] = v->w;
+            
+        this->Qry_stack_push(uqv);
+    }
+
     return 0;
 }
 
@@ -178,6 +247,27 @@ i32 Shader::SetMat4(std::string label, mat4 *m) {
         //return 2;
 
     glUniformMatrix4fv(loc, 1, GL_FALSE, m->glPtr());
+
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(f32);
+
+        if (dat_access_max < 16) {
+            std::cout << "Cannot save mat4! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_F,
+            .ty = _univ_ty::_mat4
+        };
+
+        f32 *f_dat = (f32*) uqv.DAT;
+
+        in_memcpy(f_dat, m->glPtr(), sizeof(f32) * 16);
+            
+        this->Qry_stack_push(uqv);
+    }
 
     return 0;
 }
@@ -192,6 +282,28 @@ i32 Shader::SetiVec2(std::string label, vec2 *v) {
 
     glUniform2i(loc, (i32) v->x, (i32) v->y);
 
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(i32);
+
+        if (dat_access_max < 2) {
+            std::cout << "Cannot save vec2! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_I,
+            .ty = _univ_ty::_vec2
+        };
+
+        i32 *i_dat = (i32*) uqv.DAT;
+
+        i_dat[0] = v->x;
+        i_dat[1] = v->y;
+            
+        this->Qry_stack_push(uqv);
+    }
+
     return 0;
 }
 
@@ -205,6 +317,29 @@ i32 Shader::SetiVec3(std::string label, vec3 *v) {
 
     glUniform3i(loc, (i32) v->x, (i32) v->y, (i32) v->z);
 
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(i32);
+
+        if (dat_access_max < 3) {
+            std::cout << "Cannot save vec3! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_I,
+            .ty = _univ_ty::_vec3
+        };
+
+        i32 *i_dat = (i32*) uqv.DAT;
+
+        i_dat[0] = v->x;
+        i_dat[1] = v->y;
+        i_dat[2] = v->z;
+            
+        this->Qry_stack_push(uqv);
+    }
+
     return 0;
 }
 
@@ -217,6 +352,30 @@ i32 Shader::SetiVec4(std::string label, vec4 *v) {
     //    return 2;
 
     glUniform4i(loc, (i32) v->x, (i32) v->y, (i32) v->z, (i32) v->w);
+
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(i32);
+
+        if (dat_access_max < 4) {
+            std::cout << "Cannot save vec4! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_I,
+            .ty = _univ_ty::_vec4
+        };
+
+        i32 *i_dat = (i32*) uqv.DAT;
+
+        i_dat[0] = v->x;
+        i_dat[1] = v->y;
+        i_dat[2] = v->z;
+        i_dat[3] = v->w;
+            
+        this->Qry_stack_push(uqv);
+    }
 
     return 0;
 }
@@ -235,6 +394,26 @@ i32 Shader::SetInt(std::string label, i32 val) {
 
     glUniform1i(loc, val);
 
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(i32);
+
+        if (dat_access_max < 1) {
+            std::cout << "Cannot save int! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_I,
+            .ty = _univ_ty::_num
+        };
+
+        i32 *i_dat = (i32*) uqv.DAT;
+        i_dat[0] = val;
+            
+        this->Qry_stack_push(uqv);
+    }
+
     return 0;
 }
 
@@ -247,6 +426,26 @@ i32 Shader::SetFloat(std::string label, f32 v) {
     //    return 2;
 
     glUniform1f(loc, v);
+
+    if (this->uni_save) {
+        const size_t dat_access_max = NUQUERY_DAT_BYTES / sizeof(f32);
+
+        if (dat_access_max < 1) {
+            std::cout << "Cannot save float! DAT is too small." << std::endl;
+            return 0;
+        }
+
+        _uquery_val uqv = {
+            .loc = loc,
+            .sty = _univ_super_ty::_F,
+            .ty = _univ_ty::_num
+        };
+
+        f32 *f_dat = (f32*) uqv.DAT;
+        f_dat[0] = v;
+            
+        this->Qry_stack_push(uqv);
+    }
 
     return 0;
 }
@@ -429,9 +628,13 @@ void Shader::inc_qstack_sz() {
     this->qstack_sz = newSz;
 }
 
-void Shader::dec_qstack_sz() {
+
+void Shader::clr_qstack() {
     if (!this->Qry_Stack)
-        this->alloc_qstack();
+        return;
+
+    ZeroMem(this->Qry_Stack, this->qstack_sz);
+    this->qs_cur = this->Qry_Stack;
 }
 
 Shader::_uquery_val *Shader::Qry_stack_pop() {
@@ -450,12 +653,131 @@ void Shader::Qry_stack_push(Shader::_uquery_val uqv) {
     if (!this->Qry_Stack)
         this->alloc_qstack();
 
-    if (++this->qs_cur >= this->Qs_end)
-        this->inc_qstack_sz();
+    std::cout << "pushing uniform: " << uqv.loc << std::endl;
 
     *this->qs_cur = uqv;
+
+    if (++this->qs_cur >= this->Qs_end)
+        this->inc_qstack_sz();
 }
 
 void Shader::Delete() {
     this->free_qstack();
+}
+
+void Shader::usaveRestore() {
+    if (!this->Qry_Stack || this->qstack_sz == 0 || !this->uni_save) {
+        return;
+    }
+
+    _uquery_val *uqv = this->Qry_Stack;
+
+    const size_t idat_access_max = NUQUERY_DAT_BYTES / sizeof(i32);
+    const size_t fdat_access_max = NUQUERY_DAT_BYTES / sizeof(f32);
+
+    f32 *f_dat = (f32*) &uqv->DAT;
+    i32 *i_dat = (i32*) &uqv->DAT;
+
+    while (uqv < this->qs_cur) {
+        std::cout << "restoring uniform: " << (i32) uqv->sty << " " << (i32) uqv->ty << std::endl;
+
+        switch (uqv->sty) {
+        case _univ_super_ty::_F:
+            switch (uqv->ty) {
+            case _univ_ty::_num:
+                if (fdat_access_max < 1) {
+                    std::cout << "Cannot restore float uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform1f(uqv->loc, f_dat[0]);
+                break;
+            case _univ_ty::_vec2:
+                if (fdat_access_max < 2) {
+                    std::cout << "Cannot restore vec2 uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform2f(uqv->loc, f_dat[0], f_dat[1]);
+                break;
+            case _univ_ty::_vec3:
+                if (fdat_access_max < 3) {
+                    std::cout << "Cannot restore vec3 uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform3f(uqv->loc, f_dat[0], f_dat[1], f_dat[2]);
+                break;
+            case _univ_ty::_vec4:
+                if (fdat_access_max < 4) {
+                    std::cout << "Cannot restore vec4 uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform4f(uqv->loc, f_dat[0], f_dat[1], f_dat[2], f_dat[3]);
+                break;
+            case _univ_ty::_mat4:
+                if (fdat_access_max < 16) {
+                    std::cout << "Cannot restore mat4 uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniformMatrix4fv(uqv->loc, 1, false, f_dat);
+                break;
+            default:
+                std::cout << "Cannot restore unsupported uniform type: " << (i32) uqv->ty << std::endl;
+                break;
+            }
+            break;
+        case _univ_super_ty::_I:
+            switch (uqv->ty) {
+            case _univ_ty::_num:
+                if (idat_access_max < 1) {
+                    std::cout << "Cannot restore int uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform1i(uqv->loc, i_dat[0]);
+                break;
+            case _univ_ty::_vec2:
+                if (idat_access_max < 2) {
+                    std::cout << "Cannot restore ivec2 uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform2i(uqv->loc, i_dat[0], i_dat[1]);
+                break;
+            case _univ_ty::_vec3:
+                if (idat_access_max < 3) {
+                    std::cout << "Cannot restore ivec3 uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform3i(uqv->loc, i_dat[0], i_dat[1], i_dat[2]);
+                break;
+            case _univ_ty::_vec4:
+                if (idat_access_max < 4) {
+                    std::cout << "Cannot restore ivec4 uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform4i(uqv->loc, i_dat[0], i_dat[1], i_dat[2], i_dat[3]);
+                break;
+            case _univ_ty::_bool:
+                if (idat_access_max < 1) {
+                    std::cout << "Cannot restore bool uniform! DAT is too small!" << std::endl;
+                    break;
+                }
+                glUniform1i(uqv->loc, i_dat[0]);
+                break;
+            default:
+                std::cout << "Cannot restore unsupported integer uniform type: " << (i32) uqv->ty << std::endl;
+                break;
+            }
+            break;
+        default:
+            std::cout << "Invalid base uniform type: " << (i32)uqv->sty << std::endl;
+            break;
+        }
+        uqv++;
+    }
+}
+
+void Shader::EnablePersistantUniforms() {
+    this->uni_save = true;
+}
+
+void Shader::DisablePersistantUniforms() {
+    this->uni_save = false;
 }

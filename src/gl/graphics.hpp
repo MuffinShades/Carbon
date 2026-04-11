@@ -239,7 +239,7 @@ public:
     void SetVerts(void *verts, size_t n_verts, bool flush_current);
     void PushIndicies(void *indicies, size_t n_indicies, bool auto_flush_old);
     void SetIndicies(void *indicies, size_t n_indicies, bool flush_current);
-    void RenderFlush();
+    void RenderFlush(bool qstack_clr = true);
     void ClearOutput();
     void LockState(); //locks rendering and output
     void UnlockState();
