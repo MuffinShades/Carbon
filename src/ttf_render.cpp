@@ -8,7 +8,6 @@
 #include "gl/geometry/rect.hpp"
 #include "gl/Shader.hpp"
 #include <vector>
-#include <NGFX_GPUTrace_OpenGL.h>
 
 #define MSFL_TTFRENDER_DEBUG
 #define COMMA ,
@@ -102,7 +101,7 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
 
     //set output device
     FrameBufferExtInf inf = {
-        .mipmap = true
+        .mipmap = false
     };
 
     FrameBufferExtInf cc_inf = {
@@ -2580,6 +2579,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     if (!msdf_gen_cc_composite_shader.good())
         msdf_gen_cc_composite_shader = Shader::LoadShaderFromFile(MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_VERT, MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_FRAG);
 
+    ctx->g.RestoreDefaultRenderState();
     ctx->g.SetOutputDevice(ctx->fb.device());
 
     //set shaders and tesselation params
@@ -2704,7 +2704,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
         std::cout << "curve range: " << curveMin << "-->" << curveMax << " REGIONS: " << ctx->fb.w << "/" << ctx->fb.h << std::endl;
 
-        region_vec = vec4(0.0f, 0.0f, 1.0f, 1.0f);
+        //region_vec = vec4(0.0f, 0.0f, 1.0f, 1.0f);
 
         //render
         if (g_pos.rotate_90) {
@@ -2773,6 +2773,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
     const u32 o_fb = ctx->fb.getTextureHandle();
 
+    //bind the default texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, o_fb);
 
@@ -2831,12 +2832,16 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
         //region_vec = vec4((g_pos.x * space_cc_normal_x) * 2.0f - 1.0f, (g_pos.y * space_cc_normal_y) * 2.0f - 1.0f, (g_pos.w * space_cc_normal_x) * 2.0f, (g_pos.h * space_cc_normal_y) * 2.0f);
 
-        const f32 pxt_A =  (1.0f / (tg.xMax - tg.xMin)) * g_pos.w,
+        const f32 gfw = tg.xMax - tg.xMin, gfh = tg.yMax - tg.yMin;
+
+        const f32 pxt_A =  (1.0f / (gfw + padding_scl * 2.0f * gfw)) * g_pos.w,
                   pxt_B = space_cc_normal_x * 2.0f,
-                  pyt_A = (1.0f / (tg.yMax - tg.yMin)) * g_pos.h,
+                  pyt_A = (1.0f / (gfh + padding_scl * 2.0f * gfh)) * g_pos.h,
                   pyt_B = space_cc_normal_y * 2.0f;
 
         std::cout << "drawing: " << g_ctx.nCurves << "curves" << std::endl;
+
+        const f32 dpx = padding_scl * gfw, dpy = gfh;
 
         for (j = 0; j < g_ctx.nCurves; j++) {
             cgcu = gcuBuf[j];
@@ -2846,9 +2851,9 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
             const f32 cz = j * CURVE_Z_CORRECT_PREC + CURVE_Z_CORRECT_BASE;
 
             con_correct_vert curve_verts[] = {
-                (cgcu.p0[0] * pxt_A + g_pos.x) , (cgcu.p0[1] * pyt_A + g_pos.y) , cz, j,
-                (cgcu.p1[0] * pxt_A + g_pos.x) , (cgcu.p1[1] * pyt_A + g_pos.y) , cz, j,
-                (cgcu.p2[0] * pxt_A + g_pos.x) , (cgcu.p2[1] * pyt_A + g_pos.y) , cz, j,
+                ((cgcu.p0[0] + dpx) * pxt_A + g_pos.x) , ((cgcu.p0[1] + dpy) * pyt_A + g_pos.y) , cz, j,
+                ((cgcu.p1[0] + dpx) * pxt_A + g_pos.x) , ((cgcu.p1[1] + dpy) * pyt_A + g_pos.y) , cz, j,
+                ((cgcu.p2[0] + dpx) * pxt_A + g_pos.x) , ((cgcu.p2[1] + dpy) * pyt_A + g_pos.y) , cz, j,
             };
 
             ctx->g.PushVerts(curve_verts, 3, true);
@@ -2861,6 +2866,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
     const u32 cc_fb_tHand = ctx->cc_fb.getTextureHandle();
 
+    //set the ref texture
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
 
@@ -2868,6 +2874,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
     //restore depth functio and other stuff
     glDepthFunc(old_depthFn);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
 
     //composite render
     ctx->g.SetRenderState(ctx->cc_composite_rstate);
@@ -2876,13 +2884,27 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
     const con_correct_composite_vert cc_composite_verts[] = RECT_VERTS_EX(
         -1.0f, -1.0f, 2.0f, 2.0f, 
-        0.0f COMMA 0.0f, 1.0f COMMA 0.0f, 1.0f COMMA 1.0f, 0.0f COMMA 1.0f
+        0.0f COMMA 0.0f COMMA 0.0f, 0.0f COMMA 1.0f COMMA 0.0f, 0.0f COMMA 1.0f COMMA 1.0f, 0.0f COMMA 0.0f COMMA 1.0f
     );
 
-    ctx->g.SetShader(&msdf_gen_cc_composite_shader);
     ctx->g.RenderBegin();
+    ctx->g.SetShader(&msdf_gen_cc_composite_shader);
+
+    msdf_gen_cc_composite_shader.SetInt("base_msdf", 0);
+    msdf_gen_cc_composite_shader.SetInt("correction_map", 1);
+
     ctx->g.PushVerts((void *) cc_composite_verts, 6, true);
     ctx->g.RenderFlush();
+
+
+    /*
+    TODODODODO
+
+    adjust the correction sheet to account for aditional transformations done on the glyphs such as inter and intra padding
+
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    */
 
     const u32 cc_composite_fb_tHand = ctx->cc_composite_fb.getTextureHandle();
 
@@ -2890,7 +2912,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     glBindTexture(GL_TEXTURE_2D, cc_composite_fb_tHand);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    
 
     //for debug stuff
     font->msdf_dat.MSDF.__dbg.cc_tex = BindableTexture(cc_composite_fb_tHand, ctx->cc_composite_fb.w, ctx->cc_composite_fb.h);

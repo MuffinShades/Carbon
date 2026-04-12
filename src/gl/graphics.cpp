@@ -54,6 +54,7 @@ void FrameBuffer::texAttach(u32 w, u32 h, FrameBufferExtInf ex_inf) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     else
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -561,6 +562,7 @@ void graphics::SetShader(Shader *shader) {
     }
 
     state->cur_shader = shader;
+    shader->use();
 }
 
 Shader* graphics::GetCurrentShader() {

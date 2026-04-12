@@ -17,8 +17,12 @@ out vec4 FragColor;
 void main() {
     vec4 co = texture(correction_map, tex_pos);
     
-    if (co.w > 1.0)
+    if (co.w > 1.0) {
         FragColor = vec4(1.0, 1.0, 1.0, length(co.xy) * 0.707106781);
-    else
-        FragColor = texture(base_msdf, tex_pos);
+    } else {
+       FragColor = texture(correction_map, tex_pos);
+    }
+
+    FragColor = mix(texture(base_msdf, tex_pos), texture(correction_map, tex_pos), 0.5);
+    FragColor.w = 1.0;
 }

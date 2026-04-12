@@ -20,6 +20,6 @@ void main() {
     float i_t = 1.0 - t;
 
     posf = vec4((i_t * i_t) * p0 + (2.0 * i_t * t) * p1 + (t * t) * p2, 1.0);
-    vec4 fposf = vec4(round(posf.x), round(posf.y), posf.zw);
+    vec4 fposf = posf;
     gl_Position = fposf * vec4(2.0 / o_dim.x, 2.0 / o_dim.y, 1.0, 1.0) - vec4(1.0, 1.0, 0.0, 0.0);
 }
