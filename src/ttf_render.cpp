@@ -2841,7 +2841,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
         std::cout << "drawing: " << g_ctx.nCurves << "curves" << std::endl;
 
-        const f32 dpx = padding_scl * gfw, dpy = gfh;
+        const f32 dpx = padding_scl * gfw, dpy = gfh * padding_scl;
 
         for (j = 0; j < g_ctx.nCurves; j++) {
             cgcu = gcuBuf[j];
@@ -3960,3 +3960,41 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     this->RenderFlush();
 }
 
+#include "json.hpp"
+
+FontInst ttfRender::GenerateFontFromForeign(std::string img_src, std::string json_layout_src) {
+    FontInst fnt;
+
+    if (img_src.length() == 0 || json_layout_src.length() == 0) {
+        std::cout << "Failed to generate font from foreign data: invalid srcs!" << std::endl;
+        return fnt;
+    }
+
+    png_image msdf_img = PngParse::Decode(ContentSrc::FromFile(img_src));
+
+    if (!msdf_img.data || msdf_img.sz == 0) {
+        std::cout << "Failed to generate font from foreign data: invalid, blank, or corrupt image!" << std::endl;
+        return fnt;
+    }
+
+    //TODO: store the image in the font's msdf
+
+    //parse the locations / json
+    text_file jf = FileWrite::readFromText(json_layout_src);
+
+    if (!jf.dat || jf.len == 0) {
+        std::cout << "Failed to generate font from foreign data: invalid json map!" << std::endl;
+        return fnt;
+    }
+
+    JStruct fmap = jparse::parseStr(jf.dat);
+
+    //TODO: parse the map
+
+    //memory stuff
+    _safe_free_a(msdf_img.data);
+    _safe_free_a(jf.dat);
+    jf.len = 0;
+
+    return fnt;
+}

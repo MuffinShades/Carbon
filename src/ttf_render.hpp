@@ -225,6 +225,7 @@ public:
     MSFL_EXP static i32 RenderSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
     MSFL_EXP static i32 RenderMSDFToBitmap(Bitmap* sdf, Bitmap* bmp, sdf_dim res_size);
     MSFL_EXP static FontInst GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size, bool accel = false);
+    MSFL_EXP static FontInst GenerateFontFromForeign(std::string img_src, std::string json_layout_src);
 
     MSFL_EXP static void _msdfRenderDebug(Glyph g, MsdfGpuContext** ctx);
     MSFL_EXP static void _msdfRenderDebug2(Glyph g, MsdfGpuContext** ctx);

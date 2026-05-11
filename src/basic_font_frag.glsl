@@ -19,23 +19,14 @@ float median(float a, float b, float c) {
 }
 
 void main() {
-    /*ivec2 texDim = textureSize(msdf_texture, 0);
-    
-    int x, y;
-
-    for (x = -1; x <= 1; x++) {
-        for (y = -1; y <= 1; y++) {
-            FragColor = FragColor + texture(msdf_texture, vec2(texp.x + x * 1.2 * (1.0 / texDim.x), texp.y + y * 1.7 * (1.0 / texDim.y)));
-        }
-    }*/
-
-    FragColor = texture(msdf_texture, texp);
-
-    //FragColor = mix(vec4(0.0,0.0,0.0,0.0), vec4(1.0, 1.0, 1.0, 1.0), FragColor.w);
-
-    float sigDist = median( FragColor.x, FragColor.y, FragColor.z);
-    float wo = fwidth( sigDist );
-    float opacity = smoothstep( 0.5 - wo, 0.5 + wo, sigDist);
-
-    FragColor = mix(vec4(0.0,0.0,0.0,0.0), vec4(1.0, 1.0, 1.0, 1.0), opacity);
+    vec4 tex_color = vec4(1.0, 1.0, 1.0, 1.0);
+    vec3 smp = texture(msdf_texture, texp).rgb;
+    ivec2 sz = textureSize(msdf_texture, 0).xy;
+    float dx = dFdx(posf.x) * sz.x; 
+    float dy = dFdy(posf.y) * sz.y;
+    float toPixels = 8.0 * inversesqrt(dx * dx + dy * dy);
+    float sigDist = median(smp.r, smp.g, smp.b);
+    float w = fwidth(sigDist);
+    float opacity = smoothstep(0.5 - w, 0.5 + w, sigDist);
+    FragColor = vec4(smp.rgb, 1.0);
 }

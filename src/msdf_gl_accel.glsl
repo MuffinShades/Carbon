@@ -334,6 +334,12 @@ float median(float a, float b, float c) {
     return max(min(a, b), min(max(a, b), c));
 }
 
+float distBlend(float d) {
+    float blend_amount = 100.0;
+
+    return clamp((d / blend_amount) + 0.5, 0.0, 1.0);
+}
+
 
 /*
 
@@ -431,8 +437,6 @@ void main() {
     dg = ConvertToPseudoDist(dg, glyph_curves[cg], p);
     db = ConvertToPseudoDist(db, glyph_curves[cb], p);
 
-    float blend_amount = 30.0;
-
     //FragColor = vec4(dr.d > 0 ? 1 : 0, dg.d > 0 ? 1 : 0, db.d > 0 ? 1 : 0, 0);
 
     /*if (FragColor.x + FragColor.y + FragColor.z >= 2)
@@ -448,13 +452,13 @@ void main() {
     //FragColor = vec4(p.x / 1000,p.y / 1000,0,1);
 
     FragColor = vec4(
-        clamp(dr.d > 0 ? (dr.d / blend_amount) + 0.5 : 0.5 - (-dr.d / blend_amount), 0.0, 1.0),
-        clamp(dg.d > 0 ? (dg.d / blend_amount) + 0.5 : 0.5 - (-dg.d / blend_amount), 0.0, 1.0),
-        clamp(db.d > 0 ? (db.d / blend_amount) + 0.5 : 0.5 - (-db.d / blend_amount), 0.0, 1.0),
+        distBlend(dr.d),
+        distBlend(dg.d),
+        distBlend(db.d),
         1.0
     );
 
-    FragColor.w = median( dr.d > 0.0 ? 1.0 : 0.0, dg.d > 0.0 ? 1.0 : 0.0, db.d > 0.0 ? 1.0 : 0.0) >= 1.0 ? 1.0 : 0.0;
+    //FragColor.w = median( dr.d > 0.0 ? 1.0 : 0.0, dg.d > 0.0 ? 1.0 : 0.0, db.d > 0.0 ? 1.0 : 0.0) >= 1.0 ? 1.0 : 0.0;
 
 
     //float sigDist = median( FragColor.x, FragColor.y, FragColor.z);

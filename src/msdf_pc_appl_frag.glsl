@@ -16,13 +16,22 @@ out vec4 FragColor;
 
 void main() {
     vec4 co = texture(correction_map, tex_pos);
+    vec4 base = texture(base_msdf, tex_pos);
+
+    float mx = max(max(co.x, co.y), co.z);
+
+    int nc = (abs(co.x - mx) < 0.001 ? 1 : 0) + (abs(co.y - mx) < 0.001 ? 1 : 0) + (abs(co.z - mx) < 0.001 ? 1 : 0);
     
-    if (co.w > 1.0) {
+    if (co.w > 1.0 && nc < 2) {
         FragColor = vec4(1.0, 1.0, 1.0, length(co.xy) * 0.707106781);
     } else {
-       FragColor = texture(correction_map, tex_pos);
+       FragColor = base;
     }
 
-    FragColor = mix(texture(base_msdf, tex_pos), texture(correction_map, tex_pos), 0.5);
-    FragColor.w = 1.0;
+    FragColor = base;
+
+    //float q = texture(correction_map, tex_pos).w > 0.0 ? 1.0 : 0.0;
+
+    //FragColor = mix(texture(base_msdf, tex_pos), vec4(q,q,q, 1.0), 0.5);
+    //FragColor.w = 1.0;
 }
