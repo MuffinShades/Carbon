@@ -45,6 +45,10 @@ void UIWin::destroyWin(UIWin **win) {
     *win = nullptr;
 }
 
+void UIWin::addChild(UIObject obj) {
+    this->children.push_back(obj);
+}
+
 /*void UIWin::render(graphics *g, mat4 mmat) {
     if (!g) return;
 

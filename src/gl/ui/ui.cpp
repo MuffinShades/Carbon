@@ -118,3 +118,13 @@ void UIObject::close() {
 }
 
 void UIObject::update() {}
+
+//////////////Layout Stuff/////////////////   
+
+void UILayout::addObj(UIObject obj) {
+
+}
+
+void UILayout::recomputeLayout() {
+
+}

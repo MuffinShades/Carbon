@@ -59,6 +59,12 @@ struct UIEvent {
     } keyboardData;
 };
 
+enum class UIPlace {
+    left,
+    center,
+    right
+};
+
 /**
  * 
  * UIStock
@@ -95,6 +101,10 @@ protected:
 
     static RenderState *def_object_rs;
     static Shader ui_simple_shader;
+
+    //
+    UIDimension idealDim;
+    UIPlace posXRel = UIPlace::left, posYRel = UIPlace::left; //where to position x,y relative to on the element
 public:
     void ini();
     static void load();
@@ -112,7 +122,17 @@ public:
     void unfocus();
     mat4 getMatrix();
 
+    UIObject(){};
+
     friend class UIInst *createUIInst(Window *win);
+};
+
+class UILayout : public UIObject {
+private:
+    std::vector<UIObject> children;
+public:
+    void addObj(UIObject obj);
+    void recomputeLayout();
 };
 
 struct SimpleUIVert {
