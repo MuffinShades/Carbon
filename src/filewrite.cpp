@@ -46,7 +46,7 @@ file FileWrite::readFromBin(std::string src) {
 	};
 }
 
-static text_file readFromText(std::string src) {
+text_file FileWrite::readFromText(std::string src) {
 if (src.length() <= 0) return {};
 
 	std::ifstream is(src, std::ios::in | std::ios::binary);
@@ -73,7 +73,7 @@ if (src.length() <= 0) return {};
 	};
 }
 
-static bool writeToText(std::string src, char* text, i64 len) {
+bool FileWrite::writeToText(std::string src, char* text, i64 len) {
 	//well you again screwed up step one bruh
 	if (src.length() <= 0 || !text) return false;
 

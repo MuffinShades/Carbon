@@ -117,6 +117,8 @@ bool Window::Update() {
 }
 
 bool Window::winIni() {
+    gladLoadGL();
+
     if (!glfwInit()) {
         std::cout << "Failed to load glfw!" << std::endl;
         return false;

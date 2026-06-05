@@ -1,5 +1,7 @@
+#pragma once
 #include <iostream>
 #include "../graphics.hpp"
+#include "../window.hpp"
 
 class USpec {
 public:
@@ -17,12 +19,44 @@ public:
 #define UI_VAL_PERCENT(v) USpec(v, USpec::Mode::percent)
 #define UI_VAL_SCALAR(v) USpec(v, USpec::Mode::scalar)
 
+#define UI_SIMPLE_SHADER_VERT_PATH "../../src/gl/ui/uiShaders/uiSimple_vert.glsl"
+#define UI_SIMPLE_SHADER_FRAG_PATH "../../src/gl/ui/uiShaders/uiSimple_frag.glsl"
+
 struct UIDimension {
     USpec x, y, w, h;
 };
 
 struct UIScalarDimension {
     f32 x, y, w, h;
+};
+
+struct UIColor {
+    f32 r,g,b,a;
+    enum {
+        RGB255,
+        RGBA255,
+        RGB1,
+        RGBA1
+    } color_mode = RGBA255;
+};
+
+struct UIEvent {
+    enum {
+        MouseDown,
+        MouseUp,
+        MouseMove,
+        KeyUp,
+        KeyDown
+    };
+
+    struct {
+        i32 btn;
+        i32 x,y;
+    } mouseData;
+
+    struct {
+        i32 key;
+    } keyboardData;
 };
 
 /**
@@ -43,107 +77,45 @@ public:
     }
 };
 
-/**
- * 
- * Top Leve ui element that is directly connected to the window
- * 
- * This class contqins many important things such as the general
- * projection matrix for all the ui elements of a window and much
- * more
- * 
- */
-class UIWin {
-private:
-    static mat4 ui_proj;
-};
+//max number of unique z orders that a float from 0.0f-1.0f can represent
+constexpr i32 MAX_UNIQUE_ZS = 1e6;
 
-/**
- * 
- * UIContainer
- * 
- * base class of ui elements that are types of containers
- * such as group boxes, general containers, windows, and
- * other types of containers
- * 
- */
-class UIContainer {
-public:
-    enum class OverflowMode {
-        None,
-        Hide,
-        Scroll,
-        Adjust
-    };
+class UIObject {
 private:
-    UIDimension bounds;
-    OverflowMode o_mode = OverflowMode::None;
-    //std::vector<UIElement> elems;
-public:
-    void render(graphics *g);
-};
-
-/**
- * 
- * UIElement
- * 
- * Base class for all non-container ui elements such as
- * colorpicker, text/number input, text display, checkboxes
- * etc.
- * 
- */
-class UIElement {
-private:
-    bool computedGraphics = false;
+    static i32 next_ui_age;
+    static i32 getNextAge();
 protected:
-    UIDimension size; 
-    UIScalarDimension bounds;
-    f32 zIndex = 0;
-    RenderState gs;
-    mat4 u_model;
+    struct {
+        UIColor dbgBgColor;
+    } _DBG;
+    i32 age = -1;
+    f32 zorder = 0.0f; //
+    vec4 bounds = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    bool focused = false;
 
-    virtual void dimUpdate(UIScalarDimension parentBounds) {};
-    virtual void graphicsPreCompute(graphics *g);
+    static RenderState *def_object_rs;
+    static Shader ui_simple_shader;
 public:
-    virtual void render(graphics *g);
-    virtual void re_render() {};
+    void ini();
+    static void load();
+    static void close();
 
-    struct MouseState {
+    virtual void render(graphics *g, mat4 mmat, vec2 outputDim);
+    virtual void update();
+    virtual void onFocus();
+    virtual void offFocus();
+    virtual void preCompute();
+    virtual void onEvent(UIEvent ev);
+    virtual void resize(UIScalarDimension new_bounds);
 
-        //button that was pressed
-        enum class MButton {
-            Unknown,
-            Left,
-            Middle,
-            Right
-        } mb = MButton::Unknown;
+    void focus();
+    void unfocus();
+    mat4 getMatrix();
 
-        //emp -> element mouse pos
-        //smp -> screen mouse pos
-        Point emp;
-        Point smp;
+    friend class UIInst *createUIInst(Window *win);
+};
 
-        //
-        enum class MEventType {
-            Unknown,
-            Click,
-            Down,
-            Up,
-            Scroll
-        } e_ty = MEventType::Unknown;
-    };
-
-    //mouse related events
-    virtual void mouseDown(MouseState s) {};
-    virtual void mouseUp(MouseState s) {};
-    virtual void mouseHover(MouseState s) {};
-    virtual void mouseClick(MouseState s) {};
-    virtual void mouseScroll(MouseState s) {};
-
-    //keyboard related events
-    virtual void keyDown() {};
-    virtual void keyUp() {};
-
-    //other events
-    virtual void onFocus() {};
-    virtual void offFocus() {};
+struct SimpleUIVert {
+    f32 posf[3];
+    f32 color[3];
 };

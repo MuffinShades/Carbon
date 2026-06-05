@@ -6,9 +6,8 @@ Shader *_ColorPicker_Stock::getShader() {
     return stock.getShader();
 }
 
-void ColorPicker::graphicsPreCompute(graphics *g) {
-    if (!g) 
-        return;
+void ColorPicker::preCompute() {
+    
 
     //this->gs.s = _ColorPicker_Stock::getShader();
 
@@ -22,16 +21,16 @@ void ColorPicker::graphicsPreCompute(graphics *g) {
     //g->vertexStructureDefineEnd();
 
     //s/v die
-    ColorPick_Vertex vtx[] = RECT_VERTS_EX(
-        0, 0, this->bounds.w, this->bounds.h, 
-        (1,1,1), (1,0,0), (0,0,0), (0,0,0)
-    );
+    /*ColorPick_Vertex vtx[] = RECT_VERTS_EX(
+        0, 0, bounds.w, bounds.h, 
+        1 COMMA 1 COMMA 1, 1 COMMA 0 COMMA 0, 0 COMMA 0 COMMA 0, 0 COMMA 0 COMMA 0
+    );*/
 
 
    //g->useDefaultGraphicsState();
 }
 
-void ColorPicker::render(graphics *g) {
+void ColorPicker::render(graphics *g, mat4 mmat, vec2 outputDim) {
     if (!g)
         return;
 

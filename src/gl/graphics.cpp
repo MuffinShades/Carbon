@@ -355,13 +355,13 @@ void graphics::_StoreExtraIndicies(void *i_buf, size_t sz) {
 }
 
 RenderState *graphics::CreateBlankRenderState() {
-    RenderState *rs = new RenderState;
+    RenderState *rs = new RenderState();
     ZeroMem(rs, 1);
     return rs; //most underwelming function ever
 }
 
 RenderState *graphics::CreateNewRenderState(RenderStateDescriptor desc) {
-    RenderState *rs = new RenderState;
+    RenderState *rs = new RenderState();
     ZeroMem(rs, 1);
     rs->_p_inf._desc = desc;
     return rs;
@@ -526,6 +526,19 @@ void graphics::VertexDefineEnd() {
     state->_p_inf._vert_def = true;
 }
 
+void delOverflowBuff(_OverflowBufferCell *cell) {
+    if (!cell) return;
+
+    auto ccell = cell;
+
+    while (ccell) {
+        auto nxt = ccell->next;
+        _safe_free_a(ccell->dat);
+        _safe_free_b(ccell);
+        ccell = nxt;
+    }
+}
+
 void graphics::DeleteRenderState(RenderState *state) {
     if (!state)
         return;
@@ -536,12 +549,13 @@ void graphics::DeleteRenderState(RenderState *state) {
     if (state->vao) glDeleteVertexArrays(1, &state->vao);
     if (state->vbo) glDeleteBuffers(1, &state->vbo);
     if (state->ibo) glDeleteBuffers(1, &state->ibo);
+    if (state->idc_overflow) delOverflowBuff(state->idc_overflow);
+    if (state->vtx_overflow) delOverflowBuff(state->vtx_overflow);
 
-    ZeroMem(state, sizeof(RenderState));
-
+    ZeroMem(state, 1);
 
     //ensure that if this state is bound it will properly trigger an error somewhere :)
-    _safe_free_a(state);
+    _safe_free_b(state);
 }
 
 //render functions
@@ -977,4 +991,18 @@ void graphics::Resize(u32 w, u32 h) {
 
 void graphics::SetTesselationVertNum(size_t n_tes) {
     glPatchParameteri(GL_PATCH_VERTICES, n_tes);
+}
+
+bool graphics::IsGoodRenderState(RenderState *state) {
+    if (
+        !state ||
+        !state->_p_inf._ini || 
+        state->_p_inf._null
+    )
+        return false;
+        
+    //note: i'm not turning this into a simple return !(junk in the if statment) since I may add other
+    //checks that actually compute things and checks various values later
+
+    return true;
 }

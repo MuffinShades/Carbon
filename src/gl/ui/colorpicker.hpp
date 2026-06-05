@@ -16,11 +16,11 @@ public:
     
 };
 
-class ColorPicker : UIElement {
+class ColorPicker : public UIObject {
 private:
     static _UIStock c_stock;
     ColorPick_Vertex sv_rect[4];
 public:
-    void render(graphics *g) override;
-    void graphicsPreCompute(graphics *g) override;
+    void render(graphics *g, mat4 mmat, vec2 outputDim) override;
+    void preCompute() override;
 };

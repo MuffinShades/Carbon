@@ -10,7 +10,6 @@
 #include <vector>
 
 #define MSFL_TTFRENDER_DEBUG
-#define COMMA ,
 
 #define MSDF_ACCEL_SHADER_PATH_VERT "../../src/msdf_gl_accel_vert.glsl"
 #define MSDF_ACCEL_SHADER_PATH_FRAG "../../src/msdf_gl_accel.glsl"

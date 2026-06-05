@@ -222,6 +222,7 @@ public:
     RenderState *GetCurrentRenderState();
     void RestoreLastRenderState();
     void RestoreDefaultRenderState();
+    static bool IsGoodRenderState(RenderState *state);
 
     void VertexDefineBegin(size_t v_obj_sz);
     void DefineVertexPart(i32 part_index, __mu_glVInf inf);

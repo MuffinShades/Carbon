@@ -1,0 +1,298 @@
+#include <iostream>
+#include "msutil.hpp"
+#include "game/game_main.hpp"
+#include "png.hpp"
+#include "bitmap.hpp"
+#include "ttf.hpp"
+#include "ttf_render.hpp"
+#include "polynom.hpp"
+#include "logger.hpp"
+#include "gl/window.hpp"
+#include "gl/geometry/rect.hpp"
+#include <crtdbg.h>
+#include <NGFX_GPUTrace_OpenGL.h>
+
+/*void* operator new(size_t sz) {
+    
+    if (sz > 32767)
+        std::cout << "allocating: " << sz << "bytes" << std::endl;
+
+    return malloc(sz);
+}
+
+void operator delete(void* mem, size_t sz) {
+
+
+
+    free(mem);
+}*/
+
+/*
+
+TODOS (februrary 2026): 
+
+- dynamic font instances
+- string rendering
+- bug fixes / testing and cleanup on msdf gen
+- optimize cpu preprocessing for glyphs --> not super important but still do this
+- add the additional glyph preprocessing like winding detection and other things like that; edge pruning
+- fix bugs in .ttf parser, bytestream / bitstream, and bitmap
+- fix the rounding errors leading to jagged edges in the msdf
+- clean up the graphics state and overall graphics system
+    add the option to use indicies and just generally clean up the system to work with 2d and 3d
+    add option to create projection matricies and stuff but allow it to be disabled
+    also have a dyanmic rederer and static rederer option
+    and add helper functions for ssbos instead of hacking ts in like in msdf_render_accel
+- complete all the other msdf functions
+
+Zlib Optimize
+- allocate all the hash map components in a block of memory around cache size and attempt to use __builtin_prefetch to load the data into the cache
+  this way time isnt wasted trying to read from far away lands
+
+
+
+Immediate TODOS:
+
+charmap in the msdf render part thing
+
+*/
+
+#define MSDF_ACCEL_CC_SHADER_PATH_VERT "../../src/msdf_precision_correction_vert.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_FRAG "../../src/msdf_precision_correction_frag.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TCS "../../src/msdf_precision_correction_tcs.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TES "../../src/msdf_precision_correction_tes.glsl"
+
+
+inline f32 __cube_root_32(f32 v) {
+    const f32 m = -(2.0f * (i32) (v < 0) - 1.0f);
+    return m * powf(m * v, 1.0f/3.0f);
+}
+
+#include <chrono>
+
+FrameBuffer fb;
+
+i32 main() {
+    //if (game_main())
+    //    std::cout << "failed to execute game!" << std::endl;
+
+    /*png_image p = PngParse::Decode(ContentSrc::FromFile("C:\\Users\\chris\\OneDrive\\Desktop\\minecraftskin - Copy.png"));
+    Bitmap bmp = Bitmap::CreateBitmap(p.inf.width, p.inf.height);
+    bmp.data = p.data;
+    
+    BitmapParse::WriteToFile("C:\\Users\\chris\\OneDrive\\Desktop\\png_test_decode.bmp", &bmp);
+    
+    delete[] p.data;*/
+
+    //TODO: % top left contour has wrong ordering / winding!!!
+    //TODO: times new roman capital theta (0x398) has incorrect contour winding
+    //TODO: error correction
+    //TODO: fix the bitmap rendering
+    //TODO: processing too many edges (0x6dd)
+    /*Glyph g = ttfParse::ReadTTFGlyph("../../test/arial.ttf", 'Q');
+    Bitmap sdf, g_bmp, outline_bmp;
+    //ttfRender::RenderGlyphOutlineToBitmap(g, &outline_bmp, sdf_width_dim(64));
+    //ttfRender::RenderGlyphMSDFToBitMap(g, &sdf, sdf_width_dim(128));
+    //ttfRender::RenderMSDFToBitmap(&sdf, &g_bmp, sdf_width_dim(256));
+
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
+
+    auto t1 = high_resolution_clock::now();
+    
+
+    //TODO: fix weird pixels when writing bitmap (bytestream may be the issue)
+    //TODO: check bytestream for writing. Especially writeUint24 --> odd number of bytes
+    //TODO: also check bitstream
+    //TODO: fix blur in the glyphs
+    //TODO: change bitmap to use WriteUInt24 after you fix the aformentioned issue
+
+    FontInst font = ttfRender::GenerateUnicodeMSDFSubset("../../test/times.ttf", UnicodeRange::SimpleAlphabet, sdf_width_dim(32));
+
+    auto t2 = high_resolution_clock::now();
+    duration<double, std::milli> ms_double = t2 - t1;
+    std::cout << "Took " << ms_double.count() << "ms to generete all glyphs" << std::endl;
+
+    BitmapParse::WriteToFile("../../test/sheet_o_glyphs.bmp", &font.sheet);
+
+    Glyph lower_c = ttfParse::ReadTTFGlyph("../../test/segoeui.ttf", 'c');
+    Bitmap b_c;
+    
+    ttfRender::RenderGlyphMSDFToBitMap(lower_c, &b_c, sdf_width_dim(32));
+
+    Logger L;
+
+    L.DrawBitMapClip(64, 64, b_c);*/
+
+    //BitmapParse::WriteToFile("../../test/glyph_outline.bmp", &outline_bmp);
+    //BitmapParse::WriteToFile("../../test/notaapple.bmp", &g_bmp);
+    //BitmapParse::WriteToFile("../../test/alsonotaapple.bmp", &sdf);
+
+    struct _vert {
+        f32 pos[3];
+    };
+
+    struct _vert2 {
+        f32 pos[3];
+        int j;
+    };
+
+    Window::winIni();
+    vec2 DIM = vec2(1000, 750);
+    Window win = Window("", DIM.x, DIM.y, false);
+
+    /*
+    
+    TODO:  FIX THE ROTATION OF THE GLYPHS FOR OPTIMIZATION BY CONSIDERING THE ROTATION IN THE SORTING
+    ALSO FIX THE WEIRD ARTIFICATS WITH GLYPH GENERATION AND ADD CODE TO DETECT THEM
+    ALSO ADD A PROCEDURE TO ENSURE COLORING OF EDGES IS CORRECT
+    
+    */
+
+    /*graphics g = graphics(&win);
+
+    g.Load();
+
+    g.vertexStructureDefineBegin(sizeof(_vert));
+    g.defineVertexPart(0, vertexClassPart(_vert, pos));
+    g.vertexStructureDefineEnd();
+
+    Shader s = Shader::LoadShaderFromFile("../src/fb_test_vert.glsl", "../src/fb_test_frag.glsl");
+    g.setCurrentShader(&s);
+
+    fb = FrameBuffer(FrameBuffer::Texture, 500, 500);
+    //g.setOutputDevice(fb.device());
+
+    //g.render_begin();
+
+    f32 test_verts[] = RECT_VERTS(0.0f,0.0f,.5f,.5f, 0.0f);
+
+    glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    g.render_begin();
+    g.push_verts(test_verts, sizeof(test_verts) / sizeof(_vert));
+    g.render_flush();
+
+    //g.push_verts(test_verts, sizeof(test_verts));
+    //g.render_flush();
+
+    Bitmap bmp =  fb.extractBitmap();
+
+    std::cout << "writing bmp..." << std::endl;
+
+    BitmapParse::WriteToFile("../../test/framebufferwrite.bmp", &bmp);*/
+
+    //FontInst font = ttfRender::GenerateUnicodeMSDFSubset("../../test/times.ttf", UnicodeRange::SimpleAlphabet, sdf_width_dim(32), true);
+
+    //std::cout << "Bitmap Dim: " << font.sheet.header.w << " " << font.sheet.header.h << std::endl;
+    //std::cout << "Size: " << font.sheet.header.fSz << std::endl;
+
+    //BitmapParse::WriteToFile("../../test/framebufferwrite.bmp", &font.sheet);
+
+    //Logger L;
+
+    //L.DrawBitMapClip(64, 64, font.sheet);
+
+    Glyph testGlyph = ttfParse::ReadTTFGlyph("../../test/times.ttf", 'G');
+
+    //Bitmap b_c;
+    
+    //ttfRender::RenderGlyphMSDFToBitMap(testGlyph, &b_c, sdf_width_dim(256));
+
+    //BitmapParse::WriteToFile("../../test/gpu_accel_dbg.bmp", &b_c);
+
+    //Bitmap::Free(&b_c);
+
+    MsdfGpuContext *ctx = nullptr;
+
+    //OH MY FUCKING GOD MEMEORY IS CORRUPT I WANT TO JUMP OFF A FUCKING BRIDGE FUCK ME
+    //ok so the location of the glyph is just off... great
+
+    FontInst f = ttfRender::GenerateUnicodeMSDFSubset("C:/Windows/Fonts/times.ttf", UnicodeRange::SimpleAlphabet, sdf_width_dim(16), true);
+
+    u32 tex_hand = f.msdf_dat.MSDF.gl_texture.getHandle();
+
+    RenderStateDescriptor desc;
+
+    desc.dynamic = true;
+    desc.use_indicies = false;
+    desc.render_primitive = GL_PATCHES;
+
+    graphics g = graphics(desc);
+
+    g.Resize(win.w, win.h);
+
+    g.VertexDefineBegin(sizeof(_vert2));
+    g.DefineVertexPart(0, vertexClassPart(_vert2, pos));
+    g.DefineIntegerVertexPart(1, vertexClassPart(_vert2, j));
+    g.VertexDefineEnd();
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex_hand);
+
+    glBindFramebuffer(GL_FRAMEBUFFER,0);
+
+    Shader s = Shader::LoadShaderFromFile("../../src/fb_test_vert.glsl", "../../src/fb_test_frag.glsl");
+    //Shader basicIRender = Shader::LoadShaderFromFile(); //TODO: set these paths to shaders that simply render and image
+    Shader tesTest = Shader::LoadShaderFromFile(MSDF_ACCEL_CC_SHADER_PATH_VERT, MSDF_ACCEL_CC_SHADER_PATH_FRAG, MSDF_ACCEL_CC_SHADER_PATH_TCS, MSDF_ACCEL_CC_SHADER_PATH_TES);
+    //g.SetShader(&s);
+
+    //BitmapParse::WriteToFile("../test/gpu_accel_dbg.bmp", &f.sheet);
+
+    f32 rv[] = RECT_VERTS(-1.0f, -1.0f, 2.0f, 2.0f, 0.0f);
+
+    const char* test_string = "The quick brown fox jumps over the lazy dog\0";
+
+    GenericFontProperties prop;
+
+    g.SetTesselationVertNum(3);
+
+    while (win.isRunning()) {
+        g.ClearOutput();
+        //ttfRender::_msdfRenderDebug(testGlyph, &ctx);
+        //g.RenderBegin();
+        //g.PushVerts(rv, sizeof(rv), true);
+        //g.RenderFlush();
+
+        f32 y = 50.0f;
+
+        for (i32 i = 7; i < 20; i ++) {
+            prop.scale.pt = i;
+            g.RenderString(&f, 0, y, 0.0f, test_string, prop);
+            y += 10.0f * sqrtf(i);
+        }
+
+        /*g.SetShader(&tesTest);
+        tesTest.SetInt("curve_detail", 50);
+        tesTest.SetVec2("output_dim", &DIM);
+
+        g.RenderBegin();
+
+        f.msdf_dat.MSDF.__dbg.cc_tex.bind();
+
+        _vert2 curve_verts[] = {
+            1000.0f, 0.0f, 0.0f, 0,
+            1000.0f, 750.0f, 0.0f, 0,
+            0.0f, 750.0f, 0.0f, 0
+        };
+
+        g.PushVerts(curve_verts, 3, true);
+
+        //TODO: render the test texture or something
+
+        g.RenderFlush();*/
+
+        win.Update();
+    }
+
+    //BitmapParse::WriteToFile("../../test/gpu_accel_dbg.bmp", &f.sheet);
+
+    //Bitmap::Free(&f.sheet);
+
+    //delete[] sdf.data, g_bmp.data;
+
+    return 0;
+}

@@ -504,3 +504,5 @@ static const u64 compute_basic_hash_64(size_t nBits, void *dat, size_t len) __MS
 static inline const u64 compute_basic_hash_64_inline(size_t nBits, void *dat, size_t len) __MSFL_HASH_64
 static const u64 compute_basic_hash_64_align_8(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8
 static inline const u64 compute_basic_hash_64_align_8_inline(size_t nBits, void *dat, size_t len) __MSDF_HASH_64_ALIGN_8
+
+#define COMMA ,
