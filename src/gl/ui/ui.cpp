@@ -121,10 +121,75 @@ void UIObject::update() {}
 
 //////////////Layout Stuff/////////////////   
 
-void UILayout::addObj(UIObject obj) {
+void UILayout::addObj(UIObject *obj) {
+    if (!obj || !obj->isOk()) return;
 
+    this->children.push_back(obj);
+    obj->_ext_bind();
 }
 
 void UILayout::recomputeLayout() {
 
+}
+
+void UIObject::_ext_bind() {
+    this->nBindings++;
+}
+
+void UIObject::_ext_unbind() {
+    if (this->nBindings <= 0) {
+        this->nBindings = 0;
+        std::cout << "UIObject warning: object attempted to unbind but never bound initially or something idk | make sure shit is binding before unbinding" << std::endl; 
+    } else
+        this->nBindings--;
+
+    if (this->_ext_destroyed && this->nBindings == 0) {
+        //self destruct
+        UIExternalService::_queueExtFree(this);
+    }
+}
+
+void UI::destroyUIObject(UIObject **uiObj) {
+    if (!uiObj || !*uiObj) return;
+
+    auto *uObj = *uiObj;
+
+    if (uObj->nBindings <= 0) {
+        ui_mem.freeData(*uiObj);
+    } else {
+        uObj->_ext_destroyed = true; 
+    }
+
+    *uiObj = nullptr; //remove pointer to le object
+}
+
+bool UIObject::isOk() {
+    return !_ext_destroyed;
+}
+
+//external ui services
+std::vector <void*> UIExternalService::ext_free;
+size_t UIExternalService::fTick = 0, UIExternalService::fTickMax = 10;
+
+void UIExternalService::_queueExtFree(void *ptr) {
+    if (!ptr) return;
+    
+    ext_free.push_back(ptr);
+}
+
+void UIExternalService::_extFreeTick() {
+    if (++fTick == fTickMax) {
+        fTick = 0;
+
+        for (auto *itm : ext_free) {
+            if (!itm) continue;
+            _safe_free_b(itm);
+        }
+
+        ext_free.clear();
+    }
+}
+
+void UIExternalService::_setExtFreeFreq(size_t freq) {
+    fTickMax = freq;
 }

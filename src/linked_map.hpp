@@ -3,20 +3,23 @@
 #include "msutil.hpp"
 
 template<typename _Ty> struct hash_node {
-    hash_node* prev = nullptr;
+    hash_node* prev = nullptr, *next = nullptr;
     bool bulkAlloc = false;
     size_t sz = 0;
     char* key = nullptr;
-    u64 hash = 0;
+    u64 hash = 0, id = 0;
     _Ty val;
 };
 
 //recommended 15 bits
+//TODO: consider adding a hash id so that you can't accidentally remove nodes from the hash that belong to other hashes just cause the ids match
+// the check uses and OR instead of an AND so if the pointers or ids match the node can be removed --> although shouldn't cause too much of a problem,
+// can completely screw up an entire root tree thingy (see removeNode code)
 template<class _storeType, size_t hBits> class linked_map {
 private:
-
     const size_t hashBits = hBits; //number of bits per hash
     size_t hashSz = 0;
+    size_t nextId = 0;
 
     hash_node<_storeType>** roots = nullptr;
     hash_node<_storeType>* preAllocNodes = nullptr;
@@ -68,9 +71,22 @@ private:
      *
      */
     hash_node<_storeType>* _insert(hash_node<_storeType>* n) {
+        if (hash >= this->hashSz) {
+            return nullptr;
+        }
+
         n->prev = this->roots[n->hash];
+        this->roots[n->hash]->next = n;
         this->roots[n->hash] = n;
         return n->prev;
+    }
+
+    hash_node<_storeType>* _seek(u64 hash) {
+        if (hash >= this->hashSz) {
+            return nullptr;
+        }
+
+        return this->roots[hash];
     }
 public:
 
@@ -106,6 +122,7 @@ public:
                 .sz = key_sz,
                 .key = key,
                 .hash = hsh,
+                .id = this->nextId++,
                 .val = dat
             });
         }
@@ -122,6 +139,8 @@ public:
             h_node->key = key;
             h_node->hash = hsh;
             h_node->val = dat;
+            h_node->bulkAlloc = true;
+            h_node->id = this->nextId++;
 
             return this->_insert(h_node);
         }
@@ -204,6 +223,79 @@ public:
 
     void DisablePreAllocMode() {
         this->preAllocAll = false;
+    }
+
+    hash_node<_storeType>* seek(char* key, const size_t key_sz) {
+        const u64 hsh = this->computeHash(key, key_sz);
+        return this->_seek(hsh);
+    }
+
+    hash_node<_storeType>* seek(std::string key) {
+        return this->seek(
+            const_cast<char*>(key.c_str()),
+            key.length()
+        );
+    }
+
+    template<class _KeyTy> hash_node<_storeType>* seek(_KeyTy key) {
+        const size_t k_sz = sizeof(_KeyTy);
+        void* k_mem = (void*)&key;
+
+        return this->seek(
+            (char*)k_mem,
+            k_sz
+        );
+    }
+
+    /**
+     * To remove nodes
+     */
+    void removeNode(hash_node<_storeType> *node, bool free = true) {
+        if (!node) return;
+
+        //check if node is a root node
+        if (node->hash >= this->hashSz) {
+            std::cout << "Cannot remove hash node! Hash of " << node->hash << " exceeds hash max of " << (this->hashSz - 1) << "!" << std::endl;
+            return;
+        }
+
+        auto *root = this->roots[node->hash];
+
+        if (!root) {
+            return;
+        }
+
+        //if the node is a root then properly assign it
+        if ((uintptr_t) root == (uintptr_t) node || root->id == node->id) {
+            if (node->next) { //this is a edge case that only occurs in the case that the pointers are fucked. This code should fix em tho
+                auto *nd = node;
+
+                do {
+                    root = nd;
+                    nd = nd->next;
+                } while(nd);
+            } else {
+                root = node->prev;
+            }
+
+            this->roots[node->hash] = root; //idk if this does anything but ima put it here just incase
+        }
+
+        //remove le node
+        node->next->prev = node->prev;
+        node->prev->next = node->next;
+
+        //oh and also free it if need be
+        if (free) { //im not calling freeExtNode cause slow and i get dem extra lines of code not calling it :)
+            ZeroMem(node, 1);
+            if (!node->bulkAlloc) _safe_free_b(node);
+        }
+    }
+
+    void freeExtNode(hash_node<_storeType> *node) {
+        if (!node) return;
+        ZeroMem(node, 1);
+        if (!node->bulkAlloc) _safe_free_b(node);
     }
 
     /**
