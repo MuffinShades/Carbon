@@ -26,6 +26,32 @@ private:
         } *datAccess = nullptr;
         aBlock *next = nullptr;
     };
+
+    size_t elemPerDataBlock = 0xffff;
+    size_t elemPerAccessBlock = 0xfff;
+
+    dBlock *root = nullptr, *tail = nullptr;
+    aBlock *aRoot = nullptr, *aTail = nullptr;
+
+    size_t sz;
+
+    void _add_data_block() {
+        dBlock *bloc = new dBlock;
+
+        if (!block) {
+            std::cout << "error failed to add data block: bad alloc" << std::endl;
+            return;
+        }
+
+        bloc->elm = new _Ty[elemPerDataBlock];
+
+        if (!root) 
+            root = (tail = bloc);
+        else {
+            tail->next = bloc;
+            tail = bloc;
+        }
+    }
 public: 
     void push(_Ty val) {
 
@@ -53,11 +79,13 @@ public:
     }
 
     size_t len() {
-        
+        return this->sz;
     }
 
     void free() {
-
+        if (this->root) {
+            
+        }
     }
 
     void intSwap(size_t idx1, size_t idx2) {
