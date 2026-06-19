@@ -17,6 +17,8 @@ private:
     i64 __int_addUWin(UIWin *win);
     void __int_notifWinDestroyed(size_t loc);
 
+    FrameBuffer objLocBuffer;
+
     u32 output_w = 0, output_h = 0;
 
     UIObject bgObj;

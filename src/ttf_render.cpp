@@ -3198,8 +3198,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     //param checks and shit
     FontInst font;
 
-    
-
     const f32 padding_per_32 = 1.0f;
     const f32 inter_glyph_padding = 1.0f;
 
@@ -3532,6 +3530,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     //add font info stuff
     font.inf = f.h_inf;
     font.ad_inf.monospace = (font.inf.nLongHorMetrics == 1);
+    font.good = true;
 
     return font;
 }
@@ -3750,7 +3749,7 @@ ok so possible remove the uniforms to the shader and add functionality to be abl
 */
 
 //TODO: coordinate this process with graphics states
-void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop) {
+void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str, GenericFontProperties prop, bool yRelTop) {
     if (!font || !str)
         return;
 
@@ -3808,6 +3807,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
     char cc;
     i32 p;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendEquation(GL_FUNC_ADD);
 
     while ((cc = *s_ctx.cur_char) != 0x00) {
         switch (cc) {
@@ -3900,7 +3903,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
             //part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x) + (gp_transform_mat2[2] * cp.size.yMax * metrics.pRatio) + cp.offset.e);
             //part_y = s_ctx.baseline_y - cp.offset.n * ((gp_transform_mat2[1] * s_ctx.x) +  (gp_transform_mat2[3] * cp.size.yMin * metrics.pRatio + part_h) + cp.offset.f);
-            part_y = s_ctx.baseline_y - (cp.size.yMin * metrics.pRatio) - part_h;
+            part_y = s_ctx.baseline_y - ((cp.size.yMin - ((i32) yRelTop * metrics.line_h)) * metrics.pRatio) - part_h;
             part_x = s_ctx.x;
 
             const f32 dbg_iw = 1.0f / screenW,

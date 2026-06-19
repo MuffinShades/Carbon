@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 
 #define RECT_VERTS(x, y, w, h, ad) {\

@@ -3,6 +3,10 @@
 #define BLOCK_PAD_BYTE 0xFF //pad with 0xFF
 
 GroupMem::GroupMem(size_t blockSz, size_t maxBlocksInAlloc) {
+    this->ini(blockSz, maxBlocksInAlloc);
+}
+
+void GroupMem::ini(size_t blockSz, size_t maxBlocksInAlloc) {
     this->aBlockSz = blockSz;
     this->maxGroupBlocksSaved = maxBlocksInAlloc;
     this->memBlockSz = (this->prePadSz + this->aBlockSz) * this->nSubBlocksPerMemBlock;
@@ -25,9 +29,9 @@ void *GroupMem::allocNBlocks(size_t nBlocks, void *fill, size_t fill_sz, void *b
     void *tptr = nullptr;
 
     if (nBlocks > this->maxGroupBlocksSaved) {
-
+        return nullptr;
     } else {
-        mem_blk *check_block = this->root_block, *l_block;
+        mem_blk *check_block = this->root_block, *l_block = nullptr;
 
         if (!check_block) this->_add_blok();
         check_block = this->root_block;
@@ -68,8 +72,6 @@ void *GroupMem::allocNBlocks(size_t nBlocks, void *fill, size_t fill_sz, void *b
             mem_blk *tBlock = this->last_block;
 
             if (tBlock->sz - res_sz < tBlock->wpos) {
-                //TODO: add free reservation thing
-
                 //tBlock->free_spaces[]
                 tBlock->wpos = this->memBlockSz;
                 this->_add_blok();
@@ -80,6 +82,8 @@ void *GroupMem::allocNBlocks(size_t nBlocks, void *fill, size_t fill_sz, void *b
                     return nullptr;
                 }
             }
+
+            std::cout << "target block: " << ((uintptr_t) tBlock) << " " << tBlock->wpos << " | " << ((uintptr_t) tBlock->dat) << " sz: " << tBlock->sz << std::endl;
 
             //get pointer and inc the block wpos/pointer thingy
             tptr = (void*)(((byte*) tBlock->dat) + tBlock->wpos);
@@ -101,6 +105,7 @@ void *GroupMem::allocNBlocks(size_t nBlocks, void *fill, size_t fill_sz, void *b
     this->current_reservations.insert(reinterpret_cast<char*>(&res.loc), sizeof(uintptr_t), res);
 
     //return blok
+    std::cout << "giving ptr: " << (uintptr_t) tptr << std::endl;
     return tptr;
 }
 
@@ -110,6 +115,14 @@ void *GroupMem::allocNBlocks(size_t nBlocks, void *buddy) {
 
 void *GroupMem::allocBySize(size_t sz, void *fill, size_t fill_sz, void *buddy) {
     //convert sz to number of blocks
+    if (sz == 0)
+        return nullptr;
+
+    const size_t nBlocks = (sz / this->aBlockSz) + ((sz % this->aBlockSz) != 0);
+
+    std::cout << "allocating: " << nBlocks << "bloks | requested number of bytes: " << sz << " got: " << (this->aBlockSz * nBlocks) << std::endl;
+
+    return this->allocNBlocks(nBlocks, fill, fill_sz, buddy);
 }
 
 void *GroupMem::allocBySize(size_t sz, void *buddy) {

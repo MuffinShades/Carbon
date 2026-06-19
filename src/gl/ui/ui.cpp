@@ -125,15 +125,52 @@ void UILayout::addObj(UIObject *obj) {
     if (!obj || !obj->isOk()) return;
 
     this->children.push_back(obj);
-    obj->_ext_bind();
+
+    //bind to the object
+    _UIBindingInf bInf = {
+        .inst = this->origin.inst,
+        .parent = this
+    };
+
+    obj->_ext_bind(bInf);
 }
 
 void UILayout::recomputeLayout() {
-
+    //todo: this
 }
 
-void UIObject::_ext_bind() {
+void UILayout::render(graphics *g, mat4 mmat, vec2 outputDim) {
+    if (!g)
+        return;
+
+    //adjust the give matrix
+    const mat4 tMat = mmat * mat4::CreateTranslationMatrix(vec3(this->bounds.x, this->bounds.y, 0.0f));
+    const vec2 cBounds = vec2(this->bounds.z, this->bounds.w);
+
+    for (i32 i = 0; i < this->children.size(); i++) {
+        auto *C = this->children[i];
+        if (!C) continue;
+
+        C->render(g, tMat, cBounds);
+    }
+}
+
+void UILayout::update() {
+    for (UIObject *c : this->children) {
+        if (!c) continue;
+        c->update();
+    }
+} 
+
+////////////////////////////////////////////
+
+void UIObject::_ext_bind(_UIBindingInf bindingInf) {
     this->nBindings++;
+
+    //set new binding info
+    if (bindingInf.inst && bindingInf.parent) {
+        this->origin = bindingInf;
+    }
 }
 
 void UIObject::_ext_unbind() {
@@ -190,6 +227,33 @@ void UIExternalService::_extFreeTick() {
     }
 }
 
+GroupMem UI::ui_mem;
+
+void UI::close() {
+    ui_mem.freeAllBlocks();
+}
+
 void UIExternalService::_setExtFreeFreq(size_t freq) {
     fTickMax = freq;
+}
+
+void UI::load() {
+    ui_mem.ini(0xff, 32);
+}
+
+UILayout *UILayout::createNewBasicLayout() {
+    UILayout _fill;
+    UILayout *lay = UI::_allocObj<UILayout>(nullptr);
+
+    //lay->children = std::vector<UIObject*>();
+
+    *lay = std::move(_fill);
+    lay->children = std::move(_fill.children);
+    
+    if (!lay) {
+        std::cout << "error failed to create new ui layout: could not allocate" << std::endl;
+        return nullptr;
+    }
+
+    return lay;
 }

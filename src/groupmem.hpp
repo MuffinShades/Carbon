@@ -30,22 +30,24 @@
  * Note not calling freeData isn't a major issue it just may result in more bloated memory usage. Just make sure to NOT USE ANY POINTERS
  * RETURNED BY GROUP MEM AFTER CALLING freeAllBlocks!!!
  */
+
 class GroupMem {
 private:
     size_t aBlockSz = 0xff, memBlockSz = 0, nSubBlocksPerMemBlock = 0xff; //size of a alloc block
     size_t maxGroupBlocksSaved = 8;
+    struct free_rgn;
+    struct mem_blk {
+        void *dat = nullptr;
+        size_t sz, nFreeSpaces;
+        mem_blk *next, *prev;
+        free_rgn **free_spaces;
+        size_t wpos;
+    };
     struct free_rgn {
         size_t nBlocks;
         void *begin, *prev;
-        struct mem_blk *t_block;
+        mem_blk *t_block;
         free_rgn *next;
-    };
-    struct mem_blk {
-        void *dat;
-        size_t sz, nFreeSpaces;
-        GroupMem::mem_blk *next, *prev;
-        free_rgn **free_spaces;
-        size_t wpos;
     };
     mem_blk *root_block = nullptr, *last_block = nullptr;
     void _add_blok();
@@ -65,6 +67,7 @@ private:
 public:
     GroupMem(size_t blockSz, size_t maxBlocksInAlloc);
     GroupMem();
+    void ini(size_t blockSz, size_t maxBlocksInAlloc);
     void *allocNBlocks(size_t nBlocks, void *buddy = nullptr);
     void *allocNBlocks(size_t nBlocks, void *fill, size_t fill_sz, void *buddy = nullptr);
     void *allocBySize(size_t sz, void *buddy = nullptr);

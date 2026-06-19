@@ -374,7 +374,7 @@ u32 jpg_decode_channel_blocks(JpgContext* jContext, byte **blockData, u8 channel
     
     for (v = 0; v < v_res; v++) {
         for (h = 0; h < h_res; h++) {
-
+            
         }
     }
 

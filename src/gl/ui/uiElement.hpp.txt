@@ -8,8 +8,10 @@
  * colorpicker, text/number input, text display, checkboxes
  * etc.
  * 
+ * OLD CODE DONT USE
+ * 
  */
-class UIElement {
+/*class UIElement {
 private:
     bool computedGraphics = false;
 protected:
@@ -64,4 +66,4 @@ public:
     //other events
     virtual void onFocus() {};
     virtual void offFocus() {};
-};
+};*/

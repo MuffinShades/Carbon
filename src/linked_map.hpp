@@ -71,12 +71,18 @@ private:
      *
      */
     hash_node<_storeType>* _insert(hash_node<_storeType>* n) {
-        if (hash >= this->hashSz) {
+        if (n->hash >= this->hashSz) {
+            return nullptr;
+        }
+
+        if (!this->roots) this->allocHash();
+        if (!this->roots) {
+            std::cout << "Linked map error: failed to alloc hash" << std::endl;
             return nullptr;
         }
 
         n->prev = this->roots[n->hash];
-        this->roots[n->hash]->next = n;
+        if (this->roots[n->hash]) this->roots[n->hash]->next = n;
         this->roots[n->hash] = n;
         return n->prev;
     }

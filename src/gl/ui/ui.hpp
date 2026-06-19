@@ -84,6 +84,11 @@ public:
     }
 };
 
+struct _UIBindingInf {
+    class UIInst *inst = nullptr;
+    class UIObject *parent = nullptr;
+};
+
 //max number of unique z orders that a float from 0.0f-1.0f can represent
 constexpr i32 MAX_UNIQUE_ZS = 1e6;
 
@@ -94,10 +99,12 @@ private:
     static i32 next_ui_age;
     static i32 getNextAge();
 
-    void _ext_bind();
+    void _ext_bind(_UIBindingInf bindingInf);
     void _ext_unbind();
 
     bool _ext_destroyed = false;
+
+    _UIBindingInf origin;
 protected:
     struct {
         UIColor dbgBgColor;
@@ -138,6 +145,7 @@ public:
     friend class UIInst *createUIInst(Window *win);
     friend class UI;
     friend class UILayout;
+    friend class UIWin;
 };
 
 #include "../../groupmem.hpp"
@@ -147,9 +155,14 @@ private:
     static GroupMem ui_mem;
 public:
     static void destroyUIObject(UIObject **uiObj);
-    template<typename _Ty> static _Ty *allocObj(_Ty *fill) {
-        return (_Ty*) ui_mem.allocBySize(sizeof(_Ty), (void *) fill, sizeof(_Ty), nullptr);
+    template<typename _Ty> static _Ty *_allocObj(_Ty *fill) {
+        _Ty* obj = (_Ty*) ui_mem.allocBySize(sizeof(_Ty), (void *) fill, sizeof(_Ty), nullptr);
+        if (fill)
+            *obj = std::move(*fill);
+        return obj;
     }
+    static void close();
+    static void load();
 };
 
 class UIExternalService {
@@ -166,8 +179,14 @@ class UILayout : public UIObject {
 private:
     std::vector<UIObject*> children;
 public:
+    UILayout() {}
     void addObj(UIObject *obj);
     void recomputeLayout();
+
+    void render(graphics *g, mat4 mmat, vec2 outputDim) override; 
+    void update() override;
+
+    static UILayout *createNewBasicLayout();
 };
 
 struct SimpleUIVert {
