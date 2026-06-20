@@ -9,7 +9,7 @@ fucking deconstructor which fucks up vectors with groupmem
 */
 
 struct mvec_config {
-    
+
 };
 
 template<class _Ty> class mu_vec {
@@ -81,7 +81,13 @@ private:
         }
     }
 
-    _daccess _get_access_from_index(size_t idx) {
+    struct advDatAccess {
+        _daccess acc;
+        aBlock *abloc = nullptr;
+        size_t aoff;
+    };
+
+    advDatAccess _get_access_from_index(size_t idx) {
         const size_t ablocId = (idx / elemPerAccessBlock);
         const size_t off = idx - (ablocId * elemPerAccessBlock);
 
@@ -93,7 +99,11 @@ private:
             throw std::exception("Could not find a valid access block for index: "+idx);
         }
 
-        return taBlock->datAccess[off];
+        return {
+            .acc = taBlock->datAccess[off],
+            .abloc = taBlock,
+            .aoff = off
+        };
     }
 public: 
     void push(_Ty val) {
@@ -176,8 +186,9 @@ public:
         }
 
         //get val
-        _daccess valLoc = _get_access_from_index(idx);        
-        return valLoc.block->elm[valLoc->off];
+        //TODO: maybe not call _get_access_from_index to minimize jumps so indexing the vector is even faster
+        const advDatAccess valLoc = _get_access_from_index(idx);        
+        return valLoc.acc.block->elm[valLoc.acc.block->off];
     }
 
     size_t len() {
@@ -189,24 +200,32 @@ public:
     }
 
     void intSwap(size_t idx1, size_t idx2) {
-        if (idx1 >= this->sz || idx2 >= this->sz) return;
+        advDatAccess i1 = _get_access_from_index(idx1),
+                i2 = _get_access_from_index(idx2);
 
-        const size_t ablocId1 = (idx / elemPerAccessBlock);
-        const size_t off1 = idx - (ablocId * elemPerAccessBlock);
+        if (!i1.acc.block || !i2.acc.block) {
+            throw std::exception("could not swap indexes "+idx1+" and "+idx2);
+        }
 
-        const size_t ablocId2 = (idx / elemPerAccessBlock);
-        const size_t off2 = idx - (ablocId * elemPerAccessBlock);\
-
-        auto tmp = std::move();
-
-
+        //swap le indexes
+        //TODO: make sure all these block accesses aren't fucking up performance
+        //TODO: also swap the access buffers thingys
+        auto tmp = std::move(i1.acc.block->elm[i1.off]);
+        i1.acc.block->elm[i1.off] = std::move(i2.acc.block->elm[i2.off]);
+        i2.acc.block->elm[i2.off] = std::move(tmp);
     }
 
+    //Todo: later
     void configure(mvec_config cfg, bool recalcAll) {
 
     }
 };
 
-template<class _Ty> class magicContainer {
+/*
+
+Like the above vector just with the address indexing feature thingies (not super crazy important)
+
+*/
+template<class _Ty> class _mu_wip_magicContainer {
 
 };
