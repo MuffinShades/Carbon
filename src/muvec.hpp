@@ -173,7 +173,19 @@ public:
 
     //slow af but whatever
     void insert(size_t idx, _Ty val) {
-        
+        advDatAccess ia = _get_access_from_index(idx);
+
+        if (!ia.abloc) {
+            throw std::exception("failed to get proper block for index: "+idx);
+        }
+
+        if (!tail || ++tail->off == tail->len) this->_add_data_block();
+        if (!aTail || ++aTail->off == aTail->len) this->_add_access_block();
+        if (!tail || !aTail || !tail->elm || !aTail->datAccess) {
+            throw std::exception("Could not add data blocks or something idk im too tired to give a good description for all of these exception lmfao");
+        }
+
+        tail->elm[tail->off] = val;
     }
 
     void remove(size_t idx) {
@@ -213,6 +225,8 @@ public:
         auto tmp = std::move(i1.acc.block->elm[i1.off]);
         i1.acc.block->elm[i1.off] = std::move(i2.acc.block->elm[i2.off]);
         i2.acc.block->elm[i2.off] = std::move(tmp);
+
+
     }
 
     //Todo: later
