@@ -9,22 +9,26 @@ fucking deconstructor which fucks up vectors with groupmem
 */
 
 struct mvec_config {
-
+    
 };
 
 template<class _Ty> class mu_vec {
 private:
     struct dBlock {
         _Ty *elm;
-        dBlock *next = nullptr;
+        size_t off = 0, len = 0;
+        dBlock *next = nullptr, *tail = nullptr;
+    };
+
+    struct _daccess {
+        size_t off;
+        dBlock *block = nullptr;
     };
 
     struct aBlock {
-        struct {
-            size_t off = 0;
-            dBlock *block = nullptr;
-        } *datAccess = nullptr;
-        aBlock *next = nullptr;
+        _daccess *datAccess = nullptr;
+        size_t off = 0, len = 0;
+        aBlock *next = nullptr, *tail = nullptr;
     };
 
     size_t elemPerDataBlock = 0xffff;
@@ -35,7 +39,7 @@ private:
 
     size_t sz;
 
-    void _add_data_block() {
+    void _add_data_block() noexcept {
         dBlock *bloc = new dBlock;
 
         if (!block) {
@@ -44,29 +48,122 @@ private:
         }
 
         bloc->elm = new _Ty[elemPerDataBlock];
+        ZeroMem(bloc->elm, elemPerDataBlock);
+        bloc->len = elemPerDataBlock;
 
-        if (!root) 
-            root = (tail = bloc);
-        else {
-            tail->next = bloc;
-            tail = bloc;
+        _Add_block_To(bloc, &root, &tail);
+    }
+
+    void _add_access_block() noexcept {
+        aBlock *bloc = new aBlock;
+
+        if (!block) {
+            std::cout << "error failed to add access block: bad alloc" << std::endl;
+            return;
         }
+
+        bloc->datAccess = new _daccess[elemPerAccessBlock];
+        ZeroMem(bloc->datAccess, elemPerAccessBlock);
+        bloc->len = elemPerAccessBlock;
+
+        _Add_block_To(bloc, &aRoot, &aTail);
+    }
+
+    template <typename _By> void _Add_block_To(_By *bloc, _By** root, _By** tail) noexcept {
+        if (!bloc || !root || !tail) return;
+
+        if (!(*root)) {
+            *root = (*tail = bloc);
+        } else {
+            (*tail)->next = bloc;
+            bloc->prev = tail;
+            *tail = bloc;
+        }
+    }
+
+    _daccess _get_access_from_index(size_t idx) {
+        const size_t ablocId = (idx / elemPerAccessBlock);
+        const size_t off = idx - (ablocId * elemPerAccessBlock);
+
+        //get the target access block
+        auto *taBlock = this->aRoot;
+        for (; ablocId > 0 && taBlock; ablocId--) taBlock = taBlock->next;
+
+        if (!taBlock) {
+            throw std::exception("Could not find a valid access block for index: "+idx);
+        }
+
+        return taBlock->datAccess[off];
     }
 public: 
     void push(_Ty val) {
+        if (!tail || ++tail->off == tail->len) this->_add_data_block();
+        if (!aTail || ++aTail->off == aTail->len) this->_add_access_block();
+        if (!tail || !aTail || !tail->elm || !aTail->datAccess) return;
 
+        tail->elm[tail->off] = val;
+        aTail->datAccess[aTail->off] = {
+            .off = tail->off,
+            .block = tail
+        };
+
+        this->len++;
     }
 
     _Ty pop() {
+        //easy peasy
+        if (!this->tail || this->len == 0) {
+            throw std::out_of_range("Cannot pop on an empty vector!");
+        }
 
+        if (!this->tail->elm) {
+            this->tail->elm = new 
+        }
+
+        if (this->tail->off > 0) {
+            this->tail->off--;
+            this->sz--;
+            return this->tail->elm[this->tail->off];
+        } else {
+            this->tail = this->tail->prev;
+
+            if (!this->tail) {
+                throw std::exception();
+            }
+
+            return this->;  
+        }
     }
 
     void clear() {
+        //clear roots
+        while (root) {
+            auto *b = root->next;
+            _safe_free_b(root);
+            root = b;
+        }
+
+        root = (tail = nullptr);
+
+        //clear access
+        while (aRoot) {
+            auto *b = aRoot->next;
+            _safe_free_b(aRoot);
+            aRoot = b;
+        }
+
+        aRoot = (aTail = nullptr);
+
+        this->len = 0;
+    }
+
+    void softClear() {
 
     }
 
+    //slow af but whatever
     void insert(size_t idx, _Ty val) {
-
+        
     }
 
     void remove(size_t idx) {
@@ -74,8 +171,13 @@ public:
     }
 
     _Ty operator[](size_t idx) {
-        //
-        
+        if (idx >= this->len) {
+            throw std::out_of_range(idx + " is out of range of " + this->len);
+        }
+
+        //get val
+        _daccess valLoc = _get_access_from_index(idx);        
+        return valLoc.block->elm[valLoc->off];
     }
 
     size_t len() {
@@ -83,12 +185,20 @@ public:
     }
 
     void free() {
-        if (this->root) {
-            
-        }
+        this->clear();
     }
 
     void intSwap(size_t idx1, size_t idx2) {
+        if (idx1 >= this->sz || idx2 >= this->sz) return;
+
+        const size_t ablocId1 = (idx / elemPerAccessBlock);
+        const size_t off1 = idx - (ablocId * elemPerAccessBlock);
+
+        const size_t ablocId2 = (idx / elemPerAccessBlock);
+        const size_t off2 = idx - (ablocId * elemPerAccessBlock);\
+
+        auto tmp = std::move();
+
 
     }
 
