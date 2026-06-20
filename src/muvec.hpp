@@ -107,12 +107,12 @@ private:
     }
 public: 
     void push(_Ty val) {
-        if (!tail || ++tail->off == tail->len) this->_add_data_block();
-        if (!aTail || ++aTail->off == aTail->len) this->_add_access_block();
+        if (!tail || tail->off == tail->len) this->_add_data_block();
+        if (!aTail || aTail->off == aTail->len) this->_add_access_block();
         if (!tail || !aTail || !tail->elm || !aTail->datAccess) return;
 
-        tail->elm[tail->off] = val;
-        aTail->datAccess[aTail->off] = {
+        tail->elm[tail->off++] = val;
+        aTail->datAccess[aTail->off++] = {
             .off = tail->off,
             .block = tail
         };
@@ -179,13 +179,45 @@ public:
             throw std::exception("failed to get proper block for index: "+idx);
         }
 
-        if (!tail || ++tail->off == tail->len) this->_add_data_block();
-        if (!aTail || ++aTail->off == aTail->len) this->_add_access_block();
+        if (!tail || tail->off == tail->len) this->_add_data_block();
+        if (!aTail || aTail->off == aTail->len) this->_add_access_block();
         if (!tail || !aTail || !tail->elm || !aTail->datAccess) {
             throw std::exception("Could not add data blocks or something idk im too tired to give a good description for all of these exception lmfao");
         }
 
-        tail->elm[tail->off] = val;
+        tail->elm[tail->off++] = val;
+
+        //adjust the access things
+        _daccess vAcc = {
+            .off = tail->off,
+            .block = tail
+        };
+
+        _daccess carry = vAcc;
+        aBlock *curAdjust = ia.abloc;
+        size_t copyStart = ia.aoff;
+
+        while (curAdjust) {
+            auto next_carry = std::move(curAdjust->datAccess[mu_min(cur->len, curAdjust->off)-1]);
+            //todo: figure out if a memcpy or a std::move is better
+            in_memcpy(
+                (curAdjust->datAccess+copyStart+1), 
+                (curAdjust->datAccess+copyStart), 
+                ((curAdjust->off - copyStart) - 1) * sizeof(_daccess)
+            );
+            curAdjust->datAccess[copyStart] = std::move(carry);
+            carry = std::move(next_carry);
+            copyStart = 0;
+            curAdjust = curAdjust->next;
+
+            if (curAdjust->off < curAdjust->len) {
+                curAdjust->off++;
+                break;
+            }
+        }
+
+        //adjust length
+        this->len++;
     }
 
     void remove(size_t idx) {
