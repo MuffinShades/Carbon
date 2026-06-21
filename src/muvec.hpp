@@ -12,6 +12,10 @@ struct mvec_config {
 
 };
 
+template<class _Tyy> struct mu_itrptr {
+    _Tyy *begin, *end;
+};
+
 template<class _Ty> class mu_vec {
 private:
     struct dBlock {
@@ -23,6 +27,7 @@ private:
     struct _daccess {
         size_t off;
         dBlock *block = nullptr;
+        volatile u64 __padd_align_32 = 0; //for 256 bit alignment in memory
     };
 
     struct aBlock {
@@ -31,18 +36,25 @@ private:
         aBlock *next = nullptr, *tail = nullptr;
     };
 
+    struct bBlock {
+        size_t *idxTrack = nullptr;
+        size_t off = 0, len = 0;
+        bBlock *next = nullptr, *tail = nullptr;
+    };
+
     size_t elemPerDataBlock = 0xffff;
-    size_t elemPerAccessBlock = 0xfff;
+    size_t elemPerAccessBlock = 0xffff;
 
     dBlock *root = nullptr, *tail = nullptr;
     aBlock *aRoot = nullptr, *aTail = nullptr;
+    bBlock *bRoot = nullptr, *bTail = nullptr;
 
     size_t sz;
 
     void _add_data_block() noexcept {
         dBlock *bloc = new dBlock;
 
-        if (!block) {
+        if (!bloc) {
             std::cout << "error failed to add data block: bad alloc" << std::endl;
             return;
         }
@@ -57,7 +69,7 @@ private:
     void _add_access_block() noexcept {
         aBlock *bloc = new aBlock;
 
-        if (!block) {
+        if (!bloc) {
             std::cout << "error failed to add access block: bad alloc" << std::endl;
             return;
         }
@@ -67,6 +79,21 @@ private:
         bloc->len = elemPerAccessBlock;
 
         _Add_block_To(bloc, &aRoot, &aTail);
+    }
+
+    void _add_iTrack_block() noexcept {
+        bBlock *bloc = new bBlock;
+
+        if (!bloc) {
+            std::cout << "error failed to add access block: bad alloc" << std::endl;
+            return;
+        }
+
+        bloc->idxTrack = new size_t[elemPerAccessBlock];
+        ZeroMem(bloc->idxTrack, elemPerAccessBlock);
+        bloc->len = elemPerAccessBlock;
+
+        _Add_block_To(bloc, &bRoot, &bTail);
     }
 
     template <typename _By> void _Add_block_To(_By *bloc, _By** root, _By** tail) noexcept {
@@ -105,17 +132,49 @@ private:
             .aoff = off
         };
     }
+
+    size_t _get_true_index_from_index(size_t idx) {
+        const size_t bblocId = (idx / elemPerAccessBlock);
+        const size_t off = idx - (bblocId * elemPerAccessBlock);
+
+        //get the target access block
+        auto *tbBlock = this->bRoot;
+        for (; bblocId > 0 && tbBlock; bblocId--) tbBlock = tbBlock->next;
+
+        if (!tbBlock) {
+            throw std::exception("Could not find a valid access block for index: "+idx);
+        }
+
+        return tbBlock->idxTrack[off];
+    }
+
+    //consolidates all the vector's data into one big block
+    void _consolidate_data() {
+
+    }
 public: 
+
+    /*
+    
+    TODO: just combine all offsets into one maybe??
+    Heck actually just combine all blocks into one!
+        --> actually don't do this because of swapping issues
+            and alignment can make certain operations wayyyy faster
+    
+    */
+
     void push(_Ty val) {
         if (!tail || tail->off == tail->len) this->_add_data_block();
         if (!aTail || aTail->off == aTail->len) this->_add_access_block();
-        if (!tail || !aTail || !tail->elm || !aTail->datAccess) return;
+        if (!bTail || bTail->off == bTail->len) this->_add_iTrack_block();
+        if (!tail || !aTail || !bTail || !tail->elm || !aTail->datAccess || !bTail->idxTrack) return;
 
         tail->elm[tail->off++] = val;
         aTail->datAccess[aTail->off++] = {
-            .off = tail->off,
+            .off = (tail->off-1),
             .block = tail
         };
+        bTail->idxTrack[bTail->off++] = this->len;
 
         this->len++;
     }
@@ -265,13 +324,19 @@ public:
     void configure(mvec_config cfg, bool recalcAll) {
 
     }
-};
 
-/*
+    //get itr functions
+    mu_itrptr<_Ty> getPtrsFor(size_t startIdx, size_t len) {
 
-Like the above vector just with the address indexing feature thingies (not super crazy important)
+    }
 
-*/
-template<class _Ty> class _mu_wip_magicContainer {
+    //todo: create these pointers and add functions to combine everything into one big block of memory
+    // fuction is void _consolidate_data();
+    _Ty *begin() {
 
+    }
+
+    _Ty *end() {
+
+    }
 };
