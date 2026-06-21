@@ -114,7 +114,7 @@ private:
         size_t aoff;
     };
 
-    advDatAccess _get_access_from_index(size_t idx) {
+    inline advDatAccess _get_access_from_index(size_t idx) {
         const size_t ablocId = (idx / elemPerAccessBlock);
         const size_t off = idx - (ablocId * elemPerAccessBlock);
 
@@ -133,7 +133,7 @@ private:
         };
     }
 
-    size_t _get_true_index_from_index(size_t idx) {
+    inline size_t _get_true_index_from_index(size_t idx) {
         const size_t bblocId = (idx / elemPerAccessBlock);
         const size_t off = idx - (bblocId * elemPerAccessBlock);
 
@@ -151,6 +151,10 @@ private:
     //consolidates all the vector's data into one big block
     void _consolidate_data() {
 
+    }
+
+    inline void _rswap(size_t idx1, size_t idx2) {
+        
     }
 public: 
 
@@ -316,8 +320,6 @@ public:
         auto tmp = std::move(i1.acc.block->elm[i1.off]);
         i1.acc.block->elm[i1.off] = std::move(i2.acc.block->elm[i2.off]);
         i2.acc.block->elm[i2.off] = std::move(tmp);
-
-
     }
 
     //Todo: later

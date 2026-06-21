@@ -513,6 +513,9 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, Sincl::Options sett
 
             std::string fn_target = tk.rawValue;
             src_read.addSpecific(tk.rawValue);
+
+            src_read.getSrcData()
+
             break;
         }
         default:
@@ -537,7 +540,9 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, Sincl::Options sett
     size_t w_pos = 0; //write position in the output
 
     for (const auto sec : output_skeleton) {
+        switch (sec.ty) {
 
+        }
     }
 
     //pack output source into a sincl_exp and export it
