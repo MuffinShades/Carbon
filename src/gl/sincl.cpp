@@ -514,7 +514,7 @@ _sincl_exp AddShaderInclude(const char *src, size_t src_len, Sincl::Options sett
             std::string fn_target = tk.rawValue;
             src_read.addSpecific(tk.rawValue);
 
-            src_read.getSrcData()
+            //src_read.getSrcData()
 
             break;
         }

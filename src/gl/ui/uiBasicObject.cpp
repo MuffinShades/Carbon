@@ -21,7 +21,7 @@ void UIText::render(graphics *g, mat4 mmat, vec2 outputDim) {
         return;
 
     if (!defFont.good) {
-        defFont = ttfRender::GenerateUnicodeMSDFSubset(DEFFONT_SRC, UnicodeRange::SimpleAlphabet, sdf_width_dim(32), true);
+        defFont = ttfRender::GenerateUnicodeMSDFSubset(DEFFONT_SRC, UnicodeRange::SimpleAlphabet, sdf_width_dim(6), true);
     }
 
     /*char defText[] = {'N','U','L','T','X','T','\0'};

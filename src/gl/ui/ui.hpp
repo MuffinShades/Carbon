@@ -2,6 +2,7 @@
 #include <iostream>
 #include "../graphics.hpp"
 #include "../window.hpp"
+#include "../../muvec.hpp"
 
 class USpec {
 public:
@@ -157,8 +158,8 @@ public:
     static void destroyUIObject(UIObject **uiObj);
     template<typename _Ty> static _Ty *_allocObj(_Ty *fill) {
         _Ty* obj = (_Ty*) ui_mem.allocBySize(sizeof(_Ty), (void *) fill, sizeof(_Ty), nullptr);
-        if (fill)
-            *obj = std::move(*fill);
+        //if (fill)
+        //    *obj = std::move(*fill);
         return obj;
     }
     static void close();
@@ -177,7 +178,7 @@ public:
 
 class UILayout : public UIObject {
 private:
-    std::vector<UIObject*> children;
+    mu_vec<UIObject*> children;
 public:
     UILayout() {}
     void addObj(UIObject *obj);

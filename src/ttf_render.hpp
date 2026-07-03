@@ -93,7 +93,12 @@ extern "C" {
 #endif
 #endif
 
+struct _trace_inf {
+    std::string font_src = "";
+};
+
 struct MsdfGpuContext {
+    struct rcGenContext *rc_ctx = nullptr;
     FrameBuffer fb;
     FrameBuffer cc_fb; //curve correction frame buffer
     FrameBuffer cc_composite_fb;
@@ -102,6 +107,7 @@ struct MsdfGpuContext {
     RenderStateDescriptor def_desc, cc_desc, cc_composite_desc;
     RenderState *cc_rstate = nullptr, *cc_composite_rstate = nullptr;
     bool good = false;
+    _trace_inf trace;
 };
 
 
@@ -128,9 +134,31 @@ NOTE IF A CHARACTER HAS ONLY 1 CHAR PART --> ignore offset
 
 */
 
+enum class FontLang {
+    en
+};
+
+class CharPredModel {
+private:
+    FontLang lang;
+public:
+
+};
+
+struct gpu_rc_curve {
+    f32 p0[2];
+    volatile f32 zzzzzbob_aka_padding[2];
+    f32 p1[2];
+    volatile f32 zzzzzbilly_aka_more_padding[2];
+    f32 p2[2];
+};
+
 struct CharPart {
     CharSpritePos sheet_loc;
     p_mat_2d offset;
+    struct {
+        u32 rc_curve_start = 0, rc_curve_end = 0; //end and beginning indexes of the curves and where they're stored
+    } rc_Dat;
     struct {
         i32 xMax, xMin, yMax, yMin;
     } size;
@@ -146,7 +174,13 @@ struct Character {
         f32 hw_ratio = 1.0f;
         h_char_metric metr;
         bool use_metr = false;
+        struct {
+            f32 xMin, yMin, xMax, yMax;
+        } ranges;
     } dim;
+    struct {
+        u32 rc_curve_start = 0, rc_curve_end = 0; //end and beginning indexes of the curves and where they're stored
+    } rc_Dat;
 };
 
 struct __msdf_dim {
@@ -170,6 +204,13 @@ struct __msdf_data {
 
 struct __bmp_data {
     Bitmap bmp;
+};
+
+struct __ray_data {
+    gpu_rc_curve* lcs = nullptr;
+    size_t nCurves = 0;
+    u32 cu_buf = 0;
+    bool cu_buf_good = false;
 };
 
 struct CharLink {
@@ -196,13 +237,24 @@ struct FontInst {
     CharMap map;
     __msdf_data msdf_dat;
     __bmp_data bitmap_dat;
+    __ray_data rc_dat;
+    struct {
+        CharPredModel model;
+    } predict;
+    FontLang target_lang = FontLang::en;
     FontMode mode = FontMode::Unknown;
     h_char_inf inf;
     struct {
         bool monospace = false, efficient_compound_glyphs = true;
+        bool use_prediction = false;
         i32 unitsPerEm = 0;
         i16 ascent;
         i16 descent;
+        struct {
+            bool useRayCountAtSmallScales = true;
+            i32 maxFontSizeForRayCount = 20;
+            size_t nCurvesInRcBuffer = 2048;
+        } render;
     } ad_inf;
     bool good = false;
 };
@@ -228,13 +280,11 @@ public:
     MSFL_EXP static FontInst GenerateFontFromForeign(std::string img_src, std::string json_layout_src);
 
     MSFL_EXP static void _msdfRenderDebug(Glyph g, MsdfGpuContext** ctx);
-    MSFL_EXP static void _msdfRenderDebug2(Glyph g, MsdfGpuContext** ctx);
+    //MSFL_EXP static void _msdfRenderDebug2(Glyph g, MsdfGpuContext** ctx);
 
     MSFL_EXP static i32 RenderGlyphMSDFToBitMap(Glyph tGlyph, Bitmap* bmp, sdf_dim size, bool accel = false);
 
-    MSFL_EXP static void DeleteFontObject(FontInst *font);
-
-    MSFL_EXP static void DeleteFontInst(FontInst *font);
+    MSFL_EXP static void DeleteFontObject(FontInst *&font);
 };
 
 #ifdef MSFL_DLL

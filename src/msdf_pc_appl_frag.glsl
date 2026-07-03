@@ -22,13 +22,15 @@ void main() {
 
     int nc = (abs(co.x - mx) < 0.001 ? 1 : 0) + (abs(co.y - mx) < 0.001 ? 1 : 0) + (abs(co.z - mx) < 0.001 ? 1 : 0);
     
-    if (co.w > 1.0 && nc < 2) {
+    if (co.w > 1.1) {
         FragColor = vec4(1.0, 1.0, 1.0, length(co.xy) * 0.707106781);
+
+        //FragColor = vec4(1.0, 0.5, 0.0, 1.0);
     } else {
        FragColor = base;
     }
 
-    FragColor = base;
+    //FragColor = base;
 
     //float q = texture(correction_map, tex_pos).w > 0.0 ? 1.0 : 0.0;
 

@@ -212,6 +212,7 @@ private:
     void _StoreExtraIndicies(void *i_buf, size_t sz);
 
     void ini_generic_font_state();
+    void ini_rc_font_state();
 
     static OutputDevice _OutputDev_Default;
 public:

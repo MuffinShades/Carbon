@@ -19,6 +19,7 @@ layout (std430, binding = 0) buffer GlyphCurves {
 in flat int tCurve;
 in vec2 txp;
 in vec4 posf;
+in vec4 fposf;
 in float t;
 
 uniform usampler2D f_tex;
@@ -30,8 +31,8 @@ out vec4 FragColor;
 void main() {
     const float i255 = 1.0 / 255.0;
 
-    const float dx = (posf.x - floor(posf.x)) / o_dim.x;
-    const float dy = (posf.y - floor(posf.y)) / o_dim.y;
+    const float dx = (posf.x - floor(fposf.x)) / o_dim.x;
+    const float dy = (posf.y - floor(fposf.y)) / o_dim.y;
 
     FragColor = vec4(dx, dy, 1.0, 1.0);
 }

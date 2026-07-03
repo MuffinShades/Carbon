@@ -23,6 +23,15 @@
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 constexpr f32 chonk_number = 3.402e38f; //number that is chonk
 
+
+//frequencies for the whole heuristics thingy to load common characters into memory better
+constexpr f32 freq_scale_base = 1.0f;
+constexpr f32 latin_simp_freq[] = {1.174345784f,1.01070806f,1.06843762f,1.113440833f,1.212200993f,1.052606186f,
+                          1.040554675f,1.143849268f,1.164203862f,0.75f,0.9364109091f,1.105529572f,
+                          1.064809002f,1.159329957f,1.16896916f,1.030015864f,0.7591983745f,1.145465887f,
+                          1.149546587f,1.185342532f,1.074309442f,0.9822939953f,1.043365841f,0.8012108714f,
+                          1.04428499f,0.7155773422f};
+
 /**
  *
  * All le code for rendering dem glyphs
@@ -1214,21 +1223,148 @@ void ConvertToPseudoDist(PDistInf_Lite& d, Point p, MsdfCurve c) {
                 d.t = t;
             }
         }
+    }   
+}
+
+////////////////////////////////////////////////////////////////////
+// most of the ray count related functions/functionality ///////////
+////////////////////////////////////////////////////////////////////
+
+struct rcGenContext {
+    gpu_rc_curve* curveBuf = nullptr;
+    size_t nCurves = 0, wOff = 0; //number of curves and write offset
+};
+
+rcGenContext *create_rc_gen_ctx(size_t nTotalCurves) {
+    if (nTotalCurves == 0)
+        return nullptr;
+
+    rcGenContext *rctx = new rcGenContext;
+
+    if (!rctx) {
+        std::cout << "err failed to generact rcGenContext : bad alloc" << std::endl;
+        return nullptr;
+    }
+
+    const size_t nnc = nTotalCurves << 1;
+    rctx->curveBuf = new gpu_rc_curve[nnc];
+
+    if (!rctx->curveBuf) {
+        std::cout << "err failed to generate rcGenContext : bad alloc (on cu-buff)" << std::endl;
+        return nullptr;
+    }
+
+    ZeroMem(rctx->curveBuf, nnc);
+
+    return rctx;
+}
+
+void delete_rc_gen_ctx(rcGenContext *&rctx) {
+    if (!rctx) return;
+    if (rctx->curveBuf)
+        _safe_free_a(rctx->curveBuf);
+    _safe_free_b(rctx);
+    rctx = nullptr;
+}
+
+constexpr size_t rcCtxBufAdd = 0x3ff; //add space for another 1023 curves
+
+//random kinda niche function that should not have to be called if we do stuff right but just incase I don't want the whole thing
+//blowing itself up because it doesn't have enough curve space
+void rc_gen_realloc_extra(const size_t extra, rcGenContext *ctx) {
+    if (!ctx || extra == 0) return;
+
+    ctx->nCurves += extra;
+    auto *nBuf = new gpu_rc_curve[ctx->nCurves];
+
+    if (!nBuf) {
+        std::cout << "failed to allocate new rc curve buffer :(" << std::endl;
+        ctx->nCurves -= extra;
+        return;
+    }
+
+    ZeroMem(nBuf, ctx->nCurves);
+
+#ifdef CHECK_MEM_TAMPER
+    if (ctx->nCurves < extra && ctx->curveBuf) {
+        in_memcpy(nBuf, ctx->curveBuf, ctx->nCurves - extra); //copy over le curves
+        _safe_free_a(ctx->curveBuf);
+    } else {
+        std::cout << "someone is tampering with memory... | err failed to copy over new curve buffer" << std::endl;
+        return;
+    }
+#else
+    if (ctx->curveBuf) {
+        in_memcpy(nBuf, ctx->curveBuf, ctx->nCurves - extra); //copy over le curves
+        _safe_free_a(ctx->curveBuf);
+    }
+#endif
+
+    ctx->curveBuf = nBuf;
+}
+
+inline void rc_process_curve(rcGenContext *ctx, BCurve *cu) {
+    if (!ctx || !cu) return;
+
+    if (ctx->nCurves - ctx->wOff < 2 || ctx->nCurves < ctx->wOff) 
+        rc_gen_realloc_extra(rcCtxBufAdd, ctx);
+
+    const Point b = pointScale(pointSub(cu->p[1], cu->p[0]), 2.0f);
+    const f32 dz = (-0.5f * b.y) / (cu->p[0].y - 2.0f * cu->p[1].y + cu->p[2].y);
+
+    if (dz >= 1 || dz <= 0) {
+        ctx->curveBuf[ctx->wOff++] = {
+            .p0 = {cu->p[0].x, cu->p[0].y},
+            .p1 = {cu->p[1].x, cu->p[1].y},
+            .p2 = {cu->p[2].x, cu->p[2].y}
+        };
+    } else { //more than 1 curve
+        const f32 dz2 = dz*dz;
+
+        Point piv = {
+            .x = cu->p[0].x * dz2 + cu->p[1].x * dz + cu->p[2].x,
+            .y = cu->p[0].y * dz2 + cu->p[1].y * dz + cu->p[2].y
+        };
+
+        //just stole ts from sebastian lague's video (https://www.youtube.com/watch?v=SO83KQuuZvg&t=3211s) cause im too tired to derive it myself :P
+        const Point aa = pointSub(cu->p[0], pointAdd(pointScale(cu->p[1], 2.0f), cu->p[2]));
+        const f32 la = (piv.y - cu->p[0].y) / b.y,
+                  lb = (piv.y - cu->p[2].y) / (2.0f * aa.y); //labubu
+        Point pa = pointAdd(cu->p[0], pointScale(b, la)),
+              pb = pointAdd(cu->p[2], pointScale(pointAdd(pointScale(aa, 2.0f), b), lb));
+
+        ctx->curveBuf[ctx->wOff++] = {
+            .p0 = {cu->p[0].x, cu->p[0].y},
+            .p1 = {pa.x, pa.y},
+            .p2 = {piv.x, piv.y}
+        };
+
+        ctx->curveBuf[ctx->wOff++] = {
+            .p0 = {piv.x, piv.y},
+            .p1 = {pb.x, pb.y},
+            .p2 = {cu->p[2].x, cu->p[2].y}
+        };
     }
 }
+
+////////////////////////////////////////////////////////////////////
 
 struct glfEdgeObject {
     BCurve* curveBuff = nullptr;
     std::vector<Edge> edges;
 };
 
-glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoints) {
+glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoints, rcGenContext **rcCtx, bool gen_rc_ctx = false) {
     glfEdgeObject eObj;
     
     const size_t nCurves = nPoints >> 1;
     eObj.curveBuff = new BCurve[nCurves];
     ZeroMem(eObj.curveBuff, nCurves);
     BCurve* curveBuffer = eObj.curveBuff; //stores curves of current edge
+
+    if (rcCtx && !*rcCtx && gen_rc_ctx) {
+        *rcCtx = create_rc_gen_ctx(nCurves);
+    }
 
     BCurve *workingCurve = curveBuffer;
 
@@ -1284,6 +1420,9 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
         workingCurve->p[pSelect] = p;
 
         if (pSelect++ == 2) {
+            //process for ray thingy working curve
+            if (rcCtx && *rcCtx) rc_process_curve(*rcCtx, workingCurve);
+
             //add curve to curve buffer / edge curves
             nEdgeCurves++;
             workingCurve = curveBuffer + nEdgeCurves; //set the working curve to the next curve
@@ -1407,7 +1546,7 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
     //curve and edge generation, glyph clean up, and more
 
     //generate glyph edges
-    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, nullptr);
 
     //generate single channel sdf
     i32 x,y;
@@ -1863,7 +2002,7 @@ gpu_light_curve BtoLightCurve(BCurve c, uvec3 color) {
     return ctx;
 }*/
 
-void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, bool accel = false) {
+void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext **rc_ctx, bool accel = false) {
     //clean the glyph up
     gPData cleanDat = cleanGlyphPoints(tGlyph);
 
@@ -1878,7 +2017,7 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, bool accel = false) 
     }
 
     //curve and edge generation, glyph clean up, and more
-    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, rc_ctx, true);
 
     i32 c;
 
@@ -2019,13 +2158,13 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, bool accel = false) 
     _safe_free_a(glyphEdges.curveBuff);
 }
 
-MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, bool accel = false) {
+MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, rcGenContext** rc_ctx, bool accel = false) {
     MsdfGenContext ctx = {
         .curves = nullptr,
         .nCurves = 0
     };
 
-    ConfigureGenContext(&ctx, tGlyph, accel);
+    ConfigureGenContext(&ctx, tGlyph, rc_ctx, accel);
 
     return ctx;
 }
@@ -2056,7 +2195,7 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
         return 0;
 
     //curve and edge generation, glyph clean up, and more
-    MsdfGenContext g_ctx = CreateMsdfGenContext(tGlyph);
+    MsdfGenContext g_ctx = CreateMsdfGenContext(tGlyph, nullptr);
 
     //generate multi channel sdf
     i32 x,y;
@@ -2235,7 +2374,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
     //
     const size_t nChannels = 4;
 
-     //clean the glyph up
+     //clean the glyph up 
     gPData cleanDat = cleanGlyphPoints(tGlyph);
 
     //get num points
@@ -2247,7 +2386,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
 
     //curve and edge generation, glyph clean up, and more
 
-    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, &ctx->rc_ctx, true);
 
     //compute conture colors
     i32 c;
@@ -2548,8 +2687,10 @@ const size_t MAX_BUFFER_CURVES = 1024;
 i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, FontInst *font, size_t nGlyphs, MsdfGpuContext *ctx, f32 padding_scl) {
     
     //simple error / render ability checks
-    if (ctx->fb.w == 0 || ctx->fb.h == 0) 
+    if (ctx->fb.w == 0 || ctx->fb.h == 0) {
+        std::cout << "msdf gen error: output dim is 0 in one or more dimension/s" << std::endl;
         return 0;
+    }
 
     if (!ctx) {
         std::cout << "error invalid context" << std::endl;
@@ -2609,6 +2750,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
         //add spritesheet character info for compound glyphs
         //TODO: support the hash map
+        Character *ochar = nullptr;
+
         if (tg.compound) {
             switch (font->map.ty) {
             case CharMapType::Direct: {
@@ -2616,12 +2759,31 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
                     goto _char_id_fail;
                 }
 
-                Character *ochar = &font->map.hash_map[tg.char_id].ochar;
+                ochar = &font->map.hash_map[tg.char_id].ochar;
 
-                for (j = 0; j < ochar->nParts; j++)
-                    ochar->spriteParts[j].sheet_loc = pos[ochar->val];
+                for (j = 0; j < ochar->nParts; j++) {
+                    ochar->spriteParts[j].sheet_loc = pos[ochar->val]; //TODO: fix this cause it's wrong and doesnt work
+
+                }
                     
                 break;
+            }
+            case CharMapType::Hash: {
+                std::cout << "TODO: implement char map hashing" << std::endl;
+                break;
+            }
+            default:
+                std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
+                break;
+            }
+        } else {
+            switch (font->map.ty) {
+            case CharMapType::Direct: {
+                if (tg.char_id > font->map.hash_inf.sz) {
+                    goto _char_id_fail;
+                }
+
+                ochar = &font->map.hash_map[tg.char_id].ochar;
             }
             case CharMapType::Hash: {
                 std::cout << "TODO: implement char map hashing" << std::endl;
@@ -2643,7 +2805,20 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         gh = tg.yMax - tg.yMin;
 
         //generate the glpyh context
-        ConfigureGenContext(g_ctx_store+i, tg, true);
+        const size_t rc_wposb4 = ((ctx->rc_ctx) ? ctx->rc_ctx->wOff : 0);
+        ConfigureGenContext(g_ctx_store+i, tg, &ctx->rc_ctx, true);
+
+        if (ochar && ctx->rc_ctx && ctx->rc_ctx->wOff > 0) {
+            ochar->rc_Dat.rc_curve_start = rc_wposb4;
+            ochar->rc_Dat.rc_curve_end = ctx->rc_ctx->wOff - 1;
+        } else {
+            std::cout << "ttf_render warning: could not add ray count info for glyph index " << i << " of " << nGlyphs 
+                      << "\n\t src: " << ctx->trace.font_src 
+                      << "\n\t check: ochar?" << (ochar != nullptr) 
+                      << " / rcContext?" << (ctx->rc_ctx != nullptr) 
+                      << " / wOff=" << (ctx->rc_ctx->wOff) << " (should be > 0) " << std::endl;
+        }
+
         g_ctx = g_ctx_store[i];
 
         if (nextCurveInsert + g_ctx.nCurves >= MAX_BUFFER_CURVES) {
@@ -2912,6 +3087,15 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    //rc data
+    if (ctx && ctx->rc_ctx) {
+        font->rc_dat.lcs = ctx->rc_ctx->curveBuf;
+        font->rc_dat.nCurves = ctx->rc_ctx->nCurves;
+        _safe_free_b(ctx->rc_ctx);
+    } else {
+        std::cout << "ttf render (severe) warning: could not include rc data!" << std::endl;
+    }
+
     //for debug stuff
     font->msdf_dat.MSDF.__dbg.cc_tex = BindableTexture(cc_composite_fb_tHand, ctx->cc_composite_fb.w, ctx->cc_composite_fb.h);
 
@@ -3111,7 +3295,7 @@ i32 ttfRender::RenderGlyphOutlineToBitmap(Glyph tGlyph, Bitmap* map, sdf_dim siz
 
     //curve and edge generation, glyph clean up, and more
 
-    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints);
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, nullptr);
 
     f32 t;
 
@@ -3205,8 +3389,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
     ttfFile f = glyphs.file;
 
-    std::cout << "Generating " << glyphs.nGlyphs << " glyphs..." << std::endl;
-
     if (glyphs.nGlyphs == 0)
         return font;
 
@@ -3241,7 +3423,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     sdf_dim c_dim = sdf_scale_dim(scale);
 
-    //const u32 padding = ceil((p_const / 32.0f) * padding_per_32);
+    //padding around each msdf glyph
     const f32 padding = 0.1f;
 
     //sort by size (ascending)
@@ -3395,8 +3577,12 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
         ochar.dim.w = g.xMax - g.xMin;
         ochar.dim.h = g.yMax - g.yMin;
+        ochar.dim.ranges.xMin = g.xMin; ochar.dim.ranges.xMax = g.xMax;
+        ochar.dim.ranges.yMin = g.yMin; ochar.dim.ranges.yMax = g.yMax;
         ochar.dim.hw_ratio = ((f32) ochar.dim.h) / ((f32) ochar.dim.w);
         ochar.val = g.char_id;
+
+        //rc data
         
         //ochar.nParts = 
         ochar.nParts = g.compound ? g.compound_inf.nGlyphParts : 1;
@@ -3408,6 +3594,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
                 CharPart *part = ochar.spriteParts + j;
 
                 part->offset = g.compound_inf.glyph_parts[j].pos_mat;
+
                 std::cout << "compound glyph isn't working cause you didnt add the info right dipshit" << std::endl;
             }
         } else {
@@ -3430,6 +3617,9 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
                 .yMax = (i32) g.yMax,
                 .yMin = (i32) g.yMin
             };
+
+            part->rc_Dat.rc_curve_start = ochar.rc_Dat.rc_curve_start;
+            part->rc_Dat.rc_curve_end = ochar.rc_Dat.rc_curve_end;
         }
 
         //TODO: add hash thing
@@ -3459,6 +3649,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     if (accel) {
         a_ctx = CreateMsdfGPUAccelerationContext(sheet_w, sheet_h);
+        a_ctx->trace.font_src = src;
         font.msdf_dat.dim.w = a_ctx->fb.w;
         font.msdf_dat.dim.h = a_ctx->fb.h;
         render_multi_positioned_msdf_gpu_accel(gly, c_pos, &font, glyphs.nGlyphs, a_ctx, padding);
@@ -3487,7 +3678,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
                     Character *ochar = &font.map.hash_map[glf.char_id].ochar;
 
                     for (j = 0; j < ochar->nParts; j++)
-                        ochar->spriteParts[j].sheet_loc = c_pos[ochar->val];
+                        ochar->spriteParts[j].sheet_loc = c_pos[ochar->val]; //TODO: fix this cause it straight up isn't right
                     
                     break;
                 }
@@ -3517,7 +3708,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     if (accel) {
         font.msdf_dat.mode = MsdfMode::GL_Texture;
-        font.msdf_dat.MSDF.gl_texture = BindableTexture(a_ctx->fb.getTextureHandle(), a_ctx->fb.w, a_ctx->fb.h);
+        font.msdf_dat.MSDF.gl_texture = BindableTexture(a_ctx->cc_composite_fb.getTextureHandle(), a_ctx->cc_composite_fb.w, a_ctx->cc_composite_fb.h);
         font.msdf_dat.MSDF.gl_texture.bind();
         glGenerateMipmap(GL_TEXTURE_2D);
     }
@@ -3720,12 +3911,26 @@ struct genericFontVert {
     f32 tex[2];
 };
 
-static RenderState *defFontRenderState;
-static bool defFontRenderStateCreated = false, defFontVertexDef = false;
-static Shader defFontShader;
+struct rcFontVert {
+    f32 pos[3];
+    f32 rgn[2];
+    i32 curve_range[2];
+};
+
+static RenderState *defFontRenderState = nullptr, *rcFontRenderState = nullptr;
+static bool defFontRenderStateCreated = false, defFontVertexDef = false, 
+            rcFontRenderStateCreated = false, rcFontVertexDef = false;
+static Shader defFontShader, smplRayCountShader;
 static mat4 str_proj_mat;
 constexpr size_t nFontRenderVerts = 2048;
+
 static RenderStateDescriptor fontRenderDesc = {
+    .dynamic = true,
+    .use_indicies = false,
+    .max_batch_verts = nFontRenderVerts
+};
+
+static RenderStateDescriptor rcRenderDesc = {
     .dynamic = true,
     .use_indicies = false,
     .max_batch_verts = nFontRenderVerts
@@ -3737,9 +3942,18 @@ void graphics::ini_generic_font_state() {
     defFontRenderStateCreated = true;
 }
 
+void graphics::ini_rc_font_state() {
+    rcFontRenderState = CreateNewRenderState(rcRenderDesc);
+
+    rcFontRenderStateCreated = true;
+}
+
 //todo: set these paths
 #define DEF_FONT_SHADER_VERT_SRC "../../src/basic_font_vert.glsl"
 #define DEF_FONT_SHADER_FRAG_SRC "../../src/basic_font_frag.glsl"
+
+#define SIMPLE_RC_SHADER_VERT_SRC "../../src/font_render_ray_count_vert.glsl"
+#define SIMPLE_RC_SHADER_FRAG_SRC "../../src/font_render_ray_count_frag.glsl"
 
 /*
 MAJOR TODO:
@@ -3755,6 +3969,12 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
     if (!defFontRenderStateCreated)
         ini_generic_font_state();
+
+    if (!rcFontRenderState)
+        ini_rc_font_state();
+
+    //determine rendering method
+    const bool use_msdf = !(prop.scale.pt < font->ad_inf.render.maxFontSizeForRayCount && font->ad_inf.render.useRayCountAtSmallScales);
 
     //check font instance and hash map stuff
 
@@ -3773,8 +3993,16 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     const u32 screenW = this->getOutputWidth();
     const u32 screenH = this->getOutputHeight();
 
-    this->SetRenderState(defFontRenderState);
+    if (use_msdf)
+        this->SetRenderState(defFontRenderState);
+    else
+        this->SetRenderState(rcFontRenderState);
     this->Resize(screenW, screenH);
+
+    if (!defFontVertexDef && !rcFontVertexDef) {
+        str_proj_mat = mat4::CreateOrthoProjectionMatrix(this->getOutputWidth(), 0.0f, this->getOutputHeight(), 0.0f, -1.0f, 1.0f);
+        auto *uu = str_proj_mat.glPtr();
+    }
 
     if (!defFontVertexDef) {
         this->VertexDefineBegin(sizeof(genericFontVert));
@@ -3782,35 +4010,55 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         this->DefineVertexPart(1, vertexClassPart(genericFontVert, tex));
         this->VertexDefineEnd();
         defFontVertexDef = true;
+    }
 
-        str_proj_mat = mat4::CreateOrthoProjectionMatrix(this->getOutputWidth(), 0.0f, this->getOutputHeight(), 0.0f, -1.0f, 1.0f);
-
-        //std::cout << "Created projection matrix for: " << this->getOutputWidth() << " " << this->getOutputHeight() << std::endl;
-        auto *uu = str_proj_mat.glPtr();
-        //for (i32 u = 0; u < 16; u++) {
-        //    std::cout << "mat: " << uu[u] << std::endl;
-        //}
-        //std::cout << "" << std::endl;
+    if (!rcFontVertexDef) {
+        this->VertexDefineBegin(sizeof(rcFontVert));
+        this->DefineVertexPart(0, vertexClassPart(rcFontVert, pos));
+        this->DefineVertexPart(1, vertexClassPart(rcFontVert, rgn));
+        this->DefineVertexPart(2, vertexClassPart(rcFontVert, curve_range));
+        this->VertexDefineEnd();
+        rcFontVertexDef = true;
     }
 
     if (!defFontShader.good()) {
         defFontShader = Shader::LoadShaderFromFile(DEF_FONT_SHADER_VERT_SRC, DEF_FONT_SHADER_FRAG_SRC);
     }
 
-    this->RenderBegin();
-    this->SetShader(&defFontShader);
+    if (!smplRayCountShader.good()) {
+        smplRayCountShader = Shader::LoadShaderFromFile(SIMPLE_RC_SHADER_VERT_SRC, SIMPLE_RC_SHADER_FRAG_SRC);
+    }
 
-    defFontShader.SetMat4("screen_project", &str_proj_mat);
-    font->msdf_dat.MSDF.gl_texture.bind();
-
-    //TODO: set projection matrix
-
-    char cc;
-    i32 p;
-
+    //enable alpha blending and what not
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBlendEquation(GL_FUNC_ADD);
+
+    //begin render
+    this->RenderBegin();
+
+    if (use_msdf) {
+        this->SetShader(&defFontShader);
+        defFontShader.SetMat4("screen_project", &str_proj_mat);
+        font->msdf_dat.MSDF.gl_texture.bind();
+    } else {
+        this->SetShader(&smplRayCountShader);
+        smplRayCountShader.SetMat4("screen_project", &str_proj_mat);
+
+        if (!font->rc_dat.cu_buf_good) {
+            glGenBuffers(1, &font->rc_dat.cu_buf);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, font->rc_dat.cu_buf);
+            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gpu_rc_curve) * font->ad_inf.render.nCurvesInRcBuffer, 0, GL_DYNAMIC_DRAW);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, font->rc_dat.cu_buf);
+        }
+
+        //copy over the curves
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, font->rc_dat.cu_buf);
+        //glBufferSubData(GL_SHADER_STORAGE_BUFFER, nextCurveInsert * sizeof(gpu_light_curve), sizeof(gpu_light_curve) * g_ctx.nCurves, g_ctx.curves);
+    }
+
+    char cc;
+    i32 p;
 
     while ((cc = *s_ctx.cur_char) != 0x00) {
         switch (cc) {
@@ -3884,8 +4132,6 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
 
-            //std::cout << "Metrics: " << cp.sheet_loc.x << " " << cp.sheet_loc.y << " " << cp.sheet_loc.w << " " << cp.sheet_loc.h << std::endl << " | " << metrics.pRatio << " | " << (cp.size.xMax - cp.size.xMin) << " " << (cp.size.yMax - cp.size.yMin) << std::endl;
-
             //compute needed render constants
             part_w = (cp.size.xMax - cp.size.xMin) * metrics.pRatio;
             part_h = (cp.size.yMax - cp.size.yMin) * metrics.pRatio;
@@ -3901,16 +4147,12 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             gp_transform_mat2[2] = cp.offset.c * im;
             gp_transform_mat2[3] = cp.offset.d * in;
 
-            //part_x = cp.offset.m * ((gp_transform_mat2[0] * s_ctx.x) + (gp_transform_mat2[2] * cp.size.yMax * metrics.pRatio) + cp.offset.e);
-            //part_y = s_ctx.baseline_y - cp.offset.n * ((gp_transform_mat2[1] * s_ctx.x) +  (gp_transform_mat2[3] * cp.size.yMin * metrics.pRatio + part_h) + cp.offset.f);
             part_y = s_ctx.baseline_y - ((cp.size.yMin - ((i32) yRelTop * metrics.line_h)) * metrics.pRatio) - part_h;
             part_x = s_ctx.x;
 
             const f32 dbg_iw = 1.0f / screenW,
                       dbg_ih = 1.0f / screenH;
-
-            //std::cout << "rendering character \"" << cc << "\" " << part_x << ", " << part_y << " | " << part_w << " " << part_h << " | " << font->ad_inf.ascent << " " << s_ctx.baseline_y << std::endl;
-
+            
             cx_max = part_x + part_w;
 
             //part_x = (part_x - screenW * 0.5f) * dbg_iw * 2.0f;
@@ -3918,42 +4160,78 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             //part_w = part_w * dbg_iw * 2.0f;
             //part_h = part_h * dbg_ih * 2.0f;
 
-            const f32 iTexX = 1.0f / font->msdf_dat.MSDF.gl_texture.width(),
-                      iTexY = 1.0f / font->msdf_dat.MSDF.gl_texture.height();
+            if (use_msdf) {
+                const f32 iTexX = 1.0f / font->msdf_dat.MSDF.gl_texture.width(),
+                        iTexY = 1.0f / font->msdf_dat.MSDF.gl_texture.height();
 
-            //verticies
-            genericFontVert glyph_rect_base[] = { 
-                part_x, part_y, z, 
-                (f32) cp.sheet_loc.x * iTexX, (f32)(cp.sheet_loc.y+cp.sheet_loc.h) * iTexY, 
+                //verticies
+                genericFontVert glyph_rect_base[] = { 
+                    part_x, part_y, z, 
+                    (f32) cp.sheet_loc.x * iTexX, (f32)(cp.sheet_loc.y+cp.sheet_loc.h) * iTexY, 
 
-                (part_x), (part_y+part_h), z, 
-                (f32) cp.sheet_loc.x * iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
+                    (part_x), (part_y+part_h), z, 
+                    (f32) cp.sheet_loc.x * iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
 
-                (part_x+part_w), (part_y), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
+                    (part_x+part_w), (part_y), z, 
+                    (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
             
-                (part_x+part_w), (part_y+part_h), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
+                    (part_x+part_w), (part_y+part_h), z, 
+                    (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
             
-                (part_x+part_w), (part_y), z, 
-                (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY,  
+                    (part_x+part_w), (part_y), z, 
+                    (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY,  
             
-                (part_x), (part_y+part_h), z, 
-                (f32) cp.sheet_loc.x* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
-            };
+                    (part_x), (part_y+part_h), z, 
+                    (f32) cp.sheet_loc.x* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
+                };
 
-            //TODO: actually render ts
-            this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);
+                //TODO: actually render ts
+                this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);
+            } else {
+                /*
+                
+                required data
 
-            //std::cout << "CXMAX: " << cx_max << std::endl;
+                layout(location = 0) in vec3 m_pos;
+                layout(location = 1) in vec2 region_pos;
+                layout(location = 2) in ivec2 t_curves;
+                
+                */
+
+                rcFontVert glyph_rc_verts[] = {
+                    part_x, part_y, z, 
+                    (f32) o_char.dim.ranges.xMin, (f32) o_char.dim.ranges.yMax, 
+                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+
+                    (part_x), (part_y+part_h), z, 
+                    (f32) o_char.dim.ranges.xMin, (f32) o_char.dim.ranges.yMin, 
+                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+
+                    (part_x+part_w), (part_y), z, 
+                    (f32) o_char.dim.ranges.xMax, (f32) o_char.dim.ranges.yMax, 
+                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+            
+                    (part_x+part_w), (part_y+part_h), z, 
+                    (f32) o_char.dim.ranges.xMax, (f32) o_char.dim.ranges.yMin, 
+                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+            
+                    (part_x+part_w), (part_y), z, 
+                    (f32) o_char.dim.ranges.xMax, (f32) o_char.dim.ranges.yMax,  
+                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+            
+                    (part_x), (part_y+part_h), z, 
+                    (f32) o_char.dim.ranges.xMin, (f32) o_char.dim.ranges.yMin, 
+                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end
+                };
+
+                this->PushVerts(glyph_rc_verts, sizeof(glyph_rc_verts) / sizeof(rcFontVert), true);
+            }
         }
 
         s_ctx.x = cx_max;
 
         break; //end of switch statement default branch
         }
-
-        //this->RenderFlush();
 
         //advance to next character
         s_ctx.cur_char++;
@@ -3999,4 +4277,25 @@ FontInst ttfRender::GenerateFontFromForeign(std::string img_src, std::string jso
     jf.len = 0;
 
     return fnt;
+}
+
+//
+
+
+//render a character via the ray count thing
+/*void _render_char_rc_256(Character o_char, f32 x, f32 y, f32 z, f32 w, f32 h, FontInst *font) {
+    //easy peasy lemon squeezy (not really cause of all the precomputations)
+    if (!font || !font->rc_dat.lcs)
+        return;
+
+    
+}*/
+
+void ttfRender::DeleteFontObject(FontInst *&font) {
+    if (!font) return;
+
+    //TODO: delete all the fonts parts
+
+    _safe_free_b(font);
+    font = nullptr;
 }

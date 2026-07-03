@@ -124,7 +124,7 @@ void UIObject::update() {}
 void UILayout::addObj(UIObject *obj) {
     if (!obj || !obj->isOk()) return;
 
-    this->children.push_back(obj);
+    this->children.push(obj);
 
     //bind to the object
     _UIBindingInf bInf = {
@@ -147,8 +147,15 @@ void UILayout::render(graphics *g, mat4 mmat, vec2 outputDim) {
     const mat4 tMat = mmat * mat4::CreateTranslationMatrix(vec3(this->bounds.x, this->bounds.y, 0.0f));
     const vec2 cBounds = vec2(this->bounds.z, this->bounds.w);
 
-    for (i32 i = 0; i < this->children.size(); i++) {
+    /*for (i32 i = 0; i < this->children.len(); i++) {
         auto *C = this->children[i];
+        if (!C) continue;
+
+        C->render(g, tMat, cBounds);
+    }*/
+
+    //use begin and end cause they're wayyyy faster (sometimes)
+    for (auto *C : this->children) {
         if (!C) continue;
 
         C->render(g, tMat, cBounds);
@@ -243,12 +250,7 @@ void UI::load() {
 
 UILayout *UILayout::createNewBasicLayout() {
     UILayout _fill;
-    UILayout *lay = UI::_allocObj<UILayout>(nullptr);
-
-    //lay->children = std::vector<UIObject*>();
-
-    *lay = std::move(_fill);
-    lay->children = std::move(_fill.children);
+    UILayout *lay = UI::_allocObj<UILayout>(&_fill);
     
     if (!lay) {
         std::cout << "error failed to create new ui layout: could not allocate" << std::endl;

@@ -69,6 +69,7 @@ Cubic solver functions
 const float one_third = 1.0 / 3.0;
 const float i9 = 1.0 / 9.0, i54 = 1.0 / 54.0;
 const float mu_pi = 3.1415926;
+const float mu_epsil = 0.00001;
 
 float nz_sign(float v) {
     if (v > 0)
@@ -89,15 +90,15 @@ int solve_linear_32(float a, float b, out vec3 roots) {
 }
 
 int solve_re_quadratic_32(float a, float b, float c, out vec3 roots) {
-    if (a == 0)
+    if (abs(a) < mu_epsil)
         return solve_linear_32(b, c, roots);
 
     const float i = b*b - 4.0*a*c;
 
-    if (i < 0.0)
+    if (i < 0.0 && abs(i) > mu_epsil)
         return 0;
     
-    if (i == 0.0) {
+    if (abs(i) < mu_epsil) {
         roots.x = -b / (2.0*a);
         roots.y = 0;
         roots.z = 0;
@@ -115,7 +116,7 @@ int solve_re_quadratic_32(float a, float b, float c, out vec3 roots) {
 }
 
 int solve_re_cubic_32_a(float a, float b, float c, float d, out vec3 roots) {
-    if (a == 0.0) return solve_re_quadratic_32(b, c, d, roots);
+    if (abs(a) < mu_epsil) return solve_re_quadratic_32(b, c, d, roots);
 
     b /= a; c /= a; d /= a;
 
@@ -140,7 +141,7 @@ int solve_re_cubic_32_a(float a, float b, float c, float d, out vec3 roots) {
         return 1;
     }
 
-    if (dis == 0.0) {
+    if (abs(dis) < mu_epsil) {
         const float crt_r = cube_root_32(r);
         roots.x = -xi + 2.0 * crt_r;
         roots.y = -(crt_r + xi);
