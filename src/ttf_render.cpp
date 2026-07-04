@@ -1274,6 +1274,8 @@ constexpr size_t rcCtxBufAdd = 0x3ff; //add space for another 1023 curves
 void rc_gen_realloc_extra(const size_t extra, rcGenContext *ctx) {
     if (!ctx || extra == 0) return;
 
+    std::cout << "extra alloc: " << extra << std::endl;
+
     ctx->nCurves += extra;
     auto *nBuf = new gpu_rc_curve[ctx->nCurves];
 
@@ -1287,7 +1289,7 @@ void rc_gen_realloc_extra(const size_t extra, rcGenContext *ctx) {
 
 #ifdef CHECK_MEM_TAMPER
     if (ctx->nCurves < extra && ctx->curveBuf) {
-        in_memcpy(nBuf, ctx->curveBuf, ctx->nCurves - extra); //copy over le curves
+        in_memcpy(nBuf, ctx->curveBuf, (ctx->nCurves - extra) * sizeof(gpu_rc_curve)); //copy over le curves
         _safe_free_a(ctx->curveBuf);
     } else {
         std::cout << "someone is tampering with memory... | err failed to copy over new curve buffer" << std::endl;
@@ -1295,7 +1297,7 @@ void rc_gen_realloc_extra(const size_t extra, rcGenContext *ctx) {
     }
 #else
     if (ctx->curveBuf) {
-        in_memcpy(nBuf, ctx->curveBuf, ctx->nCurves - extra); //copy over le curves
+        in_memcpy(nBuf, ctx->curveBuf, (ctx->nCurves - extra) * sizeof(gpu_rc_curve)); //copy over le curves
         _safe_free_a(ctx->curveBuf);
     }
 #endif
@@ -1306,7 +1308,7 @@ void rc_gen_realloc_extra(const size_t extra, rcGenContext *ctx) {
 inline void rc_process_curve(rcGenContext *ctx, BCurve *cu) {
     if (!ctx || !cu) return;
 
-    if (ctx->nCurves - ctx->wOff < 2 || ctx->nCurves < ctx->wOff) 
+    if (ctx->nCurves - ctx->wOff < 2 || ctx->nCurves <= ctx->wOff) 
         rc_gen_realloc_extra(rcCtxBufAdd, ctx);
 
     const Point b = pointScale(pointSub(cu->p[1], cu->p[0]), 2.0f);
@@ -1321,15 +1323,11 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu) {
     } else { //more than 1 curve
         const f32 dz2 = dz*dz;
 
-        Point piv = {
-            .x = cu->p[0].x * dz2 + cu->p[1].x * dz + cu->p[2].x,
-            .y = cu->p[0].y * dz2 + cu->p[1].y * dz + cu->p[2].y
-        };
-
         //just stole ts from sebastian lague's video (https://www.youtube.com/watch?v=SO83KQuuZvg&t=3211s) cause im too tired to derive it myself :P
-        const Point aa = pointSub(cu->p[0], pointAdd(pointScale(cu->p[1], 2.0f), cu->p[2]));
+        const Point aa = pointSub(cu->p[0], pointSub(pointScale(cu->p[1], 2.0f), cu->p[2]));
+        Point piv = pointAdd(pointScale(aa, dz2), pointAdd(pointScale(b, dz), cu->p[0]));
         const f32 la = (piv.y - cu->p[0].y) / b.y,
-                  lb = (piv.y - cu->p[2].y) / (2.0f * aa.y); //labubu
+                  lb = (piv.y - cu->p[2].y) / (2.0f * aa.y + b.y); //labubu
         Point pa = pointAdd(cu->p[0], pointScale(b, la)),
               pb = pointAdd(cu->p[2], pointScale(pointAdd(pointScale(aa, 2.0f), b), lb));
 
@@ -3915,6 +3913,7 @@ struct rcFontVert {
     f32 pos[3];
     f32 rgn[2];
     i32 curve_range[2];
+    f32 delta[2];
 };
 
 static RenderState *defFontRenderState = nullptr, *rcFontRenderState = nullptr;
@@ -4017,6 +4016,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         this->DefineVertexPart(0, vertexClassPart(rcFontVert, pos));
         this->DefineVertexPart(1, vertexClassPart(rcFontVert, rgn));
         this->DefineVertexPart(2, vertexClassPart(rcFontVert, curve_range));
+        this->DefineVertexPart(3, vertexClassPart(rcFontVert, delta));
         this->VertexDefineEnd();
         rcFontVertexDef = true;
     }
@@ -4048,8 +4048,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         if (!font->rc_dat.cu_buf_good) {
             glGenBuffers(1, &font->rc_dat.cu_buf);
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, font->rc_dat.cu_buf);
-            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gpu_rc_curve) * font->ad_inf.render.nCurvesInRcBuffer, 0, GL_DYNAMIC_DRAW);
+            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gpu_rc_curve) * font->rc_dat.nCurves, font->rc_dat.lcs, GL_STATIC_DRAW);
+            std::cout << "COPYING: " << font->rc_dat.nCurves << "curves | Align: " << sizeof(gpu_rc_curve) << std::endl;
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, font->rc_dat.cu_buf);
+            font->rc_dat.cu_buf_good = true;
         }
 
         //copy over the curves
@@ -4128,6 +4130,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         f32 gp_transform_mat2[] = {1.0f, 0.0f, 0.0f, 1.0f};
         vec4 gp_transform_ext = vec4(0.0f, 0.0f, 1.0f, 1.0f);
 
+        f32 xxtra = 0.0f;
+
         //
         for (p = 0; p < o_char.nParts; p++) {
             CharPart cp = o_char.spriteParts[p];
@@ -4198,37 +4202,57 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 
                 */
 
+                //std::cout << "Char: " << cc << " | " << o_char.rc_Dat.rc_curve_start << " --> " << o_char.rc_Dat.rc_curve_end << std::endl;
+
+                const f32 cw = o_char.dim.ranges.xMax - o_char.dim.ranges.xMin,
+                          ch = o_char.dim.ranges.yMax - o_char.dim.ranges.yMin;
+
+                const f32 sdx = (cw) / part_w,
+                          sdy = (ch) / part_h;
+
+                constexpr f32 rc_padd = 0.2f;
+
+                const f32 px = part_x, py = part_y, pw = part_w + 2.0f, ph = part_h + 2.0f;
+
                 rcFontVert glyph_rc_verts[] = {
-                    part_x, part_y, z, 
-                    (f32) o_char.dim.ranges.xMin, (f32) o_char.dim.ranges.yMax, 
-                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+                    px, py, z, 
+                    (f32) o_char.dim.ranges.xMin - sdx, (f32) o_char.dim.ranges.yMax + sdy, 
+                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    sdx, sdy,
 
-                    (part_x), (part_y+part_h), z, 
-                    (f32) o_char.dim.ranges.xMin, (f32) o_char.dim.ranges.yMin, 
-                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+                    (px), (py+ph), z, 
+                    (f32) o_char.dim.ranges.xMin - sdx, (f32) o_char.dim.ranges.yMin - sdy, 
+                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    sdx, sdy,
 
-                    (part_x+part_w), (part_y), z, 
-                    (f32) o_char.dim.ranges.xMax, (f32) o_char.dim.ranges.yMax, 
-                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+                    (px+pw), (py), z, 
+                    (f32) o_char.dim.ranges.xMax + sdx, (f32) o_char.dim.ranges.yMax + sdy, 
+                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    sdx, sdy,
             
-                    (part_x+part_w), (part_y+part_h), z, 
-                    (f32) o_char.dim.ranges.xMax, (f32) o_char.dim.ranges.yMin, 
-                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+                    (px+pw), (py+ph), z, 
+                    (f32) o_char.dim.ranges.xMax + sdx, (f32) o_char.dim.ranges.yMin - sdy, 
+                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    sdx, sdy,
             
-                    (part_x+part_w), (part_y), z, 
-                    (f32) o_char.dim.ranges.xMax, (f32) o_char.dim.ranges.yMax,  
-                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end,
+                    (px+pw), (py), z, 
+                    (f32) o_char.dim.ranges.xMax + sdx, (f32) o_char.dim.ranges.yMax + sdy,  
+                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    sdx, sdy,
             
-                    (part_x), (part_y+part_h), z, 
-                    (f32) o_char.dim.ranges.xMin, (f32) o_char.dim.ranges.yMin, 
-                    o_char.rc_Dat.rc_curve_start, o_char.rc_Dat.rc_curve_end
+                    (px), (py+ph), z, 
+                    (f32) o_char.dim.ranges.xMin - sdx, (f32) o_char.dim.ranges.yMin - sdy, 
+                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    sdx, sdy
                 };
 
                 this->PushVerts(glyph_rc_verts, sizeof(glyph_rc_verts) / sizeof(rcFontVert), true);
+
+                xxtra = 1 + pw * rc_padd;
             }
         }
 
-        s_ctx.x = cx_max;
+        s_ctx.x = cx_max + xxtra;
 
         break; //end of switch statement default branch
         }

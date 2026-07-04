@@ -12,7 +12,7 @@
  * 
  * written by muffinshades 2024-2025
  * 
- * 3,000+ lines of code of adhd-induced speed. Can render ttf glyphs in numerous ways
+ * 5,000+ lines of code of adhd-induced speed. Can render ttf glyphs in numerous ways
  * 
  * ------------------------------------
  * 
@@ -147,9 +147,9 @@ public:
 
 struct gpu_rc_curve {
     f32 p0[2];
-    volatile f32 zzzzzbob_aka_padding[2];
+    //volatile f32 zzzzzbob_aka_padding[2];
     f32 p1[2];
-    volatile f32 zzzzzbilly_aka_more_padding[2];
+    //volatile f32 zzzzzbilly_aka_more_padding[2];
     f32 p2[2];
 };
 
@@ -252,7 +252,7 @@ struct FontInst {
         i16 descent;
         struct {
             bool useRayCountAtSmallScales = true;
-            i32 maxFontSizeForRayCount = 20;
+            i32 maxFontSizeForRayCount = 200;
             size_t nCurvesInRcBuffer = 2048;
         } render;
     } ad_inf;
