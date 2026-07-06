@@ -5,6 +5,7 @@
 #include "mesh.hpp"
 #include "vertex.hpp"
 #include "../bitmap.hpp"
+#include "../Color.hpp"
 
 #define _CARBONGL_SHADOW_SPECIAL_VAL 0xfb01
 
@@ -108,6 +109,7 @@ struct GenericFontProperties {
         bool italic = false;
         bool underline = false;
         bool strikethrough = false;
+        Color color;
     } style;
 };
 

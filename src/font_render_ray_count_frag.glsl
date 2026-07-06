@@ -96,7 +96,7 @@ void main() {
                        vec2(0.50, 0.25),vec2(0.50, 0.50),vec2(0.50, 0.75),
                        vec2(0.75, 0.25),vec2(0.75, 0.50),vec2(0.75, 0.75)};*/
 
-    const float blurr = 0.33;
+    const float blurr = 0.25;
 
     vec2 offsets[9] = {vec2(-blurr, -blurr),vec2(-blurr, 0.0),vec2(-blurr, blurr),
                        vec2(0.0, -blurr),vec2(0.0, 0.0),vec2(0.0, blurr),

@@ -10,7 +10,8 @@ const std::string iTableTags[] = {
     "loca",
     "cmap",
     "hmtx",
-    "hhea"
+    "hhea",
+    "maxp"
 };
 
 /*
@@ -112,6 +113,13 @@ const u8 uncode_range_decode[] = {
     0b00100000, 0x01, 0x29, 0x00, 0x29, 0x7f //sup arrows b
 };
 
+//extracts range data from the table thing
+struct _RangeData {
+    size_t nRanges = 0;
+    u32 *min = nullptr;
+    u32 *max = nullptr;
+    bool good = false;
+};
 
 //old
 /*bool _strCompare(std::string a, std::string b) {
@@ -192,6 +200,42 @@ offsetTable readOffsetTable(ttfStream* stream) {
 
     return res;
 };
+
+maxVals read_maxp(ttfStream *stream, ttfFile *f) {
+    if (!stream || !f) return;
+
+    stream->seek(f->maxp_table.off);
+
+    maxVals mv;
+
+    mv.ver = stream->readFixed();
+
+    switch (mv.ver) {
+        case 0x00005000: {
+            mv.nGlyphs = stream->readUInt16();
+            break;
+        }
+        default: {
+            mv.nGlyphs = stream->readUInt16();
+            mv.maxPoints = stream->readUInt16();
+            mv.maxContours = stream->readUInt16();
+            mv.maxComponentPnts = stream->readUInt16();
+            mv.maxComponentCont = stream->readUInt16();
+            mv.maxZones = stream->readUInt16();
+            mv.maxTwilightPnts = stream->readUInt16();
+            mv.maxStorage = stream->readUInt16();
+            mv.maxFnDefs = stream->readUInt16();
+            mv.maxInstructionDefs = stream->readUInt16();
+            mv.maxStackElem = stream->readUInt16();
+            mv.maxInstructionSz = stream->readUInt16();
+            mv.maxComponentElem = stream->readUInt16();
+            mv.maxComponentDepth = stream->readUInt16();
+            break;
+        }
+    }
+
+    return mv;
+}
 
 //loca
 //dosent need a struct but heres how it works for reference:
@@ -279,6 +323,10 @@ void read_offset_tables(ttfStream* stream, ttfFile* f) {
         }
         case iTable_cmap: {
             f->cmap_table = table;
+            break;
+        }
+        case iTable_maxp: {
+            f->maxp_table = table;
             break;
         }
         default:
@@ -549,16 +597,9 @@ bool read_hhea(ttfStream *stream, ttfFile* f) {
     return 0;
 }
 
-void read_hmtx(ttfStream *stream, ttfFile* f) {
+void read_hmtx(ttfStream *stream, ttfFile* f, _RangeData rd = {.good = false}) {
     if (!stream || !f)
         return;
-
-    const size_t n_metrics = f->h_inf.nLongHorMetrics;
-
-    if (n_metrics == 0) {
-        std::cout << "ttf error: cannot read hmtx -> hhea not read or nothing to read ;-;" << std::endl;
-        return;
-    }
 
     if (f->hmtx_table.len == 0) {
         std::cout << "ttf error: no hmtx or ttf header not read" << std::endl;
@@ -567,20 +608,55 @@ void read_hmtx(ttfStream *stream, ttfFile* f) {
 
     if (f->h_metrics) return;
 
+    i32 i, j;
+    size_t n_metrics;
+
+    if (rd.good) {
+        n_metrics = 0;
+
+        for (i = 0; i < rd.nRanges; i++) {
+            n_metrics += rd.max[i] - rd.min[i];
+        }
+    } else {
+        n_metrics = f->header.max_vals.nGlyphs;
+    }
+
+    if (n_metrics == 0) {
+        std::cout << "ttf error: cannot read hmtx -> hhea not read or nothing to read ;-;" << std::endl;
+        return;
+    }
+
     f->h_metrics = new h_char_metric[n_metrics];
     ZeroMem(f->h_metrics, n_metrics);
 
     stream->seek(f->hmtx_table.off);
 
-    i32 i;
+    if (!rd.good) {
+        for (i = 0; i < f->h_inf.nLongHorMetrics; i++) {
+            h_char_metric hcm;
 
-    for (i = 0; i < n_metrics; i++) {
-        h_char_metric hcm;
+            hcm.advance_w = stream->readUInt16();
+            hcm.l_side_bearing = stream->readInt16();
 
-        hcm.advance_w = stream->readUInt16();
-        hcm.l_side_bearing = stream->readInt16();
+            f->h_metrics[i] = hcm;
+        }
 
-        f->h_metrics[i] = hcm;
+        for (i = 0; i < n_metrics - f->h_inf.nLongHorMetrics; i++) {
+            h_char_metric hcm;
+
+            //TODO: optimize this and all the accesses
+            if (f->h_inf.nLongHorMetrics > 0)
+                hcm.advance_w = f->h_metrics[f->h_inf.nLongHorMetrics-1].advance_w;
+            hcm.l_side_bearing = stream->readInt16();
+
+            f->h_metrics[i] = hcm;
+        }
+    } else {
+        //gotta read it via a range thingy
+        //TODO: this VERT IMPORTANT
+        for (i = 0; i < rd.nRanges; i++) {
+
+        } 
     }
 }
 
@@ -973,14 +1049,6 @@ Glyph ttfParse::ReadTTFGlyph(std::string src, u32 id) {
     return tGlyph;
 }
 
-//extracts range data from the table thing
-struct _RangeData {
-    size_t nRanges = 0;
-    u32 *min = nullptr;
-    u32 *max = nullptr;
-    bool good = false;
-};
-
 _RangeData extract_range_data(UnicodeRange charRange) {
     _RangeData r;
 
@@ -1086,9 +1154,13 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     //
     read_offset_tables(&fStream, &f);
 
+    //read max vals
+    maxVals mv = read_maxp(&fStream, &f);
+    f.header.max_vals = mv;
+
     //read horizontal metrics
     read_hhea(&fStream, &f);
-    read_hmtx(&fStream, &f);
+    read_hmtx(&fStream, &f, rd);
 
     i32 r, ucode_i, tg = 0;
     gs.nCharacters = 0;

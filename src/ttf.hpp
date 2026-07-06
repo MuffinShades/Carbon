@@ -43,6 +43,7 @@ enum iTable {
     iTable_loca,
     iTable_cmap,
     iTable_hmtx,
+    iTable_maxp,
     iTable_NA
 };
 
@@ -78,6 +79,25 @@ struct table_head {
     i16 fontDirectionHint;
     i16 idxToLocFormat;
     i16 glyphDataFormat;
+    maxVals max_vals;
+};
+
+struct maxVals {
+    i32 ver = 0x00010000;
+    u16 nGlyphs = 0;
+    u16 maxPoints = 0;
+    u16 maxContours = 0;
+    u16 maxComponentPnts = 0;
+    u16 maxComponentCont = 0;
+    u16 maxZones = 0;
+    u16 maxTwilightPnts = 0;
+    u16 maxStorage = 0;
+    u16 maxFnDefs = 0;
+    u16 maxInstructionDefs = 0;
+    u16 maxStackElem = 0;
+    u16 maxInstructionSz = 0;
+    u16 maxComponentElem = 0;
+    u16 maxComponentDepth = 0;
 };
 
 class ttfStream : public ByteStream {
@@ -208,6 +228,7 @@ public:
     offsetTable cmap_table;
     offsetTable hhea_table;
     offsetTable hmtx_table;
+    offsetTable maxp_table;
     CMapMode platform = CMap_null;
     i32 encodingId = 0;
     std::vector<offsetTable> tables;
@@ -226,8 +247,8 @@ enum class UnicodeRange {
     Latin_Exb,
     Latin_Full,
     IPA_Ext,
-    Spacing_Mod_Letters
-
+    Spacing_Mod_Letters,
+    Unknown
 };
 
 struct _rLoc {

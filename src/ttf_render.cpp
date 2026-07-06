@@ -2753,11 +2753,11 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         if (tg.compound) {
             switch (font->map.ty) {
             case CharMapType::Direct: {
-                if (tg.char_id > font->map.hash_inf.sz) {
+                if (tg.char_id - font->map.firstId > font->map.hash_inf.sz) {
                     goto _char_id_fail;
                 }
 
-                ochar = &font->map.hash_map[tg.char_id].ochar;
+                ochar = &font->map.hash_map[tg.char_id - font->map.firstId].ochar;
 
                 for (j = 0; j < ochar->nParts; j++) {
                     ochar->spriteParts[j].sheet_loc = pos[ochar->val]; //TODO: fix this cause it's wrong and doesnt work
@@ -2777,11 +2777,11 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         } else {
             switch (font->map.ty) {
             case CharMapType::Direct: {
-                if (tg.char_id > font->map.hash_inf.sz) {
+                if (tg.char_id - font->map.firstId > font->map.hash_inf.sz) {
                     goto _char_id_fail;
                 }
 
-                ochar = &font->map.hash_map[tg.char_id].ochar;
+                ochar = &font->map.hash_map[tg.char_id - font->map.firstId].ochar;
             }
             case CharMapType::Hash: {
                 std::cout << "TODO: implement char map hashing" << std::endl;
@@ -3382,6 +3382,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     const f32 padding_per_32 = 1.0f;
     const f32 inter_glyph_padding = 1.0f;
+    const f32 padding = 0.1f;
 
     // get all the glyphs
     GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
@@ -3421,30 +3422,11 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
     sdf_dim c_dim = sdf_scale_dim(scale);
 
-    //padding around each msdf glyph
-    const f32 padding = 0.1f;
-
     //sort by size (ascending)
     Glyph *gly = new Glyph[glyphs.nGlyphs];
     in_memcpy(gly, glyphs.glyphs, sizeof(Glyph) * glyphs.nGlyphs);
     mu_qsort<Glyph>(gly, &_glyphCmp, glyphs.nGlyphs);
 
-    //compute the positions of all the characters
-    struct SpriteRegion {
-        i32 x = 0, y = 0, w = -1, h = -1, age = 0; //-1 for w and height is treated as infinity
-    };
-
-    u32 sheet_w = 1, sheet_h = 1;
-
-    std::vector<SpriteRegion> rgn_stack = {{}}; //add the first "infinite" region
-
-    i32 i = 0, j = -1;
-    SpriteRegion Rn;
-
-    CharSpritePos *c_pos = new CharSpritePos[glyphs.nGlyphs];
-
-    constexpr size_t nFontMapHashBits = 15;
-    
     /*if (glyphs.nRanges == 1) {
         font.map.ty = CharMapType::Direct;
         font.map.hash_inf.sz = glyphs.nGlyphs;
@@ -3456,11 +3438,41 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ZeroMem(font.map.hash_map, nFontMapHashBits);
     }*/
 
-    font.map.ty = CharMapType::Direct;
-    font.map.hash_inf.sz = glyphs.nGlyphs;
-    font.map.hash_map = new CharLink[font.map.hash_inf.sz];
-    ZeroMem(font.map.hash_map, font.map.hash_inf.sz);
+    //create the character map
+    CharSpritePos *c_pos = new CharSpritePos[glyphs.nGlyphs];
+    constexpr size_t nFontMapHashBits = 15;
 
+    if (glyphs.nRanges == 1) {
+        font.map.ty = CharMapType::Direct;
+        font.map.hash_inf.sz = glyphs.nGlyphs;
+        font.map.hash_map = new CharLink[font.map.hash_inf.sz];
+        if (glyphs.rangeLocations) {
+            font.map.firstId = glyphs.rangeLocations[0].start;
+        } else if (gly && glyphs.nGlyphs > 0) {
+            font.map.firstId = gly[0].char_id;
+        } else {
+            font.map.firstId = -1;
+        }
+        ZeroMem(font.map.hash_map, font.map.hash_inf.sz);
+    } else {
+        std::cout << "err: currently only 1 range support" << std::endl;
+    }
+
+    //compute the positions of all the characters
+    struct SpriteRegion {
+        i32 x = 0, y = 0, w = -1, h = -1, age = 0; //-1 for w and height is treated as infinity
+    };
+
+    u32 sheet_w = 1, sheet_h = 1;
+
+    std::vector<SpriteRegion> rgn_stack = {{
+        .x = 0, .y = 0,
+        .w = -1, .h = -1
+    }}; //add the first "infinite" region
+
+    i32 i = 0, j = -1;
+    SpriteRegion Rn;
+    
     const f32 ig_pad_2 = inter_glyph_padding * 2.0f;
 
     //genereate the sprite sheet layout
@@ -3479,12 +3491,14 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             continue;
         }
 
+        //best things
         i32 best_rgn = 0;
         u32 smallest_fit = (unsigned) (-1), fit, low_age = (unsigned) (-1);
         bool fit_rotated = false;
 
         const size_t nRegions = rgn_stack.size();
 
+        //compute msdf dim
         i32 gw = ((g.xMax - g.xMin) * (1.0f + padding * 2.0f)) * scale, gh = ((g.yMax - g.yMin ) * (1.0f + padding * 2.0f)) * scale;
 
         for (j = 0; j < nRegions; j++) {
@@ -3503,13 +3517,12 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             } else if (fit == smallest_fit && Rn.age < low_age) {
                 low_age = Rn.age;
                 best_rgn = j;
-                smallest_fit = fit;
                 fit_rotated = false;
             }
 
             //check potential 90 deg rotating benefits
-            if ((Rn.w < gh && Rn.w > 0) || (Rn.h < gw && Rn.h > 0)) continue;
-            const u32 fit90 = mu_max(Rn.x + gh, sheet_w) * mu_max(Rn.y + gw, sheet_h);
+            //if ((Rn.w < gh && Rn.w > 0) || (Rn.h < gw && Rn.h > 0)) continue;
+            //const u32 fit90 = mu_max(Rn.x + gh, sheet_w) * mu_max(Rn.y + gw, sheet_h);
 
             /*if (fit90 < smallest_fit) {
                 low_age = Rn.age;
@@ -3548,7 +3561,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         //top rgn
         SpriteRegion r1 = {
             .x = target_rgn.x + gw + (i32) ig_pad_2,
-            .y = target_rgn.y + (i32) inter_glyph_padding,
+            .y = target_rgn.y,
             .w = -1,
             .h = gh,
             .age = target_rgn.age + 1
@@ -3559,9 +3572,9 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         //bottom rgn
         const i32 h2 = (target_rgn.h >= 0) * (target_rgn.h - gh) + (target_rgn.h < 0) * -1;
 
-        if (abs(h2) >= 1) {
+        if (abs(h2) > 0) {
             SpriteRegion r2 = {
-                .x = target_rgn.x + (i32) inter_glyph_padding,
+                .x = target_rgn.x,
                 .y = target_rgn.y + gh + (i32) ig_pad_2,
                 .w = -1,
                 .h = h2,
@@ -3592,6 +3605,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
                 CharPart *part = ochar.spriteParts + j;
 
                 part->offset = g.compound_inf.glyph_parts[j].pos_mat;
+                part->id = g.compound_inf.glyph_parts[j].idx;
 
                 std::cout << "compound glyph isn't working cause you didnt add the info right dipshit" << std::endl;
             }
@@ -3600,6 +3614,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
             CharPart *part = ochar.spriteParts;
 
+            part->id = ochar.val;
             part->offset.a = 1.0f;
             part->offset.b = 0.0f;
             part->offset.c = 0.0f;
@@ -3624,6 +3639,11 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         switch (font.map.ty) {
         case CharMapType::Direct: {
             font.map.hash_map[g.char_id].ochar = ochar;
+
+            if (!glyphs.rangeLocations) {
+                font.map.firstId = mu_min(font.map.firstId, g.char_id);
+            }
+
             break;
         }
         case CharMapType::Hash: {
@@ -3717,8 +3737,9 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     _safe_free_a(gly);
 
     //add font info stuff
-    font.inf = f.h_inf;
-    font.ad_inf.monospace = (font.inf.nLongHorMetrics == 1);
+    font.h_inf.inf = f.h_inf;
+    font.h_inf.metrics = f.h_metrics;
+    font.ad_inf.monospace = (f.h_inf.nLongHorMetrics == 1);
     font.good = true;
 
     return font;
@@ -4045,6 +4066,11 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         this->SetShader(&smplRayCountShader);
         smplRayCountShader.SetMat4("screen_project", &str_proj_mat);
 
+        //set font color
+        const vec3 v_color = vec3(prop.style.color.red(), prop.style.color.green(), prop.style.color.blue());
+        smplRayCountShader.SetVec3("font_color", const_cast<vec3*>(&v_color));
+
+        //bind font curve buffer
         if (!font->rc_dat.cu_buf_good) {
             glGenBuffers(1, &font->rc_dat.cu_buf);
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, font->rc_dat.cu_buf);
@@ -4152,12 +4178,19 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             gp_transform_mat2[3] = cp.offset.d * in;
 
             part_y = s_ctx.baseline_y - ((cp.size.yMin - ((i32) yRelTop * metrics.line_h)) * metrics.pRatio) - part_h;
-            part_x = s_ctx.x;
 
             const f32 dbg_iw = 1.0f / screenW,
                       dbg_ih = 1.0f / screenH;
             
-            cx_max = part_x + part_w;
+            if (font->h_inf.metrics) {
+                h_char_metric hm = (font->ad_inf.monospace ? 
+                    font->h_inf.metrics[0] :
+                    font->h_inf.metrics[cp.id]
+                );
+                part_x = s_ctx.x + hm.l_side_bearing;
+                cx_max = part_x + hm.advance_w;
+            } else
+                cx_max = part_x + part_w;
 
             //part_x = (part_x - screenW * 0.5f) * dbg_iw * 2.0f;
             //part_y = (part_y - screenH * 0.5f) * dbg_ih * 2.0f;
@@ -4248,7 +4281,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
                 this->PushVerts(glyph_rc_verts, sizeof(glyph_rc_verts) / sizeof(rcFontVert), true);
 
-                xxtra = 1 + pw * rc_padd;
+                xxtra = 1;
             }
         }
 

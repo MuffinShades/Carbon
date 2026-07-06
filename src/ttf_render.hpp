@@ -154,6 +154,7 @@ struct gpu_rc_curve {
 };
 
 struct CharPart {
+    i32 id = -1;
     CharSpritePos sheet_loc;
     p_mat_2d offset;
     struct {
@@ -230,6 +231,7 @@ struct CharMap {
     } hash_inf;
     CharMapType ty = CharMapType::Direct;
     CharLink *hash_map = nullptr;
+    i32 firstId = 0;
 };
 
 struct FontInst {
@@ -243,7 +245,10 @@ struct FontInst {
     } predict;
     FontLang target_lang = FontLang::en;
     FontMode mode = FontMode::Unknown;
-    h_char_inf inf;
+    struct {
+        h_char_inf inf;
+        h_char_metric *metrics = nullptr;
+    } h_inf;
     struct {
         bool monospace = false, efficient_compound_glyphs = true;
         bool use_prediction = false;
