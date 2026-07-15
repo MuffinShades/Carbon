@@ -88,8 +88,8 @@ Compute the stuff here
 
 */
 void main() {
-    const float boldness = 8.7;
-    const float blurr = 0.3;
+    const float boldness = 7.7;
+    const float blurr = 0.25;
 
     int i, j, count = 0;
 

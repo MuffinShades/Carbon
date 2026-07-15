@@ -4316,8 +4316,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 );*/
 
                 part_x = s_ctx.x;
-                cx_max = part_x + hm.advance_w * metrics.pRatio;
-                //cx_max = part_x + part_w;
+                //cx_max = part_x + hm.advance_w * metrics.pRatio;
+                cx_max = part_x + part_w;
 
                 std::cout << "loc: " << (font->c_translate.mpa8[cc] - 1) << " | " << font->ad_inf.ngdata  << " " << hm.advance_w << " " << hm.l_side_bearing << std::endl;
 
@@ -4433,7 +4433,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
         //std::cout << "char inf: " << cc << " " << cIdx << std::endl;
 
-        s_ctx.x = cx_max;
+        xxtra = 1;
+        s_ctx.x = cx_max + xxtra;
 
         break; //end of switch statement default branch
         }
