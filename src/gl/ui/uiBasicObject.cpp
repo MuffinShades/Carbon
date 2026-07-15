@@ -5,7 +5,7 @@
 #define BASICIMGDISP_SHADER_VERT ""
 #define BASICIMGDISP_SHADER_FRAG ""
 
-#define DEFFONT_SRC "C:\\Windows\\Fonts\\times.ttf"
+#define DEFFONT_SRC "C:\\Windows\\Fonts\\arial.ttf"
 
 //Shader UIText::texShader;
 
@@ -14,6 +14,7 @@ FontInst UIText::defFont;
 void UIText::_translateFontProps() {
     this->translatedProp.scale.pt = this->textStyle.font_size;
     this->translatedProp.style.italic = this->textStyle.italic;
+    this->translatedProp.style.color = this->textStyle.font_color;
 }
 
 void UIText::render(graphics *g, mat4 mmat, vec2 outputDim) {

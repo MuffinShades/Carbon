@@ -63,24 +63,6 @@ struct offsetTable {
  * yeah it's a lot
  *
  */
-//head
-struct table_head {
-    float fVersion;
-    float fontRevision;
-    u32 checkSumAdjust;
-    u32 magic;
-    u16 flags;
-    u16 unitsPerEm;
-    ttfLongDateTime created;
-    ttfLongDateTime modified;
-    float xMin, yMin, xMax, yMax;
-    u16 macStyle;
-    u16 lowestRecPPEM;
-    i16 fontDirectionHint;
-    i16 idxToLocFormat;
-    i16 glyphDataFormat;
-    maxVals max_vals;
-};
 
 struct maxVals {
     i32 ver = 0x00010000;
@@ -98,6 +80,25 @@ struct maxVals {
     u16 maxInstructionSz = 0;
     u16 maxComponentElem = 0;
     u16 maxComponentDepth = 0;
+};
+
+//head
+struct table_head {
+    float fVersion;
+    float fontRevision;
+    u32 checkSumAdjust;
+    u32 magic;
+    u16 flags;
+    u16 unitsPerEm;
+    ttfLongDateTime created;
+    ttfLongDateTime modified;
+    float xMin, yMin, xMax, yMax;
+    u16 macStyle;
+    u16 lowestRecPPEM;
+    i16 fontDirectionHint;
+    i16 idxToLocFormat;
+    i16 glyphDataFormat;
+    maxVals max_vals;
 };
 
 class ttfStream : public ByteStream {
@@ -141,8 +142,8 @@ struct h_char_inf {
 };
 
 struct h_char_metric {
-    u16 advance_w;
-    i16 l_side_bearing;
+    u16 advance_w = 0;
+    i16 l_side_bearing = 0;
 };
 
 
@@ -161,6 +162,7 @@ struct Glyph {
         size_t nGlyphParts = 0;
     } compound_inf;
     h_char_metric h_inf; //horizontal glyph info
+    i32 arb_char_idx = -1; //used for properly aligning a bunch of buffers
 };
 
 enum CMapMode {
@@ -235,6 +237,7 @@ public:
     table_head header;
     h_char_inf h_inf;
     h_char_metric *h_metrics = nullptr;
+    size_t n_metrics = 0;
 };
 
 enum class UnicodeRange {
@@ -270,8 +273,10 @@ struct GlyphSet {
     size_t nGlyphs = 0;
     size_t nCharacters = 0;
     _rLoc* rangeLocations = nullptr;
+    u32 minChar = 0, minGlyphId = 0, nullCharLoc = 0;
     size_t nRanges = 0;
     ttfFile file;
+    bool wchar_supported = false;
 };
 
 class ttfParse {
@@ -281,6 +286,8 @@ public:
     MSFL_EXP static Glyph ReadTTFGlyph(std::string src, u32 id);
     MSFL_EXP static Glyph ReadUnicodeGlyph(std::string src, u32 id);
     MSFL_EXP static GlyphSet GenerateGlyphSet(std::string src, UnicodeRange charRange);
+    MSFL_EXP static void DeleteGlyphSet(GlyphSet& gs);
+    MSFL_EXP static void DeleteTtfFileObj(ttfFile &f);
 };
 
 #ifdef MSFL_DLL

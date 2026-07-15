@@ -166,7 +166,7 @@ struct CharPart {
 };
 
 struct Character {
-    CharPart *spriteParts;
+    GlyphPart *spriteParts = nullptr;
     size_t nParts = 0;
     u32 val;
     struct {
@@ -182,6 +182,11 @@ struct Character {
     struct {
         u32 rc_curve_start = 0, rc_curve_end = 0; //end and beginning indexes of the curves and where they're stored
     } rc_Dat;
+    struct {
+        bool msdf_support = false;
+        CharSpritePos sheet_loc;
+    } sprite_dat;
+    h_char_metric hmetrics;
 };
 
 struct __msdf_dim {
@@ -234,9 +239,28 @@ struct CharMap {
     i32 firstId = 0;
 };
 
+struct lite_glyf_dat {
+    u16 n_parts;
+    u32 *part_ids = nullptr;
+};
+
 struct FontInst {
     UnicodeRange range;
-    CharMap map;
+    CharMap classic_map;
+
+    Character *gdata = nullptr;
+
+    /*
+    
+    Format: each u32 is an index into the map / storage of the characters + 1
+
+    0 represents -1 which indicates the glyph is not present in the ttf
+    
+    */
+    struct {
+        u32 *mpa8 = nullptr, //256*4 bytes 
+            *mpa16 = nullptr; //65535*4 bytes
+    } c_translate;
     __msdf_data msdf_dat;
     __bmp_data bitmap_dat;
     __ray_data rc_dat;
@@ -251,15 +275,19 @@ struct FontInst {
     } h_inf;
     struct {
         bool monospace = false, efficient_compound_glyphs = true;
-        bool use_prediction = false;
+        bool use_prediction = false, wchar_support = false;
         i32 unitsPerEm = 0;
         i16 ascent;
         i16 descent;
         struct {
             bool useRayCountAtSmallScales = true;
-            i32 maxFontSizeForRayCount = 200;
+            i32 maxFontSizeForRayCount = 50;
             size_t nCurvesInRcBuffer = 2048;
         } render;
+        maxVals mxv;
+        u32 minChar = 0;
+        u16 ngdata = 0;
+        u32 null_char_loc = 0;
     } ad_inf;
     bool good = false;
 };

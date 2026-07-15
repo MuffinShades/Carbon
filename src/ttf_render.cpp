@@ -1274,8 +1274,6 @@ constexpr size_t rcCtxBufAdd = 0x3ff; //add space for another 1023 curves
 void rc_gen_realloc_extra(const size_t extra, rcGenContext *ctx) {
     if (!ctx || extra == 0) return;
 
-    std::cout << "extra alloc: " << extra << std::endl;
-
     ctx->nCurves += extra;
     auto *nBuf = new gpu_rc_curve[ctx->nCurves];
 
@@ -2744,13 +2742,18 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
             continue;
         }
 
+        if (tg.arb_char_idx < 0 || tg.arb_char_idx >= font->ad_inf.ngdata) {
+            std::cout << "warning: misaligned chararcter " << i << " | Char Id: " << tg.char_id << std::endl;
+            continue;
+        }
+
         g_pos = pos[i];
 
         //add spritesheet character info for compound glyphs
         //TODO: support the hash map
-        Character *ochar = nullptr;
+        Character *ochar = font->gdata+tg.arb_char_idx;
 
-        if (tg.compound) {
+        /*if (tg.compound) {
             switch (font->map.ty) {
             case CharMapType::Direct: {
                 if (tg.char_id - font->map.firstId > font->map.hash_inf.sz) {
@@ -2791,7 +2794,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
                 std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
                 break;
             }
-        }
+        }*/
+
         //
 
         if (g_pos.w == 0 || g_pos.h == 0) {
@@ -2807,6 +2811,9 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         ConfigureGenContext(g_ctx_store+i, tg, &ctx->rc_ctx, true);
 
         if (ochar && ctx->rc_ctx && ctx->rc_ctx->wOff > 0) {
+
+            std::cout << "setting rc data for index: " << ((u32) i) << " | " << rc_wposb4 << " -> " << (ctx->rc_ctx->wOff - 1) << std::endl;
+
             ochar->rc_Dat.rc_curve_start = rc_wposb4;
             ochar->rc_Dat.rc_curve_end = ctx->rc_ctx->wOff - 1;
         } else {
@@ -2984,7 +2991,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     for (i = 0; i < nGlyphs; i++) {
         tg = tGlyphs[i];
 
-        if (tg.char_id < 0 || tg.xMax == tg.xMin || tg.yMax == tg.yMin) {
+        if (tg.char_id < 0 || tg.xMax == tg.xMin || tg.yMax == tg.yMin || tg.arb_char_idx < 0) {
             continue;
         }
 
@@ -3388,8 +3395,16 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
     ttfFile f = glyphs.file;
 
-    if (glyphs.nGlyphs == 0)
+    if (glyphs.nGlyphs == 0) {
+        ttfParse::DeleteGlyphSet(glyphs);
         return font;
+    }
+
+    if (glyphs.minGlyphId > 0xffff) {
+        std::cout << "Cannot generate font instance for: " << src << " | bad min glyph" << std::endl;
+        ttfParse::DeleteGlyphSet(glyphs);
+        return font;
+    }
 
     font.range = range;
 
@@ -3442,7 +3457,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     CharSpritePos *c_pos = new CharSpritePos[glyphs.nGlyphs];
     constexpr size_t nFontMapHashBits = 15;
 
-    if (glyphs.nRanges == 1) {
+    /*if (glyphs.nRanges == 1) {
         font.map.ty = CharMapType::Direct;
         font.map.hash_inf.sz = glyphs.nGlyphs;
         font.map.hash_map = new CharLink[font.map.hash_inf.sz];
@@ -3456,6 +3471,32 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ZeroMem(font.map.hash_map, font.map.hash_inf.sz);
     } else {
         std::cout << "err: currently only 1 range support" << std::endl;
+    }*/
+
+    font.ad_inf.ngdata = glyphs.nGlyphs;
+    font.gdata = new Character[font.ad_inf.ngdata];
+
+    //translation maps
+    //mpa8/char
+    font.c_translate.mpa8 = new u32[256];
+    if (!font.c_translate.mpa8) {
+        std::cout << "error could not create proper character mappings (mpa8: bad alloc)" << std::endl;
+        font.good = false;
+        return font;
+    }
+    ZeroMem(font.c_translate.mpa8, 256);   
+
+    //mpa16/wchar
+    if (glyphs.wchar_supported) {
+        font.c_translate.mpa16 = new u32[65536];
+
+        if (!font.c_translate.mpa16) {
+            std::cout << "error could not create proper character mappings (mpa16: bad alloc)" << std::endl;
+            font.good = false;
+            return font;
+        }
+
+        ZeroMem(font.c_translate.mpa16, 65536);
     }
 
     //compute the positions of all the characters
@@ -3591,28 +3632,31 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ochar.dim.ranges.xMin = g.xMin; ochar.dim.ranges.xMax = g.xMax;
         ochar.dim.ranges.yMin = g.yMin; ochar.dim.ranges.yMax = g.yMax;
         ochar.dim.hw_ratio = ((f32) ochar.dim.h) / ((f32) ochar.dim.w);
+        ochar.hmetrics = g.h_inf;
         ochar.val = g.char_id;
 
         //rc data
         
         //ochar.nParts = 
         ochar.nParts = g.compound ? g.compound_inf.nGlyphParts : 1;
-        ochar.spriteParts = new CharPart[ochar.nParts];
+        ochar.spriteParts = new GlyphPart[ochar.nParts];
         ZeroMem(ochar.spriteParts, ochar.nParts);
 
         if (g.compound) {
-            for (j = 0; j < ochar.nParts; j++) {
+            /*for (j = 0; j < ochar.nParts; j++) {
                 CharPart *part = ochar.spriteParts + j;
 
                 part->offset = g.compound_inf.glyph_parts[j].pos_mat;
                 part->id = g.compound_inf.glyph_parts[j].idx;
 
                 std::cout << "compound glyph isn't working cause you didnt add the info right dipshit" << std::endl;
-            }
+            }*/
+
+            in_memcpy(ochar.spriteParts, g.compound_inf.glyph_parts, ochar.nParts * sizeof(GlyphPart));
         } else {
             //TODO: add single part for non compound glyph
 
-            CharPart *part = ochar.spriteParts;
+            /*CharPart *part = ochar.spriteParts;
 
             part->id = ochar.val;
             part->offset.a = 1.0f;
@@ -3632,13 +3676,18 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             };
 
             part->rc_Dat.rc_curve_start = ochar.rc_Dat.rc_curve_start;
-            part->rc_Dat.rc_curve_end = ochar.rc_Dat.rc_curve_end;
+            part->rc_Dat.rc_curve_end = ochar.rc_Dat.rc_curve_end;*/
+
+            //nParts = 0 indicates to just read from sprite_dat
+            ochar.nParts = 0;
+            ochar.sprite_dat.msdf_support = true;
+            ochar.sprite_dat.sheet_loc = c_pos[i];
         }
 
         //TODO: add hash thing
-        switch (font.map.ty) {
+        /*switch (font.map.ty) {
         case CharMapType::Direct: {
-            font.map.hash_map[g.char_id].ochar = ochar;
+            font.map.hash_map[g.char_id - glyphs.minChar].ochar = ochar;
 
             if (!glyphs.rangeLocations) {
                 font.map.firstId = mu_min(font.map.firstId, g.char_id);
@@ -3653,7 +3702,26 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         default:
             std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
             break;
+        }*/
+
+        constexpr size_t gDataReallocXtra = 0XF;
+        const u32 gInsert = g.glyph_id /*- glyphs.minGlyphId*/;
+
+        if (gInsert >= font.ad_inf.ngdata) {
+            const size_t gCopySz = font.ad_inf.ngdata;
+            font.ad_inf.ngdata = gInsert + 1 + gDataReallocXtra;
+            Character *gd = new Character[font.ad_inf.ngdata];
+            in_memcpy(gd, font.gdata, sizeof(Character) * gCopySz);
+            _safe_free_a(font.gdata);
+            font.gdata = gd;
         }
+
+        font.gdata[gInsert] = ochar;
+        (*(gly+i)).arb_char_idx = gInsert;
+
+        //populate the translation maps
+                                    font.c_translate.mpa8[g.char_id]  = gInsert + 1;
+        if (glyphs.wchar_supported) font.c_translate.mpa16[g.char_id] = gInsert + 1;
 
         //
         i++;
@@ -3690,7 +3758,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
 
             //add spritesheet location for compound glyph parts since they depend on already being computed
             //TODO: add support for the hash map
-            if (glf.compound) {
+            /*if (glf.compound) {
                 switch (font.map.ty) {
                 case CharMapType::Direct: {
                     Character *ochar = &font.map.hash_map[glf.char_id].ochar;
@@ -3708,7 +3776,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
                     std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
                     break;
                 }
-            }
+            }*/
 
             if (r_pos.w <= 0 || r_pos.h <= 0)
                 continue;
@@ -3737,10 +3805,17 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     _safe_free_a(gly);
 
     //add font info stuff
+    font.ad_inf.mxv = f.header.max_vals;
+    font.ad_inf.minChar = glyphs.minChar;
     font.h_inf.inf = f.h_inf;
-    font.h_inf.metrics = f.h_metrics;
+    font.h_inf.metrics = new h_char_metric[f.n_metrics];
+    in_memcpy(font.h_inf.metrics, f.h_metrics, f.n_metrics * sizeof(h_char_metric));
     font.ad_inf.monospace = (f.h_inf.nLongHorMetrics == 1);
+    font.ad_inf.wchar_support = glyphs.wchar_supported;
+    font.ad_inf.null_char_loc = glyphs.nullCharLoc;
     font.good = true;
+
+    ttfParse::DeleteGlyphSet(glyphs);
 
     return font;
 }
@@ -3771,11 +3846,24 @@ void DeleteFontInst(FontInst *font) {
 
     font->msdf_dat.MSDF.gl_texture.free();
 
-    if (font->map.hash_map) {
+    /*if (font->map.hash_map) {
         _safe_free_a(font->map.hash_map);
         font->map.hash_map = nullptr;
         font->map.hash_inf.sz = 0;
         font->map.ty = (CharMapType) 0;
+    }*/
+
+    if (font->gdata) {
+        _safe_free_a(font->gdata);
+        font->ad_inf.ngdata = 0;
+    }
+
+    if (font->c_translate.mpa8) {
+        _safe_free_a(font->c_translate.mpa8);
+    }
+
+    if (font->c_translate.mpa16) {
+        _safe_free_a(font->c_translate.mpa16);
     }
 
     font->good = false;
@@ -3987,6 +4075,11 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     if (!font || !str)
         return;
 
+    if (!font->c_translate.mpa8) {
+        std::cout << "cannot render string: not mpa8 map!" << std::endl;
+        return;
+    }
+
     if (!defFontRenderStateCreated)
         ini_generic_font_state();
 
@@ -4067,7 +4160,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         smplRayCountShader.SetMat4("screen_project", &str_proj_mat);
 
         //set font color
-        const vec3 v_color = vec3(prop.style.color.red(), prop.style.color.green(), prop.style.color.blue());
+        constexpr f32 i255 = 1.0f / 255.0f;
+        const vec3 v_color = vec3(prop.style.color.red() * i255, prop.style.color.green() * i255, prop.style.color.blue() * i255);
         smplRayCountShader.SetVec3("font_color", const_cast<vec3*>(&v_color));
 
         //bind font curve buffer
@@ -4086,7 +4180,12 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     }
 
     char cc;
-    i32 p;
+    i32 p,i;
+
+    const p_mat_2d def_pos_mat = {
+        1.0f, 0.0f, /********************   E     F     M     N*/
+        0.0f, 1.0f, /********************/ 0.0f, 0.0f, 1.0f, 1.0f
+    };
 
     while ((cc = *s_ctx.cur_char) != 0x00) {
         switch (cc) {
@@ -4117,10 +4216,12 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         //find the character info
         Character o_char; //TODO: set this to the missing char for easy escape if given char does not exist
 
-        if (font->map.ty == CharMapType::Direct) {
+        /*if (font->map.ty == CharMapType::Direct) {
             //std::cout << "Reading direct char: " << (i32)cc << " / " << font->map.hash_inf.sz << std::endl;
             if (cc < font->map.hash_inf.sz) o_char = font->map.hash_map[cc].ochar;
         } else {
+            std::cout << "hashing currently not supported!" << std::endl;
+            return;
             //std::cout << "Reading indirect char" << std::endl;
             const u32 hVal = compute_basic_hash_32(font->map.hash_inf.nBits, &cc, 1);
             CharLink *lnk = (font->map.hash_map+hVal);
@@ -4133,7 +4234,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             if (lnk) {
                 o_char = lnk->ochar;
             }
-        }
+        }*/
 
         //render glyph parts
         f32 part_w, part_h, part_y, part_x, HemRatio, cx_max = s_ctx.x;
@@ -4158,44 +4259,80 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
         f32 xxtra = 0.0f;
 
-        //
-        for (p = 0; p < o_char.nParts; p++) {
-            CharPart cp = o_char.spriteParts[p];
+        auto render_part = [&](Character cp, p_mat_2d pos_mat, auto&& render_part) -> void {
+            if (cp.nParts > 0) {
+                u32 idx;
+
+                for (i = 0; i < cp.nParts; i++) {
+                    idx = cp.spriteParts[i].idx;
+                    if (idx >= font->ad_inf.ngdata)
+                        continue;
+                    render_part(font->gdata[idx], cp.spriteParts[i].pos_mat, render_part);
+                }
+
+                return;
+            }
 
             //compute needed render constants
-            part_w = (cp.size.xMax - cp.size.xMin) * metrics.pRatio;
-            part_h = (cp.size.yMax - cp.size.yMin) * metrics.pRatio;
+            part_w = (cp.dim.ranges.xMax - cp.dim.ranges.xMin) * metrics.pRatio;
+            part_h = (cp.dim.ranges.yMax - cp.dim.ranges.yMin) * metrics.pRatio;
 
-            HemRatio = part_h / (cp.size.yMax - cp.size.yMin); 
+            HemRatio = part_h / (cp.dim.ranges.yMax - cp.dim.ranges.yMin); 
             //part_y = s_ctx.baseline_y - (cp.size.yMax) * HemRatio;
 
             //set the transforms
-            const f32 im = 1.0f / cp.offset.m, in = 1.0f / cp.offset.n;
+            const f32 im = 1.0f / pos_mat.m, in = 1.0f / pos_mat.n;
 
-            gp_transform_mat2[0] = cp.offset.a * im; //matrix
-            gp_transform_mat2[1] = cp.offset.b * in;
-            gp_transform_mat2[2] = cp.offset.c * im;
-            gp_transform_mat2[3] = cp.offset.d * in;
+            gp_transform_mat2[0] = pos_mat.a * im; //matrix
+            gp_transform_mat2[1] = pos_mat.b * in;
+            gp_transform_mat2[2] = pos_mat.c * im;
+            gp_transform_mat2[3] = pos_mat.d * in;
 
-            part_y = s_ctx.baseline_y - ((cp.size.yMin - ((i32) yRelTop * metrics.line_h)) * metrics.pRatio) - part_h;
+            part_y = s_ctx.baseline_y - ((cp.dim.ranges.yMin - ((i32) yRelTop * metrics.line_h)) * metrics.pRatio) - part_h;
 
             const f32 dbg_iw = 1.0f / screenW,
                       dbg_ih = 1.0f / screenH;
             
             if (font->h_inf.metrics) {
-                h_char_metric hm = (font->ad_inf.monospace ? 
+                h_char_metric hm;
+
+                /*if (font->map.ty == CharMapType::Direct) {
+                    hm = (font->ad_inf.monospace ? 
+                        font->h_inf.metrics[0] :
+                        font->h_inf.metrics[cp.id - font->ad_inf.minChar]
+                    );
+                } else {
+                    std::cout << "hash char map type not currently supported!" << std::endl;
+                }*/
+
+                hm = (font->ad_inf.monospace ? 
                     font->h_inf.metrics[0] :
-                    font->h_inf.metrics[cp.id]
+                    font->h_inf.metrics[font->c_translate.mpa8[cc] - 1]
                 );
-                part_x = s_ctx.x + hm.l_side_bearing;
-                cx_max = part_x + hm.advance_w;
-            } else
+
+                /*hm = (font->ad_inf.monospace ? 
+                    font->h_inf.metrics[0] :
+                    cp.hmetrics
+                );*/
+
+                part_x = s_ctx.x;
+                cx_max = part_x + hm.advance_w * metrics.pRatio;
+                //cx_max = part_x + part_w;
+
+                std::cout << "loc: " << (font->c_translate.mpa8[cc] - 1) << " | " << font->ad_inf.ngdata  << " " << hm.advance_w << " " << hm.l_side_bearing << std::endl;
+
+                //std::cout << "aw: " << hm.advance_w << " " << (part_w * (1.0f / metrics.pRatio)) << " " << hm.l_side_bearing << " " << std::endl;
+            } else {
                 cx_max = part_x + part_w;
+            }
 
             //part_x = (part_x - screenW * 0.5f) * dbg_iw * 2.0f;
             //part_y = (part_y - screenH * 0.5f) * dbg_ih * 2.0f;
             //part_w = part_w * dbg_iw * 2.0f;
             //part_h = part_h * dbg_ih * 2.0f;
+
+            //std::cout << "more char inf: " << part_x << " / " << part_y << " / " << part_w << " / " << part_h << " | " << o_char.rc_Dat.rc_curve_start << " " << o_char.rc_Dat.rc_curve_end << std::endl;
+
 
             if (use_msdf) {
                 const f32 iTexX = 1.0f / font->msdf_dat.MSDF.gl_texture.width(),
@@ -4204,22 +4341,22 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 //verticies
                 genericFontVert glyph_rect_base[] = { 
                     part_x, part_y, z, 
-                    (f32) cp.sheet_loc.x * iTexX, (f32)(cp.sheet_loc.y+cp.sheet_loc.h) * iTexY, 
+                    (f32) cp.sprite_dat.sheet_loc.x * iTexX, (f32)(cp.sprite_dat.sheet_loc.y+cp.sprite_dat.sheet_loc.h) * iTexY, 
 
                     (part_x), (part_y+part_h), z, 
-                    (f32) cp.sheet_loc.x * iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
+                    (f32) cp.sprite_dat.sheet_loc.x * iTexX, (f32) (cp.sprite_dat.sheet_loc.y)* iTexY, 
 
                     (part_x+part_w), (part_y), z, 
-                    (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY, 
+                    (f32) (cp.sprite_dat.sheet_loc.x+cp.sprite_dat.sheet_loc.w)* iTexX, (f32) (cp.sprite_dat.sheet_loc.y+cp.sprite_dat.sheet_loc.h)* iTexY, 
             
                     (part_x+part_w), (part_y+part_h), z, 
-                    (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
+                    (f32) (cp.sprite_dat.sheet_loc.x+cp.sprite_dat.sheet_loc.w)* iTexX, (f32) (cp.sprite_dat.sheet_loc.y)* iTexY, 
             
                     (part_x+part_w), (part_y), z, 
-                    (f32) (cp.sheet_loc.x+cp.sheet_loc.w)* iTexX, (f32) (cp.sheet_loc.y+cp.sheet_loc.h)* iTexY,  
+                    (f32) (cp.sprite_dat.sheet_loc.x+cp.sprite_dat.sheet_loc.w)* iTexX, (f32) (cp.sprite_dat.sheet_loc.y+cp.sprite_dat.sheet_loc.h)* iTexY,  
             
                     (part_x), (part_y+part_h), z, 
-                    (f32) cp.sheet_loc.x* iTexX, (f32) (cp.sheet_loc.y)* iTexY, 
+                    (f32) cp.sprite_dat.sheet_loc.x* iTexX, (f32) (cp.sprite_dat.sheet_loc.y)* iTexY, 
                 };
 
                 //TODO: actually render ts
@@ -4235,10 +4372,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 
                 */
 
-                //std::cout << "Char: " << cc << " | " << o_char.rc_Dat.rc_curve_start << " --> " << o_char.rc_Dat.rc_curve_end << std::endl;
+                //std::cout << "Char: " << cc << " | " << cp.rc_Dat.rc_curve_start << " --> " << cp.rc_Dat.rc_curve_end << std::endl;
 
-                const f32 cw = o_char.dim.ranges.xMax - o_char.dim.ranges.xMin,
-                          ch = o_char.dim.ranges.yMax - o_char.dim.ranges.yMin;
+                const f32 cw = cp.dim.ranges.xMax - cp.dim.ranges.xMin,
+                          ch = cp.dim.ranges.yMax - cp.dim.ranges.yMin;
 
                 const f32 sdx = (cw) / part_w,
                           sdy = (ch) / part_h;
@@ -4249,43 +4386,54 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
                 rcFontVert glyph_rc_verts[] = {
                     px, py, z, 
-                    (f32) o_char.dim.ranges.xMin - sdx, (f32) o_char.dim.ranges.yMax + sdy, 
-                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    (f32) cp.dim.ranges.xMin - sdx, (f32) cp.dim.ranges.yMax + sdy, 
+                    (i32) cp.rc_Dat.rc_curve_start, (i32) cp.rc_Dat.rc_curve_end,
                     sdx, sdy,
 
                     (px), (py+ph), z, 
-                    (f32) o_char.dim.ranges.xMin - sdx, (f32) o_char.dim.ranges.yMin - sdy, 
-                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    (f32) cp.dim.ranges.xMin - sdx, (f32) cp.dim.ranges.yMin - sdy, 
+                    (i32) cp.rc_Dat.rc_curve_start, (i32) cp.rc_Dat.rc_curve_end,
                     sdx, sdy,
 
                     (px+pw), (py), z, 
-                    (f32) o_char.dim.ranges.xMax + sdx, (f32) o_char.dim.ranges.yMax + sdy, 
-                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    (f32) cp.dim.ranges.xMax + sdx, (f32) cp.dim.ranges.yMax + sdy, 
+                    (i32) cp.rc_Dat.rc_curve_start, (i32) cp.rc_Dat.rc_curve_end,
                     sdx, sdy,
             
                     (px+pw), (py+ph), z, 
-                    (f32) o_char.dim.ranges.xMax + sdx, (f32) o_char.dim.ranges.yMin - sdy, 
-                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    (f32) cp.dim.ranges.xMax + sdx, (f32) cp.dim.ranges.yMin - sdy, 
+                    (i32) cp.rc_Dat.rc_curve_start, (i32) cp.rc_Dat.rc_curve_end,
                     sdx, sdy,
             
                     (px+pw), (py), z, 
-                    (f32) o_char.dim.ranges.xMax + sdx, (f32) o_char.dim.ranges.yMax + sdy,  
-                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    (f32) cp.dim.ranges.xMax + sdx, (f32) cp.dim.ranges.yMax + sdy,  
+                    (i32) cp.rc_Dat.rc_curve_start, (i32) cp.rc_Dat.rc_curve_end,
                     sdx, sdy,
             
                     (px), (py+ph), z, 
-                    (f32) o_char.dim.ranges.xMin - sdx, (f32) o_char.dim.ranges.yMin - sdy, 
-                    (i32) o_char.rc_Dat.rc_curve_start, (i32) o_char.rc_Dat.rc_curve_end,
+                    (f32) cp.dim.ranges.xMin - sdx, (f32) cp.dim.ranges.yMin - sdy, 
+                    (i32) cp.rc_Dat.rc_curve_start, (i32) cp.rc_Dat.rc_curve_end,
                     sdx, sdy
                 };
 
                 this->PushVerts(glyph_rc_verts, sizeof(glyph_rc_verts) / sizeof(rcFontVert), true);
-
-                xxtra = 1;
             }
+        };
+
+        //
+        u32 cIdx = font->c_translate.mpa8[cc];
+
+        if (cIdx == 0) {
+            cIdx = font->ad_inf.null_char_loc;
+        } else {
+            cIdx--;
         }
 
-        s_ctx.x = cx_max + xxtra;
+        if (cIdx < font->ad_inf.ngdata) render_part(font->gdata[cIdx], def_pos_mat, render_part);
+
+        //std::cout << "char inf: " << cc << " " << cIdx << std::endl;
+
+        s_ctx.x = cx_max;
 
         break; //end of switch statement default branch
         }
@@ -4352,6 +4500,7 @@ void ttfRender::DeleteFontObject(FontInst *&font) {
     if (!font) return;
 
     //TODO: delete all the fonts parts
+    DeleteFontInst(font);
 
     _safe_free_b(font);
     font = nullptr;

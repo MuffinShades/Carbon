@@ -202,7 +202,7 @@ offsetTable readOffsetTable(ttfStream* stream) {
 };
 
 maxVals read_maxp(ttfStream *stream, ttfFile *f) {
-    if (!stream || !f) return;
+    if (!stream || !f) return {.ver = 0};
 
     stream->seek(f->maxp_table.off);
 
@@ -626,6 +626,11 @@ void read_hmtx(ttfStream *stream, ttfFile* f, _RangeData rd = {.good = false}) {
         return;
     }
 
+    /*
+    h_char_metric format
+    
+    */
+    f->n_metrics = n_metrics;
     f->h_metrics = new h_char_metric[n_metrics];
     ZeroMem(f->h_metrics, n_metrics);
 
@@ -654,9 +659,59 @@ void read_hmtx(ttfStream *stream, ttfFile* f, _RangeData rd = {.good = false}) {
     } else {
         //gotta read it via a range thingy
         //TODO: this VERT IMPORTANT
-        for (i = 0; i < rd.nRanges; i++) {
+        u32 min,max,i_at = 0,n;
 
-        } 
+        for (i = 0; i < rd.nRanges; i++) {
+            max = rd.max[i]; min = rd.min[i]; n = max - min;
+            
+            if (max < f->h_inf.nLongHorMetrics) { //easy case
+                std::cout << "hmtx range mode 1 | min: " << min << " | max: " << max << std::endl;
+
+                stream->seek(f->hmtx_table.off + min * 2 * sizeof(u16));
+
+                for (j = 0; j < n; j++) {
+                    f->h_metrics[i_at++] = {
+                        .advance_w = stream->readUInt16(),
+                        .l_side_bearing = stream->readInt16()
+                    };
+                }
+            } else if (min < f->h_inf.nLongHorMetrics) { //hard case
+                std::cout << "hmtx range mode 2" << std::endl;
+
+                stream->seek(f->hmtx_table.off + min * 2 * sizeof(u16));
+
+                u16 aw;
+
+                for (j = min; j < f->h_inf.nLongHorMetrics; j++) {
+                    f->h_metrics[i_at++] = {
+                        .advance_w = (aw = stream->readUInt16()),
+                        .l_side_bearing = stream->readInt16()
+                    };
+                }
+
+                const size_t nr = max - (f->h_inf.nLongHorMetrics - min);
+
+                for (j = 0; j < nr; j++) {
+                    f->h_metrics[i_at++] = {
+                        .advance_w = aw,
+                        .l_side_bearing = stream->readInt16()
+                    };
+                }
+            } else { // medium/easy case
+                std::cout << "hmtx range mode 3" << std::endl;
+
+                stream->seek(f->hmtx_table.off + (f->h_inf.nLongHorMetrics - 1) * 2 * sizeof(u16));
+                const u16 aw =  stream->readUInt16();
+                stream->seek(f->hmtx_table.off + (f->h_inf.nLongHorMetrics + min) * 2 * sizeof(u16));
+
+                for (j = 0; j < n; j++) {
+                    f->h_metrics[i_at++] = {
+                        .advance_w = aw,
+                        .l_side_bearing = stream->readInt16()
+                    };
+                }
+            }
+        }
     }
 }
 
@@ -1147,6 +1202,8 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     if (!rd.good) {
         std::cout << "ttf error: bad range" << std::endl;
+        if (rd.min) _safe_free_a(rd.min);
+        if (rd.max) _safe_free_a(rd.max);
         _safe_free_a(fBytes.dat);
         return gs;
     }
@@ -1164,7 +1221,7 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     i32 r, ucode_i, tg = 0;
     gs.nCharacters = 0;
-
+    gs.nRanges = rd.nRanges;
     gs.rangeLocations = new _rLoc[rd.nRanges];
     ZeroMem(gs.rangeLocations, rd.nRanges);
 
@@ -1183,8 +1240,23 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     //add the missing character glyph first
     gs.glyphs[tg++] = read_glyph(&fStream, &f, 0);
+    gs.nullCharLoc = 0;
 
     std::vector<Glyph> cc; //glyph compound components
+
+    //random setup stuff
+    if (rd.nRanges > 0) {
+        if (!rd.min || !rd.max) {
+            std::cout << "ttf error: failed to read range data!" << std::endl;
+            if (rd.min) _safe_free_a(rd.min);
+            if (rd.max) _safe_free_a(rd.max);
+            _safe_free_a(fBytes.dat);
+            return gs;
+        }
+        gs.minChar = rd.min[0];
+    }
+    //gs.minGlyphId = UINT32_MAX;
+    gs.minGlyphId = 0;
 
     //TODO: use this thing to search through glyph locations
     //that have already been saved so we don't accidentally 
@@ -1203,6 +1275,8 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
             .start = rd.min[r],
             .i = (u32) tg
         };
+
+        gs.minChar = mu_min(gs.minChar, rd.min[r]);
         
         std::cout << "gn inc: " << gs.nCharacters << " " << rd.max[r] << " " << rd.min[r] << std::endl;
 
@@ -1240,16 +1314,20 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                 continue; //dont add the glyph since it is gonna be a missing character anyways
             }
 
+            const i32 gi = tg++;
+
             glf = read_glyph(&fStream, &f, offset);
             glf.char_id = ucode_i;
-            glf.glyph_id = loc;
-            gs.glyphs[tg++] = glf;
+            glf.glyph_id = gi;
+            gs.glyphs[gi] = glf;
+
+            //gs.minGlyphId = mu_min(gs.minGlyphId, gi);
 
             //check to see if metrics exist
             if (f.h_inf.nLongHorMetrics == 1) //monospace font
                 glf.h_inf = f.h_metrics[0];
-            else if (loc < f.h_inf.nLongHorMetrics)
-                glf.h_inf = f.h_metrics[loc];
+            else if (gi < f.n_metrics)
+                glf.h_inf = f.h_metrics[gi];
 
             //handle compound glyphs
             if (glf.compound) {
@@ -1307,5 +1385,63 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     gs.file = f;
 
+    if (fBytes.dat)
+        _safe_free_a(fBytes.dat);
+
     return gs;
+}
+
+void ttfParse::DeleteGlyphSet(GlyphSet& gs) {
+    i32 i;
+
+    if (gs.glyphs) {
+        if (gs.nGlyphs == 0) {
+            std::cout << "warning: not enough info to properly free a glyph sets memory!" << std::endl;
+        } else {
+            Glyph g;
+
+            for (i = 0; i < gs.nGlyphs; i++) {
+                g = gs.glyphs[i];
+
+                //TODO: group all these together into one memory region (use group mem???)
+                if (g.contourEnds) _safe_free_a(g.contourEnds);
+                if (g.flags) _safe_free_a(g.flags);
+                if (g.modifiedContourEnds) _safe_free_a(g.modifiedContourEnds);
+                if (g.points) _safe_free_a(g.points);
+                if (g.compound_inf.glyph_parts) _safe_free_a(g.compound_inf.glyph_parts);
+            }
+        }
+
+        _safe_free_a(gs.glyphs);
+    }
+    
+    ttfParse::DeleteTtfFileObj(gs.file);
+
+    ZeroMem(&gs, 1);
+
+    gs.minGlyphId = 0x10000;
+}
+
+void ttfParse::DeleteTtfFileObj(ttfFile &f) {
+    if (f.h_metrics) _safe_free_a(f.h_metrics);
+
+    switch (f.cmap_id) {
+    case 4: {
+        cmap_format_4 c4 = f.cmap_fmt.fmt_4;
+        if (c4.segValBlock) _safe_free_a(c4.segValBlock);
+        break;
+    }
+    case 12: {
+        cmap_format_12 c12 = f.cmap_fmt.fmt_12;
+        if (c12.segValBlock) _safe_free_a(c12.segValBlock);
+        break;
+    }
+    default: {
+        std::cout << "warning not enough info to delete ttf file cmap | invalid recorded fmt" << std::endl;
+        //TODO: maybe use context clues to decode what format is being used (not a super good idea but could work)
+        break;
+    }
+    }
+    
+    ZeroMem(&f, 1);
 }

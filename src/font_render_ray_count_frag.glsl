@@ -88,6 +88,9 @@ Compute the stuff here
 
 */
 void main() {
+    const float boldness = 8.7;
+    const float blurr = 0.3;
+
     int i, j, count = 0;
 
     int counts[9] = {0,0,0,0,0,0,0,0,0};
@@ -95,8 +98,6 @@ void main() {
     /*vec2 offsets[9] = {vec2(0.25, 0.25),vec2(0.25, 0.50),vec2(0.25, 0.75),
                        vec2(0.50, 0.25),vec2(0.50, 0.50),vec2(0.50, 0.75),
                        vec2(0.75, 0.25),vec2(0.75, 0.50),vec2(0.75, 0.75)};*/
-
-    const float blurr = 0.25;
 
     vec2 offsets[9] = {vec2(-blurr, -blurr),vec2(-blurr, 0.0),vec2(-blurr, blurr),
                        vec2(0.0, -blurr),vec2(0.0, 0.0),vec2(0.0, blurr),
@@ -153,7 +154,7 @@ void main() {
             (counts[3] % 2) + (counts[4] % 2) + (counts[5] % 2) + 
             (counts[6] % 2) + (counts[7] % 2) + (counts[8] % 2);
 
-    float luma_scale = c / 9.0;
+    float luma_scale = min(c / boldness, 1.0);
 
     FragColor = vec4(font_color, luma_scale);
 
