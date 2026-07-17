@@ -57,15 +57,15 @@ int solve_linear_32(float a, float b, out vec3 roots) {
 }
 
 int solve_re_quadratic_32(float a, float b, float c, out vec3 roots) {
-    if (a == 0)
+    if (a >= -mu_epsil && a < mu_epsil)
         return solve_linear_32(b, c, roots);
 
     const float i = b*b - 4.0*a*c;
 
-    if (i < 0.0)
+    if (i < -mu_epsil)
         return 0;
     
-    if (i == 0.0) {
+    if (i >= -mu_epsil && i < mu_epsil) {
         roots.x = -b / (2.0*a);
         roots.y = -1.0;
         roots.z = -1.0;
@@ -82,13 +82,19 @@ int solve_re_quadratic_32(float a, float b, float c, out vec3 roots) {
     return 2;
 }
 
+float lumaTransform(float luma) {
+    return clamp((
+        -(cos(mu_pi*luma)-1) * 0.5
+    ), 0.0, 1.0);
+}
+
 /*
 
 Compute the stuff here
 
 */
 void main() {
-    const float boldness = 7.7;
+    const float boldness = 9.0;
     const float blurr = 0.25;
 
     int i, j, count = 0;
@@ -116,7 +122,7 @@ void main() {
 
         //easy kinda bulk check
         for (j = 0; j < offsets.length; j++) {
-            posf = rpos + offsets[j] * delta + vec2(0.5, 0.5) * delta;
+            posf = rpos + (offsets[j] + vec2(0.5, 0.5)) * delta;
 
             if (p0.y > p2.y) {
                 if (
@@ -155,6 +161,8 @@ void main() {
             (counts[6] % 2) + (counts[7] % 2) + (counts[8] % 2);
 
     float luma_scale = min(c / boldness, 1.0);
+
+    //luma_scale = lumaTransform(luma_scale);
 
     FragColor = vec4(font_color, luma_scale);
 

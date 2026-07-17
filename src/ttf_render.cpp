@@ -23,6 +23,9 @@
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 constexpr f32 chonk_number = 3.402e38f; //number that is chonk
 
+constexpr f64 very_smol_number = DBL_MIN;
+constexpr f64 very_chonk_number = DBL_MAX;
+
 
 //frequencies for the whole heuristics thingy to load common characters into memory better
 constexpr f32 freq_scale_base = 1.0f;
@@ -39,6 +42,8 @@ constexpr f32 latin_simp_freq[] = {1.174345784f,1.01070806f,1.06843762f,1.113440
  * Written by muffinshades 2024-2026
  *
  */
+
+extern void find_font_curve_friends(FontInst *font);
 
 static Shader msdf_gen_shader;
 static Shader msdf_gen_cc_shader;
@@ -1346,6 +1351,7 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu) {
 ////////////////////////////////////////////////////////////////////
 
 struct glfEdgeObject {
+    size_t nCurves;
     BCurve* curveBuff = nullptr;
     std::vector<Edge> edges;
 };
@@ -1357,6 +1363,8 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
     eObj.curveBuff = new BCurve[nCurves];
     ZeroMem(eObj.curveBuff, nCurves);
     BCurve* curveBuffer = eObj.curveBuff; //stores curves of current edge
+
+    eObj.nCurves = 0;
 
     if (rcCtx && !*rcCtx && gen_rc_ctx) {
         *rcCtx = create_rc_gen_ctx(nCurves);
@@ -1421,6 +1429,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
 
             //add curve to curve buffer / edge curves
             nEdgeCurves++;
+            eObj.nCurves++;
             workingCurve = curveBuffer + nEdgeCurves; //set the working curve to the next curve
             pSelect = 0;
 
@@ -3097,6 +3106,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         font->rc_dat.lcs = ctx->rc_ctx->curveBuf;
         font->rc_dat.nCurves = ctx->rc_ctx->nCurves;
         _safe_free_b(ctx->rc_ctx);
+
+        find_font_curve_friends(font);
     } else {
         std::cout << "ttf render (severe) warning: could not include rc data!" << std::endl;
     }
@@ -4433,7 +4444,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
         //std::cout << "char inf: " << cc << " " << cIdx << std::endl;
 
-        xxtra = 1;
+        xxtra = mu_max(1, prop.scale.pt * 0.1);
         s_ctx.x = cx_max + xxtra;
 
         break; //end of switch statement default branch
@@ -4505,4 +4516,108 @@ void ttfRender::DeleteFontObject(FontInst *&font) {
 
     _safe_free_b(font);
     font = nullptr;
+}
+
+/**********************************************************
+ * 
+ * Auto font tweaking
+ * 
+ * written by muffinshades 2026
+ * 
+ * below this comment is all the code for the auto font tweaking which will
+ * be responsible for adjusting the position of part of glyphs automatically
+ * for them to be clearer. This tech can be paired with clear type tech in
+ * order for even more clear font, but I'm not gonna implement clear type 
+ * for a little while so it's mainly for an alternate system to clear type
+ * that should overall be better.
+ * 
+ * This is very similar to font focus, but I couldn't find a patent for it
+ * so it's just my own implementation and code / design :3
+ * 
+ * Copyright muffinshades All Rights Reserve 2026-Present
+ * 
+ */
+//ttf glyph tweeking
+//friend seeking constants (can adjust these to properly get pairs)
+constexpr f32 pairity_thresh = 0.992546152f; //~cos(7deg)
+
+inline f32 ap_dot(f32 p0[2], f32 p1[2]) {
+    return (p0[0]*p1[0]+p0[1]*p1[1]);
+}
+
+inline f32 (&ap_sub(f32 p0[2], f32 p1[2]))[2] {
+    f32 r[2] = {p0[0]-p1[0],p0[1]-p1[1]};
+    return r;
+}
+
+inline f32 ap_mag(f32 p[2]) {
+    return  sqrtf(p[0]*p[0]+p[1]*p[1]);
+}
+
+//finding glyph curve friends
+void find_font_curve_friends(FontInst *font) {
+    if (!font || !font->rc_dat.cu_buf ||
+        !font->rc_dat.cu_buf_good ||
+        font->rc_dat.nCurves == 0 ||
+        !font->rc_dat.lcs
+    ) //holy checks bro :sob:
+        return;
+    
+    i32 i,j;
+
+    const size_t ncu = font->rc_dat.nCurves;
+
+    gpu_rc_curve cc, fc;
+
+    for (i = 0; i < ncu; i++) {
+        cc = font->rc_dat.lcs[i];
+
+        f32 minThickness = chonk_number;
+
+        for (j = i+1; j < ncu; j++) {
+            fc = font->rc_dat.lcs[j];
+
+            auto cv0 = ap_sub(cc.p0, cc.p1), cv1 = ap_sub(cc.p1, cc.p2);
+            auto fv0 = ap_sub(fc.p0, fc.p1), fv1 = ap_sub(fc.p1, fc.p2);
+
+            const f32 mc0 = ap_mag(cv0), fc0 = ap_mag(fv0),
+                      mc1 = ap_mag(cv1), fc1 = ap_mag(fv1);
+
+            if (ap_dot(cv0, fv0) < pairity_thresh * mc0 * fc0 || 
+                ap_dot(cv1, fv1) < pairity_thresh * mc1 * fc1
+            ) //the 2 curves are not similar enough
+                continue;
+
+            //TODO: project either stright line for the curve onto the similar plane
+            // and reject the curves if they dont collide since they aren't paired
+
+            //then get the dist between the curves and minimize the distance
+            //if one curve is smaller than another you might have to add an 
+            //an exception system in order to properly pair curves and have
+            //all friendships have a parent / core curve that is the one whose
+            //position is adjusted. Also add a system to keep track of paired 
+            //points since adjusting one curve will result in adjusting another
+
+            /*
+            
+            New method: compute the estimated thickness for the parent stem then calculate
+            the alignment in some sort of shader and then tweak the curves through the shader
+            by just adjusting every curve's buddy
+            
+            */
+
+            //check collisions
+            f32 imc0 = 1.0f / mc0,
+                pNorm[2] = {cv0[0] * imc0, cv0[0] * imc0};
+
+            const f32 pc0 = ap_dot(cc.p0, pNorm), pc1 = ap_dot(cc.p1, pNorm),
+                      pf0 = ap_dot(fc.p0, pNorm), pf1 = ap_dot(fc.p1, pNorm);
+            
+            if (mu_max(pc0, pc1) < mu_min(pf0, pf1))
+                continue;
+
+            //compute distances
+            
+        }
+    }
 }

@@ -18,7 +18,7 @@ enum UIFontWeight {
 
 struct UITextStyle {
     FontInst *font = nullptr;
-    i32 font_size = 8;
+    i32 font_size = 9;
     Color font_color = Color(255, 255, 255);
     bool bold = false, italic = false, underline = false, strikethrough = false;
     i32 font_weight = (i32) UIFontWeight::Normal;
