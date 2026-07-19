@@ -151,6 +151,32 @@ struct gpu_rc_curve {
     f32 p1[2];
     //volatile f32 zzzzzbilly_aka_more_padding[2];
     f32 p2[2];
+
+    //specifies the min width of the stem formed by the curve
+    f32 minW = -1.0f;
+
+    /*
+    ================Format of cu_connect================
+
+    1 i32 split into 2 i16s
+
+    0x00000000 --> 0x0000 << 16 + 0x0000
+
+    i16 0: refers to the connection for point 0 on the curve
+    i16 1: refers to the connection for point 2 on the curve
+
+    Each i16 follows the following format:
+    *note in the following the bits will read left to right (big endian)
+
+    Bit 0 1 2 3 4 5 6 7 ... 15
+     0b C I I I I I I I ... I
+
+    C --> 1bit curve selector that determines whether the curve is connected to point 0 or 1
+        C=0: curve is attached to p0 of the other curve
+        C=1: curve is attached to p2 of the other curve
+    I --> 15bit uint that stores the index of the curve that the connection references
+    */
+    i32 cu_connect; 
 };
 
 struct CharPart {

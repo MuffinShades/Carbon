@@ -4072,7 +4072,7 @@ void graphics::ini_rc_font_state() {
 #define DEF_FONT_SHADER_FRAG_SRC "../../src/basic_font_frag.glsl"
 
 #define SIMPLE_RC_SHADER_VERT_SRC "../../src/font_render_ray_count_vert.glsl"
-#define SIMPLE_RC_SHADER_FRAG_SRC "../../src/font_render_ray_count_frag.glsl"
+#define SIMPLE_RC_SHADER_FRAG_SRC "../../src/font_render_ray_count_adv_frag.glsl"
 
 /*
 MAJOR TODO:
@@ -4518,6 +4518,75 @@ void ttfRender::DeleteFontObject(FontInst *&font) {
     font = nullptr;
 }
 
+////////////////////////
+
+inline f32 ap_dot(f32 p0[2], f32 p1[2]) {
+    return (p0[0]*p1[0]+p0[1]*p1[1]);
+}
+
+inline f32 (&ap_sub(f32 p0[2], f32 p1[2]))[2] {
+    f32 r[2] = {p0[0]-p1[0],p0[1]-p1[1]};
+    return r;
+}
+
+inline f32 ap_mag(f32 p[2]) {
+    return  sqrtf(p[0]*p[0]+p[1]*p[1]);
+}
+
+f32 simple_curve_point_abs_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
+    auto p0 = cu.p0, p1 = cu.p1, p2 = cu.p2;
+
+    //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
+
+    f32 root_pass[3] = {-1.0f, -1.0f, -1.0f};
+
+    const i32 nRoots = solve_re_cubic_32_a(
+        solve_inf[0], 
+        solve_inf[1],
+        solve_inf[2]
+            - 4.0f * (p0[1]*p[1] + p0[0]*p[0])
+            + 8.0f * (p1[1]*p[1] + p1[0]*p[0])
+            - 4.0f * (p2[1]*p[1] + p2[0]*p[0]),
+        solve_inf[3] - 4.0f * (p1[1]*p[1] + p1[0]*p[0]) + 4.0f * (p0[1]*p[1] + p0[0]*p[0]),
+        root_pass
+    );
+
+    f32 d_best;
+
+    auto ip = ap_sub(p0, p), fp = ap_sub(p2, p);
+    //t = 0
+    d_best = ap_dot(ip, ip);
+
+    //t = 1
+    f32 eDist = ap_dot(fp, fp);
+
+    if (eDist < d_best)
+        d_best = eDist;
+
+    i32 i;
+    f32 dx, dy, t, t_i, _D, alpha, beta, gamma;
+
+    for (i = 0; i < nRoots; i++) {
+        t = root_pass[i];
+
+        if (t < 0.0f || t > 1.0f) continue;
+
+        t_i = 1.0f - t;
+        alpha = t_i * t_i;
+        beta = 2.0f * t_i * t;
+        gamma = t * t;
+
+        dx = (alpha * p0[0] + beta * p1[0] + gamma * p2[0]) - p[0];
+        dy = (alpha * p0[1] + beta * p1[1] + gamma * p2[1]) - p[1];
+        _D = dx*dx + dy*dy;
+            
+        if (_D < d_best)
+            d_best = _D;
+    }
+
+    return d_best;
+}
+
 /**********************************************************
  * 
  * Auto font tweaking
@@ -4541,20 +4610,25 @@ void ttfRender::DeleteFontObject(FontInst *&font) {
 //friend seeking constants (can adjust these to properly get pairs)
 constexpr f32 pairity_thresh = 0.992546152f; //~cos(7deg)
 
-inline f32 ap_dot(f32 p0[2], f32 p1[2]) {
-    return (p0[0]*p1[0]+p0[1]*p1[1]);
-}
-
-inline f32 (&ap_sub(f32 p0[2], f32 p1[2]))[2] {
-    f32 r[2] = {p0[0]-p1[0],p0[1]-p1[1]};
-    return r;
-}
-
-inline f32 ap_mag(f32 p[2]) {
-    return  sqrtf(p[0]*p[0]+p[1]*p[1]);
-}
-
 //finding glyph curve friends
+//TODO: store solve inf through a shared groupmem between all the glyphs
+//TODO: project either stright line for the curve onto the similar plane
+            // and reject the curves if they dont collide since they aren't paired
+
+            //then get the dist between the curves and minimize the distance
+            //if one curve is smaller than another you might have to add an 
+            //an exception system in order to properly pair curves and have
+            //all friendships have a parent / core curve that is the one whose
+            //position is adjusted. Also add a system to keep track of paired 
+            //points since adjusting one curve will result in adjusting another
+
+            /*
+            
+            New method: compute the estimated thickness for the parent stem then calculate
+            the alignment in some sort of shader and then tweak the curves through the shader
+            by just adjusting every curve's buddy
+            
+            */
 void find_font_curve_friends(FontInst *font) {
     if (!font || !font->rc_dat.cu_buf ||
         !font->rc_dat.cu_buf_good ||
@@ -4563,12 +4637,30 @@ void find_font_curve_friends(FontInst *font) {
     ) //holy checks bro :sob:
         return;
     
-    i32 i,j;
+    i32 i,j,k;
 
     const size_t ncu = font->rc_dat.nCurves;
 
     gpu_rc_curve cc, fc;
 
+    //compute solve info
+    f32 *solve_inf = new f32[ncu * 4];
+
+    if (!solve_inf) {
+        std::cout << "error could not generate font correction info: failed to allocate solve info" << std::endl;
+        return;
+    }
+    
+    for (i = 0; i < ncu; i++) {
+        cc = font->rc_dat.lcs[i];
+        j = i << 2;
+        solve_inf[i+0] = compute_a_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_a_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
+        solve_inf[i+1] = compute_b_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_b_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
+        solve_inf[i+2] = compute_c_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_c_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
+        solve_inf[i+3] = compute_d_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_d_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
+    }
+
+    //copyright James Weigand 2026-Present All Rights Reserved
     for (i = 0; i < ncu; i++) {
         cc = font->rc_dat.lcs[i];
 
@@ -4588,24 +4680,6 @@ void find_font_curve_friends(FontInst *font) {
             ) //the 2 curves are not similar enough
                 continue;
 
-            //TODO: project either stright line for the curve onto the similar plane
-            // and reject the curves if they dont collide since they aren't paired
-
-            //then get the dist between the curves and minimize the distance
-            //if one curve is smaller than another you might have to add an 
-            //an exception system in order to properly pair curves and have
-            //all friendships have a parent / core curve that is the one whose
-            //position is adjusted. Also add a system to keep track of paired 
-            //points since adjusting one curve will result in adjusting another
-
-            /*
-            
-            New method: compute the estimated thickness for the parent stem then calculate
-            the alignment in some sort of shader and then tweak the curves through the shader
-            by just adjusting every curve's buddy
-            
-            */
-
             //check collisions
             f32 imc0 = 1.0f / mc0,
                 pNorm[2] = {cv0[0] * imc0, cv0[0] * imc0};
@@ -4617,7 +4691,16 @@ void find_font_curve_friends(FontInst *font) {
                 continue;
 
             //compute distances
-            
+            const f32 d = simple_curve_point_abs_dist(fc.p0, cc, solve_inf + (i << 2));
+            minThickness = mu_min(d, minThickness);
         }
+
+        //TODO: ensure that the curve that the minW is assigned to is the left most curve of the min pair
+        //--> you can sort the curve left to right first if needed
+        //--> the above solution could fuck the whole connection mapping
+        //TODO: the actual connections mapping
+        cc.minW = minThickness;
     }
+
+    _safe_free_a(solve_inf);
 }
