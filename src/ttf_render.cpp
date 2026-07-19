@@ -329,9 +329,14 @@ i32 intersectsCurve(Point p0, Point p1, Point p2, Point e) {
     return nRoots;
 }
 
+struct simple_connection {
+    volatile i32 g;
+};
+
 struct gPData {
     std::vector<Point> p;
     std::vector<i32> f;
+    std::vector<simple_connection> connections;
 };
 
 /**
@@ -1237,7 +1242,7 @@ void ConvertToPseudoDist(PDistInf_Lite& d, Point p, MsdfCurve c) {
 
 struct rcGenContext {
     gpu_rc_curve* curveBuf = nullptr;
-    size_t nCurves = 0, wOff = 0; //number of curves and write offset
+    size_t nCurves = 0, wOff = 0, c = 0; //number of curves and write offset
 };
 
 rcGenContext *create_rc_gen_ctx(size_t nTotalCurves) {
@@ -1308,7 +1313,7 @@ void rc_gen_realloc_extra(const size_t extra, rcGenContext *ctx) {
     ctx->curveBuf = nBuf;
 }
 
-inline void rc_process_curve(rcGenContext *ctx, BCurve *cu) {
+inline void rc_process_curve(rcGenContext *ctx, BCurve *cu, i32 connect) {
     if (!ctx || !cu) return;
 
     if (ctx->nCurves - ctx->wOff < 2 || ctx->nCurves <= ctx->wOff) 
@@ -1321,7 +1326,8 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu) {
         ctx->curveBuf[ctx->wOff++] = {
             .p0 = {cu->p[0].x, cu->p[0].y},
             .p1 = {cu->p[1].x, cu->p[1].y},
-            .p2 = {cu->p[2].x, cu->p[2].y}
+            .p2 = {cu->p[2].x, cu->p[2].y},
+            .cu_connect = connect
         };
     } else { //more than 1 curve
         const f32 dz2 = dz*dz;
@@ -1334,16 +1340,25 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu) {
         Point pa = pointAdd(cu->p[0], pointScale(b, la)),
               pb = pointAdd(cu->p[2], pointScale(pointAdd(pointScale(aa, 2.0f), b), lb));
 
+        //adjust the connections
+        //that's gonna be fun
+        i32 con0 = (connect & 0xFFFF) 
+                 + (((ctx->wOff + 1) & 0x7FFF) << 15),
+            con1 = (((connect + 1) & 0x7FFF | (connect & 0x8000)) & 0xFFFF0000) 
+                 + (0x8000 + ctx->wOff & 0x7FFF);
+
         ctx->curveBuf[ctx->wOff++] = {
             .p0 = {cu->p[0].x, cu->p[0].y},
             .p1 = {pa.x, pa.y},
-            .p2 = {piv.x, piv.y}
+            .p2 = {piv.x, piv.y},
+            .cu_connect = con0
         };
 
         ctx->curveBuf[ctx->wOff++] = {
             .p0 = {piv.x, piv.y},
             .p1 = {pb.x, pb.y},
-            .p2 = {cu->p[2].x, cu->p[2].y}
+            .p2 = {cu->p[2].x, cu->p[2].y},
+            .cu_connect = con1
         };
     }
 }
@@ -1358,7 +1373,12 @@ struct glfEdgeObject {
 
 glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoints, rcGenContext **rcCtx, bool gen_rc_ctx = false) {
     glfEdgeObject eObj;
-    
+
+    if (!glyph_data.modifiedContourEnds) {
+        std::cout << "ttf_render error: cannot generate glyph edges --> poor contour data" << std::endl;
+        return eObj;
+    }
+
     const size_t nCurves = nPoints >> 1;
     eObj.curveBuff = new BCurve[nCurves];
     ZeroMem(eObj.curveBuff, nCurves);
@@ -1372,7 +1392,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
 
     BCurve *workingCurve = curveBuffer;
 
-    i32 i;
+    i32 i, ci;
     i32 pSelect = 0, nEdgeCurves = 0;
     Point nextPoint, prevPoint, p;
     f32 cross;
@@ -1391,6 +1411,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
     _clean_glyph_data:
 
     onExpect = true;
+
     for (i = 0; i < nPoints; i++) {
         oc = GetFlagValue(points.f[i], PointFlag_onCurve);
 
@@ -1418,14 +1439,57 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
     }
 
     beg_p_idx = 0;
+    i32 contStart = (*rcCtx)->wOff, c = 0;
+    i32 cur_connect = 0;
 
     for (i = 0; i < nPoints; i++) {
         p = points.p[i];
         workingCurve->p[pSelect] = p;
 
+        if (i == glyph_data.modifiedContourEnds[c] && pSelect < 2) {
+            std::cout << "ttf warning: funky contour ending!" << std::endl;
+        }
+
+        #define _wOff(ctx) (*ctx)->wOff
+        #define _wOff_next(ctx) ((*rcCtx)->wOff+1)
+        #define _wOff_prev(ctx) ((*rcCtx)->wOff-1)
+        #define _mask_con0(co) co &= 0xFFFF0000
+        #define _mask_con2(co) co &= 0x0000FFFF
+        #define _set_con0(co, pSelect, cuIdx) co |= (((pSelect << 15) + cuIdx & 0x7FFF) << 16)
+        #define _set_con2(co, pSelect, cuIdx) co |= ((pSelect << 15) + cuIdx & 0x7FFF)
+        #define TTF_CU_CONNECTION_SELECT_P0 0
+        #define TTF_CU_CONNECTION_SELECT_P2 1
+
         if (pSelect++ == 2) {
             //process for ray thingy working curve
-            if (rcCtx && *rcCtx) rc_process_curve(*rcCtx, workingCurve);
+            _mask_con0(cur_connect);
+
+            if (rcCtx && *rcCtx) { 
+                if ((i == glyph_data.modifiedContourEnds[c] || i >= nPoints-1) && (*rcCtx)->nCurves > contStart) {  // -----------------------------------------------------------------
+                    _mask_con0((*rcCtx)->curveBuf[contStart].cu_connect);                                           // Discard any junk in the p0 slot of the contour curve's connection
+                    _set_con0((*rcCtx)->curveBuf[contStart].cu_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff(rcCtx)); // Set the p0 slot of the contour curve's connection to the second point in the current curve (final point in the contour)
+                    _set_con2(cur_connect, TTF_CU_CONNECTION_SELECT_P0, contStart);                                 // Set the p2 slot of the current curve's connection to be the p0 (first) point of the first curve in the contour
+                    contStart = _wOff_next(rcCtx);                                                                  // Set the new contour start to be the next curve (NEED TO VERIFY THIS IS RIGHT AND NOT _wOff)
+                    c++;                                                                                            // Move onto the next contour (increment the current contour counter)
+                } else {                                                                                            // -----------------------------------------------------------------
+                    _set_con2(cur_connect, TTF_CU_CONNECTION_SELECT_P0, _wOff_next(rcCtx));                         // By default: set the p2 slot of the current connection to be the first point of the next connection
+                }                                                                                                   // -----------------------------------------------------------------
+
+                rc_process_curve(*rcCtx, workingCurve, cur_connect);
+
+                if (_wOff(rcCtx) == 0) {
+                    std::cout << "concerning warning: wOff was not incremented in rc_process_curve" << std::endl;
+                    goto _set_cur_con_0_skip;
+                }
+
+                /*
+                Set the connection for p0 (_set_con0) of the next curve to the last
+                point of the current curve | point: p2, index: prev_woff (since after rc_process call)
+                */
+                _set_con0(cur_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff_prev(rcCtx));
+            }
+
+            _set_cur_con_0_skip:
 
             //add curve to curve buffer / edge curves
             nEdgeCurves++;
@@ -1460,7 +1524,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
                 });
 
                 //snip if the cross product is not close to zero (which means it's a sharp corner)
-                snip = snip || (abs(cross) > 0.1f);
+                snip = snip || (abs(cross) > 0.01f);
             }
 
             if (cur_contour < glyph_data.nContours && i == glyph_data.modifiedContourEnds[cur_contour]) {
@@ -3106,8 +3170,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         font->rc_dat.lcs = ctx->rc_ctx->curveBuf;
         font->rc_dat.nCurves = ctx->rc_ctx->nCurves;
         _safe_free_b(ctx->rc_ctx);
-
-        find_font_curve_friends(font);
     } else {
         std::cout << "ttf render (severe) warning: could not include rc data!" << std::endl;
     }
@@ -3824,6 +3886,10 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     font.ad_inf.monospace = (f.h_inf.nLongHorMetrics == 1);
     font.ad_inf.wchar_support = glyphs.wchar_supported;
     font.ad_inf.null_char_loc = glyphs.nullCharLoc;
+
+    //find curve buddies real quick
+    find_font_curve_friends(&font);
+
     font.good = true;
 
     ttfParse::DeleteGlyphSet(glyphs);
@@ -4330,7 +4396,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 //cx_max = part_x + hm.advance_w * metrics.pRatio;
                 cx_max = part_x + part_w;
 
-                std::cout << "loc: " << (font->c_translate.mpa8[cc] - 1) << " | " << font->ad_inf.ngdata  << " " << hm.advance_w << " " << hm.l_side_bearing << std::endl;
+                //std::cout << "loc: " << (font->c_translate.mpa8[cc] - 1) << " | " << font->ad_inf.ngdata  << " " << hm.advance_w << " " << hm.l_side_bearing << std::endl;
 
                 //std::cout << "aw: " << hm.advance_w << " " << (part_w * (1.0f / metrics.pRatio)) << " " << hm.l_side_bearing << " " << std::endl;
             } else {
@@ -4587,6 +4653,17 @@ f32 simple_curve_point_abs_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
     return d_best;
 }
 
+#define USE_FAST_RC_CURVE_LEFT
+
+f32 get_rc_cu_left_pos(gpu_rc_curve cu) {
+#ifdef USE_FAST_RC_CURVE_LEFT 
+    return mu_min(mu_min(cu.p0[0], cu.p1[0]), cu.p2[0]);
+#else
+    //TODO: change this to solve the quadratic and find the left most part of the curve
+    return mu_min(mu_min(cu.p0[0], cu.p1[0]), cu.p2[0]);
+#endif
+}
+
 /**********************************************************
  * 
  * Auto font tweaking
@@ -4608,7 +4685,8 @@ f32 simple_curve_point_abs_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
  */
 //ttf glyph tweeking
 //friend seeking constants (can adjust these to properly get pairs)
-constexpr f32 pairity_thresh = 0.992546152f; //~cos(7deg)
+//constexpr f32 pairity_thresh = 0.992546152f; //~cos(7deg)
+constexpr f32 pairity_thresh = 0.9848f;
 
 //finding glyph curve friends
 //TODO: store solve inf through a shared groupmem between all the glyphs
@@ -4630,12 +4708,15 @@ constexpr f32 pairity_thresh = 0.992546152f; //~cos(7deg)
             
             */
 void find_font_curve_friends(FontInst *font) {
-    if (!font || !font->rc_dat.cu_buf ||
-        !font->rc_dat.cu_buf_good ||
+    if (!font ||
         font->rc_dat.nCurves == 0 ||
         !font->rc_dat.lcs
-    ) //holy checks bro :sob:
+    ) //holy checks bro :sob: 
+    {
+        std::cout << "could not generate friend data: bad stufff" << std::endl;
+        std::cout << (uintptr_t) font << " | " << font->rc_dat.nCurves << " | " << (uintptr_t) font->rc_dat.lcs << std::endl;
         return;
+    }
     
     i32 i,j,k;
 
@@ -4660,23 +4741,34 @@ void find_font_curve_friends(FontInst *font) {
         solve_inf[i+3] = compute_d_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_d_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
     }
 
+    std::cout << "finding friends for: " << ncu << " curves" << std::endl;
+
     //copyright James Weigand 2026-Present All Rights Reserved
+    //TODO: interate this in a whole different way blud
     for (i = 0; i < ncu; i++) {
         cc = font->rc_dat.lcs[i];
 
         f32 minThickness = chonk_number;
 
+        i32 lc = i;
+
         for (j = i+1; j < ncu; j++) {
             fc = font->rc_dat.lcs[j];
 
-            auto cv0 = ap_sub(cc.p0, cc.p1), cv1 = ap_sub(cc.p1, cc.p2);
-            auto fv0 = ap_sub(fc.p0, fc.p1), fv1 = ap_sub(fc.p1, fc.p2);
+            auto cv0 = ap_sub(cc.p0, cc.p1), cv1 = ap_sub(cc.p1, cc.p2), cv2 = ap_sub(cc.p0, cc.p2);
+            auto fv0 = ap_sub(fc.p0, fc.p1), fv1 = ap_sub(fc.p1, fc.p2), fv2 = ap_sub(fc.p0, fc.p2);
 
             const f32 mc0 = ap_mag(cv0), fc0 = ap_mag(fv0),
-                      mc1 = ap_mag(cv1), fc1 = ap_mag(fv1);
+                      mc1 = ap_mag(cv1), fc1 = ap_mag(fv1),
+                      mc2 = ap_mag(cv2), fc2 = ap_mag(fv2);
+
+            //std::cout << "aaa: " << ap_dot(cv0, fv0) << " " << pairity_thresh * mc0 * fc0 << "\n"
+            //                     << ap_dot(cv1, fv1) << " " << pairity_thresh * mc1 * fc1 << "\n"
+             //                    << ap_dot(cv2, fv2) << " " << pairity_thresh * mc2 * fc2;
 
             if (ap_dot(cv0, fv0) < pairity_thresh * mc0 * fc0 || 
-                ap_dot(cv1, fv1) < pairity_thresh * mc1 * fc1
+                ap_dot(cv1, fv1) < pairity_thresh * mc1 * fc1 ||
+                ap_dot(cv2, fv2) < pairity_thresh * mc2 * fc2
             ) //the 2 curves are not similar enough
                 continue;
 
@@ -4684,22 +4776,31 @@ void find_font_curve_friends(FontInst *font) {
             f32 imc0 = 1.0f / mc0,
                 pNorm[2] = {cv0[0] * imc0, cv0[0] * imc0};
 
-            const f32 pc0 = ap_dot(cc.p0, pNorm), pc1 = ap_dot(cc.p1, pNorm),
-                      pf0 = ap_dot(fc.p0, pNorm), pf1 = ap_dot(fc.p1, pNorm);
+            const f32 pc0 = ap_dot(cc.p0, pNorm), pc1 = ap_dot(cc.p2, pNorm),
+                      pf0 = ap_dot(fc.p0, pNorm), pf1 = ap_dot(fc.p2, pNorm);
             
-            if (mu_max(pc0, pc1) < mu_min(pf0, pf1))
-                continue;
+            //if (mu_max(pc0, pc1) < mu_min(pf0, pf1))
+            //    continue;
 
             //compute distances
-            const f32 d = simple_curve_point_abs_dist(fc.p0, cc, solve_inf + (i << 2));
-            minThickness = mu_min(d, minThickness);
+            const f32 d0 = simple_curve_point_abs_dist(fc.p0, cc, solve_inf + (i << 2)),
+                      d1 = simple_curve_point_abs_dist(fc.p2, cc, solve_inf + (i << 2));
+            minThickness = mu_min(mu_min(d0, d1), minThickness);
+
+            //std::cout << "estimated chonk: " << minThickness << std::endl;
+
+            if (get_rc_cu_left_pos(font->rc_dat.lcs[j]) < get_rc_cu_left_pos(font->rc_dat.lcs[lc]))
+                lc = j;
         }
 
         //TODO: ensure that the curve that the minW is assigned to is the left most curve of the min pair
         //--> you can sort the curve left to right first if needed
         //--> the above solution could fuck the whole connection mapping
         //TODO: the actual connections mapping
-        cc.minW = minThickness;
+        if (minThickness < 99.9e7f) {
+            font->rc_dat.lcs[lc].minW = minThickness;
+            std::cout << font->rc_dat.lcs[lc].minW << std::endl;
+        }
     }
 
     _safe_free_a(solve_inf);

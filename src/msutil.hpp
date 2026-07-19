@@ -190,11 +190,11 @@ static u64 NumReverse(u64 v, size_t bSz) {
 }
 
 #ifndef mu_max
-#define mu_max(a, b) ((a) > (b)) ? (a) : (b)
+#define mu_max(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
 #ifndef mu_min
-#define mu_min(a, b) ((a) < (b)) ? (a) : (b)
+#define mu_min(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
 #ifndef mu_clamp

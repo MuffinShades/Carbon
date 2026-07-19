@@ -2,9 +2,7 @@
 
 /*
 
-MSDF generation excelerated with le gpu
-
-This took forever to write
+Raycount with automatic countour adjustment
 
 Programmed by muffinshades 2026
 
@@ -92,15 +90,18 @@ float lumaTransform(float luma) {
 }
 
 struct cuBuddy {
-    int i;
-    bool rp0;
+    int i0,i1;
+    bool rp00, rp01;
 };
 
 cuBuddy decode_buddy_inf(int connect_inf) {
     cuBuddy res;
 
-    res.rp0 = (((connect_inf >> 15) & 1) == 0);
-    res.rp1 = connect_inf & 0x7FFF;
+    res.rp01 = (((connect_inf >> 15) & 1) == 0);
+    res.i1 = connect_inf & 0x7FFF;
+    connect_inf >>= 16;
+    res.rp00 = (((connect_inf >> 15) & 1) == 0);
+    res.i0 = connect_inf & 0x7FFF;
 
     return res;
 };
@@ -112,7 +113,7 @@ Compute the stuff here
 */
 void main() {
     const float boldness = 9.0;
-    const float blurr = 0.25;
+    const float blurr = 0.27;
 
     int i, j, count = 0;
 
@@ -130,22 +131,36 @@ void main() {
 
     vec2 p0,p1,p2,posf;
 
-    Curve tCurve;
+    Curve tCurve, tCurve0, tCurve1;
 
     //adjust curves first
     for (i = curve_range.x; i <= curve_range.y; i++) {
         tCurve = glyph_curves[i];
 
-        if (tCurve.minW <= mu_epsil)
+        if (tCurve.minW < 0.0)
             continue;
 
         cuBuddy bDat = decode_buddy_inf(tCurve.cu_connect);
 
+        //tCurve0 = glyph_curves[bDat.i0];
+        //tCurve1 = glyph_curves[bDat.i1];
+
+        //glyph_curves[i].p0.x = 0.0;
+        //glyph_curves[i].p2.x = 0.0;
+
+        const float sscalee = 10.0;
+
         //determine what point is connected
-        if (bDat.rp0) {
-
+        if (bDat.rp00) {
+            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p0.x = floor(glyph_curves[i].p0.x / delta.x / sscalee) * delta.x * sscalee);
         } else {
+            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p2.x = floor(glyph_curves[i].p0.x / delta.x / sscalee) * delta.x * sscalee);
+        }
 
+        if (bDat.rp01) {
+            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p0.x = floor(glyph_curves[i].p2.x / delta.x / sscalee) * delta.x * sscalee);
+        } else {
+            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p2.x = floor(glyph_curves[i].p2.x / delta.x / sscalee) * delta.x * sscalee);
         }
     }
 

@@ -153,7 +153,7 @@ struct gpu_rc_curve {
     f32 p2[2];
 
     //specifies the min width of the stem formed by the curve
-    f32 minW = -1.0f;
+    f32 minW = -100.0f;
 
     /*
     ================Format of cu_connect================
@@ -161,6 +161,8 @@ struct gpu_rc_curve {
     1 i32 split into 2 i16s
 
     0x00000000 --> 0x0000 << 16 + 0x0000
+
+    Formatted big endian such that I0 << 16 + I1
 
     i16 0: refers to the connection for point 0 on the curve
     i16 1: refers to the connection for point 2 on the curve
@@ -176,7 +178,7 @@ struct gpu_rc_curve {
         C=1: curve is attached to p2 of the other curve
     I --> 15bit uint that stores the index of the curve that the connection references
     */
-    i32 cu_connect; 
+    i32 cu_connect = 0; 
 };
 
 struct CharPart {
