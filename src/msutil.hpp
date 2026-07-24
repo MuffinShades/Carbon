@@ -4,6 +4,7 @@
 #include <vector>
 #include "types.hpp"
 #include "memcpy.hpp"
+#define MSUTIL
 
 template<class _Ty> inline static void ZeroMem(_Ty* dat, size_t sz = 1) {
     if (!dat) return;

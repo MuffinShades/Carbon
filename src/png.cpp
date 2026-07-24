@@ -388,15 +388,14 @@ png_image PngParse::Decode(ContentSrc src) {
 
 	//get for signature
 	byte sig_byte_read;
+	
 	for (const auto sig_byte : sig) {
-		std::cout << "stream posb: " << stream.tell() << std::endl;
 		if ((sig_byte_read = stream.readByte()) != sig_byte) {
 			std::cout << "[png error] invalid png sig! Got: " << (i32) sig_byte_read << " expected: " << (i32) sig_byte << std::endl;
 			return rpng;
 		} else {
 			std::cout << "sig check: " << sig_byte_read << std::endl;
 		}
-		std::cout << "stream posa: " << stream.tell() << std::endl;
 	}
 
 	//read in header chunk

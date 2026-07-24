@@ -223,7 +223,7 @@ private:
         for (; ablocId > 0 && taBlock; ablocId--) taBlock = taBlock->next;
 
         if (!taBlock) {
-            throw std::exception("Could not find a valid access block for index: ");
+            throw std::runtime_error("Could not find a valid access block for index: ");
         }
 
         //std::cout << "ee: " << taBlock->datAccess[off].off << " boc: " << (uintptr_t) taBlock->datAccess[off].block << std::endl;
@@ -236,7 +236,7 @@ private:
     }
 
     inline size_t _get_true_index_from_index(size_t idx) {
-        const size_t bblocId = (idx / elemPerAccessBlock);
+        size_t bblocId = (idx / elemPerAccessBlock);
         const size_t off = idx - (bblocId * elemPerAccessBlock);
 
         //get the target access block
@@ -244,7 +244,7 @@ private:
         for (; bblocId > 0 && tbBlock; bblocId--) tbBlock = tbBlock->next;
 
         if (!tbBlock) {
-            throw std::exception("Could not find a valid access block for index: "+idx);
+            throw std::runtime_error("Could not find a valid access block for index: "+idx);
         }
 
         return tbBlock->idxTrack[off];
@@ -264,7 +264,7 @@ private:
         _Ty *dat = new _Ty[this->sz];
 
         if (!dat) {
-            throw std::exception("failed to alloc for vector consolidation!");
+            throw std::runtime_error("failed to alloc for vector consolidation!");
         }
 
         _Ty *copyTo = dat;
@@ -282,7 +282,7 @@ private:
         dBlock *coBloc = new dBlock;
 
         if (!coBloc) {
-            throw std::exception("failed to allocate new memory block for vector consolidation");
+            throw std::runtime_error("failed to allocate new memory block for vector consolidation");
         }
 
         coBloc->elm = dat;
@@ -495,7 +495,7 @@ public:
             this->tail = this->tail->prev;
 
             if (!this->tail) {
-                throw std::exception("lll no tail :P");
+                throw std::runtime_error("lll no tail :P");
             }
 
             _sim_pop_ptr<aBlock>(this->aTail);
@@ -534,13 +534,13 @@ public:
         advDatAccess ia = _get_access_from_index(idx);
 
         if (!ia.abloc) {
-            throw std::exception("failed to get proper block for index: "+idx);
+            throw std::runtime_error("failed to get proper block for index: "+idx);
         }
 
         if (!tail || tail->off == tail->len) this->_add_data_block();
         if (!aTail || aTail->off == aTail->len) this->_add_access_block();
         if (!tail || !aTail || !tail->elm || !aTail->datAccess) {
-            throw std::exception("Could not add data blocks or something idk im too tired to give a good description for all of these exception lmfao");
+            throw std::runtime_error("Could not add data blocks or something idk im too tired to give a good description for all of these exception lmfao");
         }
 
         tail->elm[tail->off++] = val;
@@ -583,7 +583,7 @@ public:
         advDatAccess iinf = _get_access_from_index(idx);
 
         if (!iinf.abloc) {
-            throw std::exception(idx + " is out of mu_vec bounds!");
+            throw std::runtime_error(idx + " is out of mu_vec bounds!");
         }
 
         this->_rswap(idx, this->sz-1);
@@ -645,7 +645,7 @@ public:
                 i2 = _get_access_from_index(idx2);
 
         if (!i1.acc.block || !i2.acc.block) {
-            throw std::exception("could not swap indexes "+std::to_string((i64) idx1)+" and "+std::to_string((i64) idx2));
+            throw std::runtime_error("could not swap indexes "+std::to_string((i64) idx1)+" and "+std::to_string((i64) idx2));
         }
 
         //swap le indexes
