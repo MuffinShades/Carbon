@@ -291,6 +291,7 @@ inline void aes_add_rkey(byte *state, u32 *w, u32 r) {
 
 //all lsh 
 const byte rcon[] = {
+    0xee,
     0x01, 0x02, 0x04, 0x08,
     0x10, 0x20, 0x40, 0x80,
     0x1b, 0x36
@@ -317,7 +318,7 @@ nr --> from specs and depends on aes type
 
 */
 inline u32 *aes_key_expand(key256& k, const size_t nk, const size_t nr) {
-    const size_t nw = (nr << 2) + 3;
+    const size_t nw = (nr << 2) + 4;
     u32 *w = new u32[nw];
     
     if (!w) {
@@ -331,6 +332,8 @@ inline u32 *aes_key_expand(key256& k, const size_t nk, const size_t nr) {
     
     u32 tmp = w[i-1];
     
+    std::cout << "istart: " << i << " | " << nk << std::endl;
+    
     //TODO: optimize the nk divisions given the size of nk
     //cause use a define / what not a specify this function for
     //128, 256, and 192 bits (since 128 and 256 can be optimized with rsh and lsh)
@@ -339,11 +342,14 @@ inline u32 *aes_key_expand(key256& k, const size_t nk, const size_t nr) {
     for (; i < nw; i++) {
         mk = i % nk;
         if (mk == 0) {
-            tmp = subword(rotword(tmp)) ^ (rcon[i / nk] << 24);
+            tmp = subword(rotword(tmp)) ^ ((u32)rcon[i / nk] << 24);
+            
+            std::cout << "tmp: " << std::hex << std::setw(8) << std::setfill('0') << tmp << std::dec << std::setw(0) << std::endl;
+            
         } else if (nk > 6 && mk == 4) {
             tmp = subword(tmp);
         }
-        tmp = (w[i - nk] ^= tmp);
+        tmp = (w[i] = (w[i - nk] ^ tmp));
     }
     
     return w;
@@ -424,6 +430,19 @@ void aes_enc_ecb(aes_res &res, byte *dat, size_t len, key256 key, size_t nr, siz
     
     u32 *w = aes_key_expand(key, nk, nr);
     
+    //
+    std::cout << "key expand: \n" << std::endl;
+    
+    for (i = 0; i < (nr << 2) + 4; i++) {
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << w[i] << " ";
+        
+        if (((i + 1) & 7) == 0)
+            std::cout << "\n";
+    }
+    std::cout << std::dec << std::setw(0) << std::endl;
+    
+    std::cout << "applying cipher to " << nBlocks << " block(s)" << std::endl;
+    
     for (i = 0; i < nBlocks; i++) {
         aes_cipher(res.dat + (i << 4), w, nk, nr); //offset by 16 bytes each time
     }
@@ -499,3 +518,36 @@ public:
         
     }
 };
+
+int main() {
+    // Write C++ code here
+    //std::cout << "Start small. Ship something.";
+    
+    byte dat[] = {
+        'h','e','l','l','o',' ','w','o','r','l','d'
+    };
+    
+    //3dd783363aac8bfe8074d1be7098ccf05d6d233730a69069f10d80a4805d65ba
+    //603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4
+    key256 key = {
+        .dat = {
+            0x603deb10,
+            0x15ca71be,
+            0x2b73aef0,
+            0x857d7781,
+            0x1f352c07,
+            0x3b6108d7,
+            0x2d9810a3,
+            0x0914dff4
+        }
+    };
+    
+    aes_res ar = encrypt::aes256(dat, sizeof(dat), key, block_method::ECB, {});
+    
+    for (i32 i = 0; i < ar.len; i++) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << (i32)ar.dat[i] << " ";
+    }
+    std::cout << std::endl;
+
+    return 0;
+}
