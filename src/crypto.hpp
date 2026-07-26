@@ -204,6 +204,10 @@ inline byte sbox(byte b) {
     return sLookCombine[b];
 }
 
+inline byte inv_sbox(byte b) {
+    return inv_sLook[b];
+}
+
 inline void aes_subbytes(byte *state) {
     i32 i;
     
@@ -212,6 +216,13 @@ inline void aes_subbytes(byte *state) {
     }
 }
 
+inline void aes_unsubbytes(byte *state) {
+    i32 i;
+    
+    for (i = 0; i < 16; i++) {
+        state[i] = inv_sbox(state[i]);
+    }
+}
 
 //TODO: hyper optimize this
 inline void aes_shftrows(byte *state) {
@@ -223,9 +234,26 @@ inline void aes_shftrows(byte *state) {
     
     for (r = 0; r < 4; r++) {
         for (c = 0; c < 4; c++) {
-            p = (r << 3) + ((c+r) & 3);
-            
-            work_space[p] = state[p];
+            p = (r << 2);
+            work_space[(r << 2) + c] = state[p + ((c+r) & 3)];
+        }
+    }
+    
+    memcpy(state, work_space, 16);
+}
+
+
+inline void aes_unshiftrows(byte *state) {
+    i32 r,c,p;
+    
+    byte work_space[16] = {0};
+    
+    memcpy(work_space, state, 16);
+    
+    for (r = 0; r < 4; r++) {
+        for (c = 0; c < 4; c++) {
+            p = (r << 2);
+            work_space[(r << 2) + c] = state[p + ((c-r) & 3)];
         }
     }
     
@@ -254,6 +282,28 @@ inline void aes_mixcol(byte *state) {
     memcpy(state, work_space, 16);
 }
 
+inline void aes_unmixcol(byte *state) {
+    i32 c;
+    
+    byte work_space[16] = {0};
+    
+    memcpy(work_space, state, 16);
+    
+    byte s0,s1,s2,s3;
+    
+    for (c = 0; c < 4; c++) {
+        s0 = state[c + 0]; s1 = state[c + 4];
+        s2 = state[c + 8]; s3 = state[c + 12];
+        
+        work_space[c + 0]  = aes_mule(s0) ^ aes_mulb(s1) ^ aes_muld(s2) ^ aes_mul9(s3);
+        work_space[c + 4]  = aes_mul9(s0) ^ aes_mule(s1) ^ aes_mulb(s2) ^ aes_muld(s3);
+        work_space[c + 8]  = aes_muld(s0) ^ aes_mul9(s1) ^ aes_mule(s2) ^ aes_mulb(s3);
+        work_space[c + 12] = aes_mulb(s0) ^ aes_muld(s1) ^ aes_mul9(s2) ^ aes_mule(s3);
+    }
+    
+    memcpy(state, work_space, 16);
+}
+
 
 //r is round btw
 inline void aes_add_rkey(byte *state, u32 *w, u32 r) {
@@ -263,35 +313,25 @@ inline void aes_add_rkey(byte *state, u32 *w, u32 r) {
     u32 workspace[4] = {0};
     
     //
-    i32 c, c4, wo;
+    i32 c, wo;
+    
+    const u32 r4 = r << 2;
     
     //TODO: decompose w instead of composing then decomposing workspace
     //will result in 1 decomposition/composition instead of 2
     for (c = 0; c < 4; c++) {
-        c4 = c << 2;
+        wo = w[r4 + c];
         
-        workspace[c] = (
-            (((c4 + 0) << 24) & 0xff) |
-            (((c4 + 1) << 16) & 0xff) |
-            (((c4 + 2) << 8) & 0xff) |
-            (((c4 + 3)) & 0xff) 
-        ) ^ w[(r << 2) + c];
-    }
-    
-    //copy workspace back over
-    for (c = 0; c < 4; c++) {
-        wo = workspace[c]; c4 = c << 2;
-        
-        state[c4 + 0] = (wo >> 24) & 0xff;
-        state[c4 + 1] = (wo >> 16) & 0xff;
-        state[c4 + 2] = (wo >> 8) & 0xff;
-        state[c4 + 3] = (wo) & 0xff;
+        state[c + 12] ^= wo & 0xff;
+        state[c + 8] ^= (wo >> 8) & 0xff;
+        state[c + 4] ^= (wo >> 16) & 0xff;
+        state[c + 0] ^= (wo >> 24) & 0xff;
     }
 }
 
 //all lsh 
 const byte rcon[] = {
-    0xee,
+    0xee, //this 0xee byte can be any placeholder byte since it is never referenced
     0x01, 0x02, 0x04, 0x08,
     0x10, 0x20, 0x40, 0x80,
     0x1b, 0x36
@@ -332,8 +372,6 @@ inline u32 *aes_key_expand(key256& k, const size_t nk, const size_t nr) {
     
     u32 tmp = w[i-1];
     
-    std::cout << "istart: " << i << " | " << nk << std::endl;
-    
     //TODO: optimize the nk divisions given the size of nk
     //cause use a define / what not a specify this function for
     //128, 256, and 192 bits (since 128 and 256 can be optimized with rsh and lsh)
@@ -343,9 +381,6 @@ inline u32 *aes_key_expand(key256& k, const size_t nk, const size_t nr) {
         mk = i % nk;
         if (mk == 0) {
             tmp = subword(rotword(tmp)) ^ ((u32)rcon[i / nk] << 24);
-            
-            std::cout << "tmp: " << std::hex << std::setw(8) << std::setfill('0') << tmp << std::dec << std::setw(0) << std::endl;
-            
         } else if (nk > 6 && mk == 4) {
             tmp = subword(tmp);
         }
@@ -353,6 +388,20 @@ inline u32 *aes_key_expand(key256& k, const size_t nk, const size_t nr) {
     }
     
     return w;
+}
+
+void printState(byte *block) {
+    if (!block) return;
+    
+    i32 i;
+    
+    for (i = 0; i < 16; i++) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << (i32) block[i] << " ";
+        
+        if (((i + 1) & 3) == 0)
+            std::cout << "\n";
+    }
+    std::cout << std::dec << std::setw(0) << std::endl;
 }
 
 /*
@@ -369,7 +418,7 @@ nr --> nr from specification --> depends on type of aes
 void aes_cipher(byte *block, u32 *w, const size_t nk, const size_t nr) {
     if (!block)
         return;
-            
+        
     i32 i;
     
     aes_add_rkey(block, w, 0);
@@ -386,19 +435,43 @@ void aes_cipher(byte *block, u32 *w, const size_t nk, const size_t nr) {
     aes_add_rkey(block, w, nr);
 }
 
-void aes_inv_cipher() {
+void aes_inv_cipher(byte *block, u32 *w, const size_t nk, const size_t nr) {
+    if (!block)
+        return;
         
+    i32 i;
+    
+    aes_add_rkey(block, w, nr);
+    
+    for (i = nr-1; i >= 1; i++) {
+        aes_unshiftrows(block);
+        aes_unsubbytes(block);
+        aes_add_rkey(block, w, i);
+        aes_unmixcol(block);
+    }
+    
+    aes_unshiftrows(block);
+    aes_unsubbytes(block);
+    aes_add_rkey(block, w, 0);
 }
 
 enum class block_method {
     CBC, //default
-    GCM,
-    ECB
+    GCM, //best
+    ECB,
+    CFB,
+    OFB,
+    CTR
 };
 
 struct aes_iv {
     bool good = false;
-    u32 iv = 0;
+    byte iv[16] = {
+        0,0,0,0,
+        0,0,0,0,
+        0,0,0,0,
+        0,0,0,0
+    };
 };
 
 struct aes_res { 
@@ -407,12 +480,37 @@ struct aes_res {
     aes_iv iv;
 };
 
+const size_t state_shake[] = {
+    0, 4, 8, 12,
+    1, 5, 9, 13,
+    2, 6, 10, 14,
+    3, 7, 11, 15
+};
+
+void copy_to_state(byte* state, byte *dat) {
+    for (i32 i = 0; i < 16; i++) {
+        state[i] = dat[state_shake[i]];
+    }
+}
+
+void copy_to_state_cbc(byte* state, byte *dat, byte *iv) {
+    for (i32 i = 0; i < 16; i++) {
+        state[i] = dat[state_shake[i]] ^ iv[state_shake[i]];
+    }
+}
+
+void copy_to_dat_from_state(byte* state, byte *dat) {
+    for (i32 i = 0; i < 16; i++) {
+        dat[state_shake[i]] = state[i];
+    }
+}
+
 //aes encrypt via ecb
 void aes_enc_ecb(aes_res &res, byte *dat, size_t len, key256 key, size_t nr, size_t nk) {
     if (!dat || len == 0)
         return;
         
-    const size_t le = 16 - (len & 15), ll = len + le;
+    const size_t le = (16 - (len & 15)), ll = len + le;
     const size_t nBlocks = ll >> 4;
     
     i32 i;
@@ -430,21 +528,19 @@ void aes_enc_ecb(aes_res &res, byte *dat, size_t len, key256 key, size_t nr, siz
     
     u32 *w = aes_key_expand(key, nk, nr);
     
-    //
-    std::cout << "key expand: \n" << std::endl;
-    
-    for (i = 0; i < (nr << 2) + 4; i++) {
-        std::cout << std::hex << std::setw(8) << std::setfill('0') << w[i] << " ";
-        
-        if (((i + 1) & 7) == 0)
-            std::cout << "\n";
+    if (!w) {
+        std::cout << "aes error: failed to expand key!" << std::endl;
+        delete[] res.dat;
+        res.len = 0;
+        return;
     }
-    std::cout << std::dec << std::setw(0) << std::endl;
     
-    std::cout << "applying cipher to " << nBlocks << " block(s)" << std::endl;
+    byte bloc[16] = {0};
     
     for (i = 0; i < nBlocks; i++) {
-        aes_cipher(res.dat + (i << 4), w, nk, nr); //offset by 16 bytes each time
+        copy_to_state(bloc, res.dat + (i << 4));
+        aes_cipher(bloc, w, nk, nr); //offset by 16 bytes each time
+        copy_to_dat_from_state(bloc, res.dat + (i << 4));
     }
     
     if (w)
@@ -452,6 +548,116 @@ void aes_enc_ecb(aes_res &res, byte *dat, size_t len, key256 key, size_t nr, siz
 }
 
 //
+void aes_enc_cbc(aes_res &res, byte *dat, size_t len, key256 key, aes_iv iv, size_t nr, size_t nk) {
+    if (!dat || len == 0)
+        return;
+    
+    //padding
+    const size_t le = (16 - (len & 15)), ll = len + le;
+    const size_t nBlocks = ll >> 4;
+    
+    i32 i;
+    
+    res.dat = new byte[ll];
+    res.len = ll;
+    
+    if (!res.dat) {
+        std::cout << "aes fail: bad alloc" << std::endl;
+        return;
+    }
+    
+    memset(res.dat+len, le, le);
+    memcpy(res.dat, dat, len);
+    
+    u32 *w = aes_key_expand(key, nk, nr);
+    
+    if (!w) {
+        std::cout << "aes error: failed to expand key!" << std::endl;
+        delete[] res.dat;
+        res.len = 0;
+        return;
+    }
+    
+    //setup block and ivs
+    byte *bloc_buf = new byte[32];
+    size_t bselect = (1 << 4);
+    const size_t sd = bselect;
+    byte *bloc = bloc_buf, *civ = bloc_buf+bselect;
+    
+    memcpy(civ, iv.iv, sizeof(iv.iv));
+    
+    //
+    for (i = 0; i < nBlocks; i++) {
+        copy_to_state_cbc(bloc, res.dat + (i << 4), civ);
+        aes_cipher(bloc, w, nk, nr); //offset by 16 bytes each time
+        copy_to_dat_from_state(bloc, res.dat + (i << 4));
+        
+        //swap the block buffers
+        bselect ^= sd;
+        bloc = bloc_buf + (bselect ^ sd);
+        civ = bloc_buf + bselect;
+    }
+    
+    if (bloc_buf)
+        delete[] bloc_buf;
+    
+    if (w)
+        delete[] w;
+}
+
+void aes_enc_gcm(aes_res &res, byte *dat, size_t len, key256 key, aes_iv iv, size_t nr, size_t nk) {
+    
+}
+
+//decryption functions
+void aes_dec_ecb(aes_res &res, byte *dat, size_t len, key256 key, size_t nr, size_t nk) {
+    if (!dat || len == 0)
+        return;
+        
+    const size_t le = (16 - (len & 15)) & 15, ll = len + le;
+    const size_t nBlocks = ll >> 4;
+    
+    i32 i;
+    
+    res.dat = new byte[ll];
+    res.len = ll;
+    
+    if (!res.dat) {
+        std::cout << "aes fail: bad alloc" << std::endl;
+        return;
+    }
+    
+    memset(res.dat+len, 0, le);
+    memcpy(res.dat, dat, len);
+    
+    u32 *w = aes_key_expand(key, nk, nr);
+    
+    if (!w) {
+        std::cout << "aes error: failed to expand key!" << std::endl;
+        delete[] res.dat;
+        res.len = 0;
+        return;
+    }
+    
+    byte bloc[16] = {0};
+    
+    for (i = 0; i < nBlocks; i++) {
+        copy_to_state(bloc, res.dat + (i << 4));
+        aes_inv_cipher(bloc, w, nk, nr); //offset by 16 bytes each time
+        copy_to_dat_from_state(bloc, res.dat + (i << 4));
+    }
+    
+    if (w)
+        delete[] w;
+        
+    const size_t padd = res.dat[res.len - 1];
+    
+    if (padd <= res.len) {
+        res.len -= padd;
+    } else {
+        std::cout << "aes warning: data had no or invalid padding!" << std::endl;   
+    }
+}
 
 //
 
@@ -468,16 +674,8 @@ aes_iv gen_iv() {
 #define AES_NR_256 14
 
 class encrypt {
-public:
-    static aes_res aes128() {
-        return {};
-    } 
-    
-    static aes_res aes192() {
-        return {};
-    }
-    
-    static aes_res aes256(byte *dat, size_t len, key256 key, block_method method = block_method::CBC, aes_iv iv = {}) {
+private:
+    static aes_res aes_generic(byte *dat, size_t len, key256 key, block_method method, aes_iv iv, size_t nr, size_t nk) {
         aes_res res;
         
         if (!dat || len == 0)
@@ -486,14 +684,14 @@ public:
         switch (method) {
         case block_method::CBC:
             if (!iv.good) iv = gen_iv();
-            
+            aes_enc_cbc(res, dat, len, key, iv, nr, nk);
             break;
         case block_method::GCM:
             if (!iv.good) iv = gen_iv();
-        
+            aes_enc_gcm(res, dat, len, key, iv, nr, nk);
             break;
         case block_method::ECB:
-            aes_enc_ecb(res, dat, len, key, AES_NR_256, AES_NK_256);
+            aes_enc_ecb(res, dat, len, key, nr, nk);
             break;
         default:
             std::cout << "aes 256 error unknown or unsupported moe: " << (i32) method << std::endl;
@@ -502,9 +700,52 @@ public:
             
         return res;
     }
+public:
+
+    //aes encryption functions
+    static aes_res aes128(byte *dat, size_t len, key128 key, block_method method = block_method::CBC, aes_iv iv = {}) {
+        key256 k256;
+        memcpy(k256.dat, key.dat, sizeof(key.dat));
+        return aes_generic(dat, len, k256, method, iv, AES_NR_128, AES_NK_128);
+    } 
+    
+    static aes_res aes192(byte *dat, size_t len, key192 key, block_method method = block_method::CBC, aes_iv iv = {}) {
+        key256 k256;
+        memcpy(k256.dat, key.dat, sizeof(key.dat));
+        return aes_generic(dat, len, k256, method, iv, AES_NR_192, AES_NK_192);
+    }
+    
+    static aes_res aes256(byte *dat, size_t len, key256 key, block_method method = block_method::CBC, aes_iv iv = {}) {
+        return aes_generic(dat, len, key, method, iv, AES_NR_256, AES_NK_256);
+    }
 };
 
 class decrypt {
+    static aes_res aes_igeneric(byte *dat, size_t len, key256 key, block_method method, aes_iv iv, size_t nr, size_t nk) {
+        aes_res res;
+        
+        if (!dat || len == 0)
+            return res;
+            
+        switch (method) {
+        case block_method::CBC:
+            if (!iv.good) iv = gen_iv();
+            //aes_dec_cbc(res, dat, len, key, iv, nr, nk);
+            break;
+        case block_method::GCM:
+            if (!iv.good) iv = gen_iv();
+            //aes_dec_gcm(res, dat, len, key, iv, nr, nk);
+            break;
+        case block_method::ECB:
+            aes_dec_ecb(res, dat, len, key, nr, nk);
+            break;
+        default:
+            std::cout << "aes 256 error unknown or unsupported moe: " << (i32) method << std::endl;
+            return res;
+        }
+            
+        return res;
+    }
 public:
     static void aes128() {
         
@@ -514,8 +755,8 @@ public:
         
     }
     
-    static void aes256() {
-        
+    static aes_res aes256(byte *dat, size_t len, key256 key, block_method method = block_method::CBC, aes_iv iv = {}) {
+        return aes_igeneric(dat, len, key, method, iv, AES_NR_256, AES_NK_256);
     }
 };
 
@@ -526,6 +767,10 @@ int main() {
     byte dat[] = {
         'h','e','l','l','o',' ','w','o','r','l','d'
     };
+    
+    /*byte dat[] = {
+        0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34  
+    };*/
     
     //3dd783363aac8bfe8074d1be7098ccf05d6d233730a69069f10d80a4805d65ba
     //603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4
@@ -542,12 +787,59 @@ int main() {
         }
     };
     
-    aes_res ar = encrypt::aes256(dat, sizeof(dat), key, block_method::ECB, {});
+    /*key256 key = {
+        .dat = {
+            0x2b7e1516,
+            0x28aed2a6,
+            0xabf71588,
+            0x09cf4f3c,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+            0x00000000
+        }
+    };*/
+    
+    aes_iv iv = {
+        .good = true,
+        .iv = {
+            0x8c, 0x68, 0x6d, 0x45, 0xa6, 0x40, 0xbf, 0x08, 0x54, 0x8b, 0x4b,
+            0x6d, 0x01, 0xe1, 0x5b, 0x02
+        }
+    };
+    
+    //8c686d45a640bf08548b4b6d01e15b02
+    //8c 68 6d 45 a6 40 bf 08 54 8b 4b 6d 01 e1 5b 02
+    
+    aes_res ar = encrypt::aes256(dat, sizeof(dat), key, block_method::ECB, iv);
     
     for (i32 i = 0; i < ar.len; i++) {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << (i32)ar.dat[i] << " ";
     }
     std::cout << std::endl;
+    
+    aes_res dec = decrypt::aes256(ar.dat, ar.len, key, block_method::ECB, {});
+    
+    for (i32 i = 0; i < dec.len; i++) {
+        std::cout << (char)dec.dat[i];
+    }
+    std::cout << std::endl;
+    
+    /*std::cout << "------TESTS------" << std::endl;
+    
+    byte testState[] = {
+        0x19 ,0xa0 ,0x9a ,0xe9
+        ,0x3d ,0xf4 ,0xc6 ,0xf8
+        ,0xe3 ,0xe2 ,0x8d ,0x48
+        ,0xbe ,0x2b ,0x2a ,0x08
+    };
+    
+    aes_subbytes(testState);
+    printState(testState);
+    aes_shftrows(testState);
+    printState(testState);
+    aes_mixcol(testState);
+    printState(testState);*/
 
     return 0;
 }
