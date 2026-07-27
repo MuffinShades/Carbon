@@ -1,8 +1,27 @@
-// reference: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197-upd1.pdf
+// aes reference: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197-upd1.pdf
+// gcm reference:
+// rsa reference:
+//
 /*
 TODO: add safety checks and what not along with hyper optimizing
 some optimizations to implement are alreday outlined in some todos
 */
+
+/*
+
+Simple cryptography library inclduing
+
+ecryption: aes128, aes192, aes256 for ecb, cbc, and gcm
+key exchange and gen: rsa, dhe, 
+
+*/
+
+/*
+Note:
+
+define MACHINE_64 when 64bit arithmatic is native to your cpu
+*/
+#define MACHINE_64
 
 #include <iostream>
 #include <cstdint>
@@ -200,6 +219,50 @@ const byte mul14_lookup[] = {
 #define aes_muld(a) mul13_lookup[a]
 #define aes_mule(a) mul14_lookup[a]
 
+//mostsignificant and least significant byte operations
+//TODO: explore the asm instructions for these operations
+#define msb(v,n) ((v) >> ((sizeof(v) << 3) - (n)))
+#define lsb(v,n) ((v) & ((1 << (n)) - 1))
+
+//TODO: look through asm to find ways to optimize
+#ifdef MACHINE_64
+inline u64 ainc_generic(u64 v, size_t s, size_t bitlen) {
+    const u64 sMask = ((1 << s) - 1);
+    return (msb(v, bitlen-s) << s) | ((v + 1) & sMask);
+}
+#else
+inline u32 ainc_generic(u32 v, size_t s, size_t bitlen) {
+    const u32 sMask = ((1 << s) - 1);
+    return (msb(v, bitlen-s) << s) | ((v + 1) & sMask);
+}
+#endif
+
+#define ainc8(v,s) ainc_generic(v,s,8)
+#define ainc16(v,s) ainc_generic(v,s,16)
+#define ainc32(v,s) ainc_generic(v,s,32)
+
+#ifdef MACHINE_64
+#define ainc64(v,s) ainc_generic(v,s,64)
+#else
+inline u64 ainc64(u64 v, size_t s) {
+    const u64 sMask = ((1 << s) - 1);
+    return (msb(v, 64-s) << s) | ((v + 1) & sMask);
+}
+#endif
+
+//128 bit multiplication thing
+struct u128_32 {
+    u32 dat[4];  
+};
+
+inline void rsh_single_128(u128_32 v) {
+    v.dat[0]
+}
+
+inline 
+
+
+//aes functions
 inline byte sbox(byte b) {
     return sLookCombine[b];
 }
@@ -443,7 +506,7 @@ void aes_inv_cipher(byte *block, u32 *w, const size_t nk, const size_t nr) {
     
     aes_add_rkey(block, w, nr);
     
-    for (i = nr-1; i >= 1; i++) {
+    for (i = nr-1; i >= 1; i--) {
         aes_unshiftrows(block);
         aes_unsubbytes(block);
         aes_add_rkey(block, w, i);
@@ -502,6 +565,12 @@ void copy_to_state_cbc(byte* state, byte *dat, byte *iv) {
 void copy_to_dat_from_state(byte* state, byte *dat) {
     for (i32 i = 0; i < 16; i++) {
         dat[state_shake[i]] = state[i];
+    }
+}
+
+void copy_to_dat_from_state_cbc(byte* state, byte *dat, byte *iv) {
+    for (i32 i = 0; i < 16; i++) {
+        dat[state_shake[i]] = state[i] ^ iv[state_shake[i]];
     }
 }
 
@@ -627,7 +696,7 @@ void aes_dec_ecb(aes_res &res, byte *dat, size_t len, key256 key, size_t nr, siz
         return;
     }
     
-    memset(res.dat+len, 0, le);
+    if (le > 0) memset(res.dat+len, 0, le);
     memcpy(res.dat, dat, len);
     
     u32 *w = aes_key_expand(key, nk, nr);
@@ -649,6 +718,69 @@ void aes_dec_ecb(aes_res &res, byte *dat, size_t len, key256 key, size_t nr, siz
     
     if (w)
         delete[] w;
+        
+    const size_t padd = res.dat[res.len - 1];
+    
+    if (padd <= res.len) {
+        res.len -= padd;
+    } else {
+        std::cout << "aes warning: data had no or invalid padding!" << std::endl;   
+    }
+}
+
+void aes_dec_cbc(aes_res &res, byte *dat, size_t len, key256 key, aes_iv iv, size_t nr, size_t nk) {
+    if (!dat || len == 0)
+        return;
+        
+    const size_t le = (16 - (len & 15)) & 15, ll = len + le;
+    const size_t nBlocks = ll >> 4;
+    
+    i32 i;
+    
+    res.dat = new byte[ll];
+    res.len = ll;
+    
+    if (!res.dat) {
+        std::cout << "aes fail: bad alloc" << std::endl;
+        return;
+    }
+    
+    if (le > 0) memset(res.dat+len, 0, le);
+    memcpy(res.dat, dat, len);
+    
+    u32 *w = aes_key_expand(key, nk, nr);
+    
+    if (!w) {
+        std::cout << "aes error: failed to expand key!" << std::endl;
+        delete[] res.dat;
+        res.len = 0;
+        return;
+    }
+    
+    //setup block and ivs
+    byte *bloc_buf = new byte[32];
+    size_t bselect = (1 << 4);
+    const size_t sd = bselect;
+    byte *bloc = bloc_buf, *civ = bloc_buf+bselect;
+    
+    memcpy(civ, iv.iv, sizeof(iv.iv));
+    
+    for (i = 0; i < nBlocks; i++) {
+        copy_to_state(bloc, res.dat + (i << 4));
+        aes_inv_cipher(bloc, w, nk, nr); //offset by 16 bytes each time
+        copy_to_dat_from_state_cbc(bloc, res.dat + (i << 4), civ); 
+        
+        //swap the bloc buffers
+        bselect ^= sd;
+        bloc = bloc_buf + (bselect ^ sd);
+        civ = bloc_buf + bselect;
+    }
+    
+    if (w)
+        delete[] w;
+        
+    if (bloc_buf)
+        delete[] bloc_buf;
         
     const size_t padd = res.dat[res.len - 1];
     
@@ -730,7 +862,7 @@ class decrypt {
         switch (method) {
         case block_method::CBC:
             if (!iv.good) iv = gen_iv();
-            //aes_dec_cbc(res, dat, len, key, iv, nr, nk);
+            aes_dec_cbc(res, dat, len, key, iv, nr, nk);
             break;
         case block_method::GCM:
             if (!iv.good) iv = gen_iv();
@@ -811,14 +943,14 @@ int main() {
     //8c686d45a640bf08548b4b6d01e15b02
     //8c 68 6d 45 a6 40 bf 08 54 8b 4b 6d 01 e1 5b 02
     
-    aes_res ar = encrypt::aes256(dat, sizeof(dat), key, block_method::ECB, iv);
+    aes_res ar = encrypt::aes256(dat, sizeof(dat), key, block_method::CBC, iv);
     
     for (i32 i = 0; i < ar.len; i++) {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << (i32)ar.dat[i] << " ";
     }
     std::cout << std::endl;
     
-    aes_res dec = decrypt::aes256(ar.dat, ar.len, key, block_method::ECB, {});
+    aes_res dec = decrypt::aes256(ar.dat, ar.len, key, block_method::CBC, iv);
     
     for (i32 i = 0; i < dec.len; i++) {
         std::cout << (char)dec.dat[i];
