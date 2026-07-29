@@ -138,7 +138,7 @@ void main() {
         tCurve = glyph_curves[i];
 
         if (tCurve.minW < 0.0)
-            continue;
+           continue;
 
         cuBuddy bDat = decode_buddy_inf(tCurve.cu_connect);
 
@@ -148,19 +148,19 @@ void main() {
         //glyph_curves[i].p0.x = 0.0;
         //glyph_curves[i].p2.x = 0.0;
 
-        const float sscalee = 10.0;
+        const float sscalee = 3.0;
 
         //determine what point is connected
         if (bDat.rp00) {
-            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p0.x = floor(glyph_curves[i].p0.x / delta.x / sscalee) * delta.x * sscalee);
+            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p0.x = floor(glyph_curves[i].p0.x / (delta.x * sscalee)) * delta.x * sscalee);
         } else {
-            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p2.x = floor(glyph_curves[i].p0.x / delta.x / sscalee) * delta.x * sscalee);
+            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p2.x = floor(glyph_curves[i].p0.x / (delta.x * sscalee)) * delta.x * sscalee);
         }
 
         if (bDat.rp01) {
-            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p0.x = floor(glyph_curves[i].p2.x / delta.x / sscalee) * delta.x * sscalee);
+            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p0.x = floor(glyph_curves[i].p2.x / (delta.x * sscalee)) * delta.x * sscalee);
         } else {
-            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p2.x = floor(glyph_curves[i].p2.x / delta.x / sscalee) * delta.x * sscalee);
+            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p2.x = floor(glyph_curves[i].p2.x / (delta.x * sscalee)) * delta.x * sscalee);
         }
     }
 

@@ -1359,9 +1359,9 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                         continue;
 
                     i32 co_off = getGlyphOffset(&fStream, &f, co.idx);
-
                     Glyph co_glf = read_glyph(&fStream, &f, co_off);
                     co_glf.glyph_id = co.idx;
+                    co_glf.char_id = -2;
                     co_glf.component = true;
                     cc.push_back(co_glf);
                 }

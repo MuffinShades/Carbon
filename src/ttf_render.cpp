@@ -1371,7 +1371,7 @@ struct glfEdgeObject {
     std::vector<Edge> edges;
 };
 
-glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoints, rcGenContext **rcCtx, bool gen_rc_ctx = false) {
+glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoints, rcGenContext*& rcCtx, bool gen_rc_ctx = false) {
     glfEdgeObject eObj;
 
     if (!glyph_data.modifiedContourEnds) {
@@ -1386,8 +1386,8 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
 
     eObj.nCurves = 0;
 
-    if (rcCtx && !*rcCtx && gen_rc_ctx) {
-        *rcCtx = create_rc_gen_ctx(nCurves);
+    if (!rcCtx && gen_rc_ctx) {
+        rcCtx = create_rc_gen_ctx(nCurves);
     }
 
     BCurve *workingCurve = curveBuffer;
@@ -1439,7 +1439,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
     }
 
     beg_p_idx = 0;
-    i32 contStart = (*rcCtx)->wOff, c = 0;
+    i32 contStart = rcCtx->wOff, c = 0;
     i32 cur_connect = 0;
 
     for (i = 0; i < nPoints; i++) {
@@ -1450,9 +1450,9 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
             std::cout << "ttf warning: funky contour ending!" << std::endl;
         }
 
-        #define _wOff(ctx) (*ctx)->wOff
-        #define _wOff_next(ctx) ((*rcCtx)->wOff+1)
-        #define _wOff_prev(ctx) ((*rcCtx)->wOff-1)
+        #define _wOff(ctx) ctx->wOff
+        #define _wOff_next(ctx) (ctx->wOff+1)
+        #define _wOff_prev(ctx) (ctx->wOff-1)
         #define _mask_con0(co) co &= 0xFFFF0000
         #define _mask_con2(co) co &= 0x0000FFFF
         #define _set_con0(co, pSelect, cuIdx) co |= (((pSelect << 15) + cuIdx & 0x7FFF) << 16)
@@ -1464,10 +1464,10 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
             //process for ray thingy working curve
             _mask_con0(cur_connect);
 
-            if (rcCtx && *rcCtx) { 
-                if ((i == glyph_data.modifiedContourEnds[c] || i >= nPoints-1) && (*rcCtx)->nCurves > contStart) {  // -----------------------------------------------------------------
-                    _mask_con0((*rcCtx)->curveBuf[contStart].cu_connect);                                           // Discard any junk in the p0 slot of the contour curve's connection
-                    _set_con0((*rcCtx)->curveBuf[contStart].cu_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff(rcCtx)); // Set the p0 slot of the contour curve's connection to the second point in the current curve (final point in the contour)
+            if (rcCtx) { 
+                if ((i == glyph_data.modifiedContourEnds[c] || i >= nPoints-1) && rcCtx->nCurves > contStart) {     // -----------------------------------------------------------------
+                    _mask_con0(rcCtx->curveBuf[contStart].cu_connect);                                              // Discard any junk in the p0 slot of the contour curve's connection
+                    _set_con0(rcCtx->curveBuf[contStart].cu_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff(rcCtx));    // Set the p0 slot of the contour curve's connection to the second point in the current curve (final point in the contour)
                     _set_con2(cur_connect, TTF_CU_CONNECTION_SELECT_P0, contStart);                                 // Set the p2 slot of the current curve's connection to be the p0 (first) point of the first curve in the contour
                     contStart = _wOff_next(rcCtx);                                                                  // Set the new contour start to be the next curve (NEED TO VERIFY THIS IS RIGHT AND NOT _wOff)
                     c++;                                                                                            // Move onto the next contour (increment the current contour counter)
@@ -1475,7 +1475,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
                     _set_con2(cur_connect, TTF_CU_CONNECTION_SELECT_P0, _wOff_next(rcCtx));                         // By default: set the p2 slot of the current connection to be the first point of the next connection
                 }                                                                                                   // -----------------------------------------------------------------
 
-                rc_process_curve(*rcCtx, workingCurve, cur_connect);
+                rc_process_curve(rcCtx, workingCurve, cur_connect);
 
                 if (_wOff(rcCtx) == 0) {
                     std::cout << "concerning warning: wOff was not incremented in rc_process_curve" << std::endl;
@@ -1615,7 +1615,8 @@ i32 ttfRender::RenderGlyphSDFToBitMap(Glyph tGlyph, Bitmap* map, sdf_dim size) {
     //curve and edge generation, glyph clean up, and more
 
     //generate glyph edges
-    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, nullptr);
+    rcGenContext *_disc_ctx = nullptr;
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, _disc_ctx);
 
     //generate single channel sdf
     i32 x,y;
@@ -2071,7 +2072,7 @@ gpu_light_curve BtoLightCurve(BCurve c, uvec3 color) {
     return ctx;
 }*/
 
-void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext **rc_ctx, bool accel = false) {
+void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext*& rc_ctx, bool accel = false) {
     //clean the glyph up
     gPData cleanDat = cleanGlyphPoints(tGlyph);
 
@@ -2146,10 +2147,8 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext **rc_ct
     ctx->nCurves = nCurves;
     
     Edge E;
-
-    size_t cpi = 0;
-
     BCurve qu;
+    size_t cpi = 0;
 
     for (c = 0; c < tGlyph.nContours; c++) {
         Contour ct = glyph_contours[c];
@@ -2157,6 +2156,7 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext **rc_ct
         const size_t ncEdges = ct.edge_idxs.size();
         u32 t_edge;
 
+        //case where there are only 0 or 1 edges
         if (ncEdges == 0)
             continue;
         else if (ncEdges == 1) {
@@ -2184,6 +2184,7 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext **rc_ct
             continue;
         }
 
+        //assign a color to each edge
         cur_color = uvec3(1,0,1);
 
         for (i = 0; i < ncEdges; i++) {
@@ -2193,7 +2194,6 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext **rc_ct
             if (!E.curves)
                 continue;
 
-            //add new curves
             for (j = 0; j < E.nCurves; j++) {
                 qu = E.curves[j];
 
@@ -2227,7 +2227,7 @@ void ConfigureGenContext(MsdfGenContext *ctx, Glyph tGlyph, rcGenContext **rc_ct
     _safe_free_a(glyphEdges.curveBuff);
 }
 
-MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, rcGenContext** rc_ctx, bool accel = false) {
+MsdfGenContext CreateMsdfGenContext(Glyph tGlyph, rcGenContext*& rc_ctx, bool accel = false) {
     MsdfGenContext ctx = {
         .curves = nullptr,
         .nCurves = 0
@@ -2264,7 +2264,8 @@ i32 render_positioned_msdf(Glyph& tGlyph, Bitmap* map, const i32 regionX, const 
         return 0;
 
     //curve and edge generation, glyph clean up, and more
-    MsdfGenContext g_ctx = CreateMsdfGenContext(tGlyph, nullptr);
+    rcGenContext *_disc_ctx = nullptr;
+    MsdfGenContext g_ctx = CreateMsdfGenContext(tGlyph, _disc_ctx);
 
     //generate multi channel sdf
     i32 x,y;
@@ -2455,7 +2456,7 @@ i32 render_positioned_msdf_gpu_accel(Glyph& tGlyph, MsdfGpuContext *ctx, const i
 
     //curve and edge generation, glyph clean up, and more
 
-    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, &ctx->rc_ctx, true);
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, ctx->rc_ctx, true);
 
     //compute conture colors
     i32 c;
@@ -2811,7 +2812,13 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
         if (tg.char_id < 0) {
         _char_id_fail:
-            std::cout << "error invalid char id! @ i = " << i << " / " << nGlyphs << std::endl;
+            if (!tg.compound && !tg.component)
+                std::cout << "error invalid char id! @ i = " << i << " / " << nGlyphs << std::endl;
+            else {
+                #ifdef TTFRENDER_DBG_REPORT_ALL_SKIPPED_CHARS
+                    std::cout << "notice skipped compound char @i = " << i << " / " << nGlyphs << std::endl;
+                #endif
+            }
             continue;
         }
 
@@ -2823,54 +2830,13 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         g_pos = pos[i];
 
         //add spritesheet character info for compound glyphs
-        //TODO: support the hash map
         Character *ochar = font->gdata+tg.arb_char_idx;
 
-        /*if (tg.compound) {
-            switch (font->map.ty) {
-            case CharMapType::Direct: {
-                if (tg.char_id - font->map.firstId > font->map.hash_inf.sz) {
-                    goto _char_id_fail;
-                }
-
-                ochar = &font->map.hash_map[tg.char_id - font->map.firstId].ochar;
-
-                for (j = 0; j < ochar->nParts; j++) {
-                    ochar->spriteParts[j].sheet_loc = pos[ochar->val]; //TODO: fix this cause it's wrong and doesnt work
-
-                }
-                    
-                break;
-            }
-            case CharMapType::Hash: {
-                std::cout << "TODO: implement char map hashing" << std::endl;
-                break;
-            }
-            default:
-                std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
-                break;
-            }
-        } else {
-            switch (font->map.ty) {
-            case CharMapType::Direct: {
-                if (tg.char_id - font->map.firstId > font->map.hash_inf.sz) {
-                    goto _char_id_fail;
-                }
-
-                ochar = &font->map.hash_map[tg.char_id - font->map.firstId].ochar;
-            }
-            case CharMapType::Hash: {
-                std::cout << "TODO: implement char map hashing" << std::endl;
-                break;
-            }
-            default:
-                std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
-                break;
-            }
-        }*/
+        if (ochar->nParts > 0) {
+            std::cout << "ttf_render warning: strange number of character parts for glyph " << i << " / " << nGlyphs << " | Char ID: " << ochar->val << " " << (char)(ochar->val & 0xff) << std::endl;
+        }
 
         //
-
         if (g_pos.w == 0 || g_pos.h == 0) {
             std::cout << "ttf_render warning: character " << i << " is very small" << std::endl;
             continue; //dimension check (dont add null glyphs)
@@ -2881,7 +2847,7 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
 
         //generate the glpyh context
         const size_t rc_wposb4 = ((ctx->rc_ctx) ? ctx->rc_ctx->wOff : 0);
-        ConfigureGenContext(g_ctx_store+i, tg, &ctx->rc_ctx, true);
+        ConfigureGenContext(g_ctx_store+i, tg, ctx->rc_ctx, true);
 
         if (ochar && ctx->rc_ctx && ctx->rc_ctx->wOff > 0) {
 
@@ -2895,6 +2861,11 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
                       << "\n\t check: ochar?" << (ochar != nullptr) 
                       << " / rcContext?" << (ctx->rc_ctx != nullptr) 
                       << " / wOff=" << (ctx->rc_ctx->wOff) << " (should be > 0) " << std::endl;
+
+            if (ochar) {
+                ochar->rc_Dat.rc_curve_start = 0;
+                ochar->rc_Dat.rc_curve_end = 0;
+            }
         }
 
         g_ctx = g_ctx_store[i];
@@ -3172,6 +3143,8 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         _safe_free_b(ctx->rc_ctx);
     } else {
         std::cout << "ttf render (severe) warning: could not include rc data!" << std::endl;
+        font->rc_dat.lcs = nullptr;
+        font->rc_dat.nCurves = 0;
     }
 
     //for debug stuff
@@ -3372,8 +3345,8 @@ i32 ttfRender::RenderGlyphOutlineToBitmap(Glyph tGlyph, Bitmap* map, sdf_dim siz
         return 0;
 
     //curve and edge generation, glyph clean up, and more
-
-    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, nullptr);
+    rcGenContext *__disc_ctx = nullptr;
+    glfEdgeObject glyphEdges = generateGlyphEdges(tGlyph, cleanDat, nPoints, __disc_ctx);
 
     f32 t;
 
@@ -3457,12 +3430,18 @@ i32 _glyphCmp(Glyph a, Glyph b) {
 
 //
 FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange range, sdf_dim first_char_size, bool accel) {
+    //constants
+    constexpr f32 padding_per_32 = 1.0f;
+    constexpr f32 inter_glyph_padding = 1.0f;
+    constexpr f32 padding = 0.1f;
+    
     //param checks and shit
-    FontInst font;
+    FontInst font = {
+        .range = range
+    };
 
-    const f32 padding_per_32 = 1.0f;
-    const f32 inter_glyph_padding = 1.0f;
-    const f32 padding = 0.1f;
+    if (src.length() == 0 || (u32) range >= (u32) UnicodeRange::Unknown)
+        return font;
 
     // get all the glyphs
     GlyphSet glyphs = ttfParse::GenerateGlyphSet(src, range);
@@ -3478,8 +3457,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ttfParse::DeleteGlyphSet(glyphs);
         return font;
     }
-
-    font.range = range;
 
     //set some info needed later for spacing calculations
     font.ad_inf.unitsPerEm = f.header.unitsPerEm;
@@ -3515,37 +3492,7 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
     in_memcpy(gly, glyphs.glyphs, sizeof(Glyph) * glyphs.nGlyphs);
     mu_qsort<Glyph>(gly, &_glyphCmp, glyphs.nGlyphs);
 
-    /*if (glyphs.nRanges == 1) {
-        font.map.ty = CharMapType::Direct;
-        font.map.hash_inf.sz = glyphs.nGlyphs;
-    } else {
-        font.map.hash_inf.nBits = nFontMapHashBits;
-        font.map.hash_inf.sz = 1 << font.map.hash_inf.nBits;
-        font.map.ty = CharMapType::Hash;
-        font.map.hash_map = new CharLink[nFontMapHashBits];
-        ZeroMem(font.map.hash_map, nFontMapHashBits);
-    }*/
-
-    //create the character map
-    CharSpritePos *c_pos = new CharSpritePos[glyphs.nGlyphs];
-    constexpr size_t nFontMapHashBits = 15;
-
-    /*if (glyphs.nRanges == 1) {
-        font.map.ty = CharMapType::Direct;
-        font.map.hash_inf.sz = glyphs.nGlyphs;
-        font.map.hash_map = new CharLink[font.map.hash_inf.sz];
-        if (glyphs.rangeLocations) {
-            font.map.firstId = glyphs.rangeLocations[0].start;
-        } else if (gly && glyphs.nGlyphs > 0) {
-            font.map.firstId = gly[0].char_id;
-        } else {
-            font.map.firstId = -1;
-        }
-        ZeroMem(font.map.hash_map, font.map.hash_inf.sz);
-    } else {
-        std::cout << "err: currently only 1 range support" << std::endl;
-    }*/
-
+    /////////////////
     font.ad_inf.ngdata = glyphs.nGlyphs;
     font.gdata = new Character[font.ad_inf.ngdata];
 
@@ -3572,22 +3519,28 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ZeroMem(font.c_translate.mpa16, 65536);
     }
 
-    //compute the positions of all the characters
+    /*
+    
+    Compute the position in the sprite sheet of all characters
+    maybe make this a seperate function that's inline
+
+    */
     struct SpriteRegion {
         i32 x = 0, y = 0, w = -1, h = -1, age = 0; //-1 for w and height is treated as infinity
     };
 
+    SpriteRegion Rn;
+    i32 i = 0, j = -1;
     u32 sheet_w = 1, sheet_h = 1;
 
+    const f32 ig_pad_2 = inter_glyph_padding * 2.0f;
+
+    //create the sprite sheet position mapping things
+    CharSpritePos *c_pos = new CharSpritePos[glyphs.nGlyphs];
     std::vector<SpriteRegion> rgn_stack = {{
         .x = 0, .y = 0,
         .w = -1, .h = -1
     }}; //add the first "infinite" region
-
-    i32 i = 0, j = -1;
-    SpriteRegion Rn;
-    
-    const f32 ig_pad_2 = inter_glyph_padding * 2.0f;
 
     //genereate the sprite sheet layout
     while (i < glyphs.nGlyphs) {
@@ -3696,8 +3649,17 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             };
             rgn_stack.push_back(r2); //add 2 new regions
         }
+        
+        i++;
+    }
 
-        //add character info
+    //note / OPTIMIZATION: can combine with above function but for cleanliness puposes these are separated
+    //the only caviate is that the first if-statement in the while loop will cause issue since the block
+    //of code the proceeds this comment but execute for all glyphs and not select glyphs
+    //add character info
+    for (i = 0; i < font.ad_inf.ngdata; i++) {
+        Glyph g = gly[i];
+
         Character ochar;
 
         ochar.dim.w = g.xMax - g.xMin;
@@ -3707,75 +3669,22 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         ochar.dim.hw_ratio = ((f32) ochar.dim.h) / ((f32) ochar.dim.w);
         ochar.hmetrics = g.h_inf;
         ochar.val = g.char_id;
-
-        //rc data
         
         //ochar.nParts = 
-        ochar.nParts = g.compound ? g.compound_inf.nGlyphParts : 1;
-        ochar.spriteParts = new GlyphPart[ochar.nParts];
-        ZeroMem(ochar.spriteParts, ochar.nParts);
+        ochar.nParts = g.compound ? g.compound_inf.nGlyphParts : 0;
 
-        if (g.compound) {
-            /*for (j = 0; j < ochar.nParts; j++) {
-                CharPart *part = ochar.spriteParts + j;
+        std::cout << "Is glyph compound? ID: " << g.glyph_id << " Character: \"" << (char)g.char_id << "\" Compound: " << (g.compound ? "Y" : "N") << std::endl;
 
-                part->offset = g.compound_inf.glyph_parts[j].pos_mat;
-                part->id = g.compound_inf.glyph_parts[j].idx;
-
-                std::cout << "compound glyph isn't working cause you didnt add the info right dipshit" << std::endl;
-            }*/
-
+        if (ochar.nParts > 0) {
+            ochar.spriteParts = new GlyphPart[ochar.nParts];
+            ZeroMem(ochar.spriteParts, ochar.nParts);
             in_memcpy(ochar.spriteParts, g.compound_inf.glyph_parts, ochar.nParts * sizeof(GlyphPart));
         } else {
-            //TODO: add single part for non compound glyph
-
-            /*CharPart *part = ochar.spriteParts;
-
-            part->id = ochar.val;
-            part->offset.a = 1.0f;
-            part->offset.b = 0.0f;
-            part->offset.c = 0.0f;
-            part->offset.d = 1.0f;
-            part->offset.e = 0.0f;
-            part->offset.f = 0.0f;
-            part->offset.m = 1.0f;
-            part->offset.n = 1.0f;
-            part->sheet_loc = c_pos[i];
-            part->size = {
-                .xMax = (i32) g.xMax,
-                .xMin = (i32) g.xMin,
-                .yMax = (i32) g.yMax,
-                .yMin = (i32) g.yMin
-            };
-
-            part->rc_Dat.rc_curve_start = ochar.rc_Dat.rc_curve_start;
-            part->rc_Dat.rc_curve_end = ochar.rc_Dat.rc_curve_end;*/
-
             //nParts = 0 indicates to just read from sprite_dat
             ochar.nParts = 0;
             ochar.sprite_dat.msdf_support = true;
             ochar.sprite_dat.sheet_loc = c_pos[i];
         }
-
-        //TODO: add hash thing
-        /*switch (font.map.ty) {
-        case CharMapType::Direct: {
-            font.map.hash_map[g.char_id - glyphs.minChar].ochar = ochar;
-
-            if (!glyphs.rangeLocations) {
-                font.map.firstId = mu_min(font.map.firstId, g.char_id);
-            }
-
-            break;
-        }
-        case CharMapType::Hash: {
-            std::cout << "ttf_warning: implement hashing stuff" << std::endl;
-            break;
-        }
-        default:
-            std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
-            break;
-        }*/
 
         constexpr size_t gDataReallocXtra = 0XF;
         const u32 gInsert = g.glyph_id /*- glyphs.minGlyphId*/;
@@ -3789,15 +3698,13 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             font.gdata = gd;
         }
 
-        font.gdata[gInsert] = ochar;
+        //font.gdata[gInsert] = ochar;
+        memcpy(font.gdata+gInsert, &ochar, sizeof(Character));
         (*(gly+i)).arb_char_idx = gInsert;
 
         //populate the translation maps
-                                    font.c_translate.mpa8[g.char_id]  = gInsert + 1;
+        if (g.char_id < 256)        font.c_translate.mpa8[g.char_id]  = gInsert + 1;
         if (glyphs.wchar_supported) font.c_translate.mpa16[g.char_id] = gInsert + 1;
-
-        //
-        i++;
     }
 
     //generate the spritesheet
@@ -3863,6 +3770,10 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
                 padding, padding, padding, padding
             );
         }
+    }
+
+    for (i32 kk = 0; kk < font.ad_inf.ngdata; kk++) {
+        std::cout << "Found curve ranges: " << font.gdata[kk].rc_Dat.rc_curve_start << std::endl;
     }
 
     if (accel) {
@@ -4650,7 +4561,7 @@ f32 simple_curve_point_abs_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
             d_best = _D;
     }
 
-    return d_best;
+    return sqrtf(d_best);
 }
 
 #define USE_FAST_RC_CURVE_LEFT
@@ -4735,72 +4646,102 @@ void find_font_curve_friends(FontInst *font) {
     for (i = 0; i < ncu; i++) {
         cc = font->rc_dat.lcs[i];
         j = i << 2;
-        solve_inf[i+0] = compute_a_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_a_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
-        solve_inf[i+1] = compute_b_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_b_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
-        solve_inf[i+2] = compute_c_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_c_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
-        solve_inf[i+3] = compute_d_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_d_base_coord(cc.p0[1], cc.p1[1], cc.p1[1]);
+        solve_inf[j+0] = compute_a_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_a_base_coord(cc.p0[1], cc.p1[1], cc.p2[1]);
+        solve_inf[j+1] = compute_b_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_b_base_coord(cc.p0[1], cc.p1[1], cc.p2[1]);
+        solve_inf[j+2] = compute_c_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_c_base_coord(cc.p0[1], cc.p1[1], cc.p2[1]);
+        solve_inf[j+3] = compute_d_base_coord(cc.p0[0], cc.p1[0], cc.p2[0]) + compute_d_base_coord(cc.p0[1], cc.p1[1], cc.p2[1]);
     }
 
-    std::cout << "finding friends for: " << ncu << " curves" << std::endl;
+    std::cout << "finding friends for: " << ncu << " curves and " << font->ad_inf.ngdata << " glyphs" << std::endl;
 
     //copyright James Weigand 2026-Present All Rights Reserved
     //TODO: interate this in a whole different way blud
-    for (i = 0; i < ncu; i++) {
-        cc = font->rc_dat.lcs[i];
 
-        f32 minThickness = chonk_number;
+    auto process_glf = [&](Character& c, auto&& process_glf) -> void {
+        if (c.nParts > 0) {
+            u32 idx;
 
-        i32 lc = i;
+            for (i = 0; i < c.nParts; i++) {
+                idx = c.spriteParts[i].idx;
+                if (idx >= font->ad_inf.ngdata)
+                    continue;
+                process_glf(font->gdata[idx], process_glf);
+            }
 
-        for (j = i+1; j < ncu; j++) {
-            fc = font->rc_dat.lcs[j];
+            return;
+        }
 
-            auto cv0 = ap_sub(cc.p0, cc.p1), cv1 = ap_sub(cc.p1, cc.p2), cv2 = ap_sub(cc.p0, cc.p2);
-            auto fv0 = ap_sub(fc.p0, fc.p1), fv1 = ap_sub(fc.p1, fc.p2), fv2 = ap_sub(fc.p0, fc.p2);
+        std::cout << "cu range: " << c.rc_Dat.rc_curve_start << " --> " << c.rc_Dat.rc_curve_end << std::endl;
 
-            const f32 mc0 = ap_mag(cv0), fc0 = ap_mag(fv0),
-                      mc1 = ap_mag(cv1), fc1 = ap_mag(fv1),
-                      mc2 = ap_mag(cv2), fc2 = ap_mag(fv2);
+        if (c.rc_Dat.rc_curve_start >= font->rc_dat.nCurves && c.rc_Dat.rc_curve_end >= font->rc_dat.nCurves) {
+            std::cout << "cannot font friends for glyph: " << c.val << std::endl;
+            std::cout << "Range: " << c.rc_Dat.rc_curve_start << " --> " << c.rc_Dat.rc_curve_end << std::endl;
+            return;
+        }
 
-            //std::cout << "aaa: " << ap_dot(cv0, fv0) << " " << pairity_thresh * mc0 * fc0 << "\n"
-            //                     << ap_dot(cv1, fv1) << " " << pairity_thresh * mc1 * fc1 << "\n"
-             //                    << ap_dot(cv2, fv2) << " " << pairity_thresh * mc2 * fc2;
+        for (i = c.rc_Dat.rc_curve_start; i <= c.rc_Dat.rc_curve_end; i++) {
+            cc = font->rc_dat.lcs[i];
 
-            if (ap_dot(cv0, fv0) < pairity_thresh * mc0 * fc0 || 
-                ap_dot(cv1, fv1) < pairity_thresh * mc1 * fc1 ||
-                ap_dot(cv2, fv2) < pairity_thresh * mc2 * fc2
-            ) //the 2 curves are not similar enough
-                continue;
+            f32 minThickness = chonk_number;
 
-            //check collisions
-            f32 imc0 = 1.0f / mc0,
-                pNorm[2] = {cv0[0] * imc0, cv0[0] * imc0};
+            i32 lc = i;
 
-            const f32 pc0 = ap_dot(cc.p0, pNorm), pc1 = ap_dot(cc.p2, pNorm),
-                      pf0 = ap_dot(fc.p0, pNorm), pf1 = ap_dot(fc.p2, pNorm);
+            for (j = i+1; j <= c.rc_Dat.rc_curve_end; j++) {
+                fc = font->rc_dat.lcs[j];
+
+                auto cv0 = ap_sub(cc.p0, cc.p1), cv1 = ap_sub(cc.p1, cc.p2), cv2 = ap_sub(cc.p0, cc.p2);
+                auto fv0 = ap_sub(fc.p0, fc.p1), fv1 = ap_sub(fc.p1, fc.p2), fv2 = ap_sub(fc.p0, fc.p2);
+
+                const f32 mc0 = ap_mag(cv0), fc0 = ap_mag(fv0),
+                          mc1 = ap_mag(cv1), fc1 = ap_mag(fv1),
+                          mc2 = ap_mag(cv2), fc2 = ap_mag(fv2);
+
+                /*std::cout << "aaa: " << ap_dot(cv0, fv0) << " " << pairity_thresh * mc0 * fc0 << "\n"
+                                     << ap_dot(cv1, fv1) << " " << pairity_thresh * mc1 * fc1 << "\n"
+                                    << ap_dot(cv2, fv2) << " " << pairity_thresh * mc2 * fc2;*/
+
+                if (ap_dot(cv0, fv0) < pairity_thresh * mc0 * fc0 || 
+                    ap_dot(cv1, fv1) < pairity_thresh * mc1 * fc1 ||
+                    ap_dot(cv2, fv2) < pairity_thresh * mc2 * fc2
+                ) //the 2 curves are not similar enough
+                    continue;
+
+                //check collisions
+                f32 imc0 = 1.0f / mc0,
+                    pNorm[2] = {cv0[0] * imc0, cv0[0] * imc0};
+
+                const f32 pc0 = ap_dot(cc.p0, pNorm), pc1 = ap_dot(cc.p2, pNorm),
+                        pf0 = ap_dot(fc.p0, pNorm), pf1 = ap_dot(fc.p2, pNorm);
             
-            //if (mu_max(pc0, pc1) < mu_min(pf0, pf1))
-            //    continue;
+                if (mu_max(pc0, pc1) < mu_min(pf0, pf1))
+                    continue;
 
-            //compute distances
-            const f32 d0 = simple_curve_point_abs_dist(fc.p0, cc, solve_inf + (i << 2)),
-                      d1 = simple_curve_point_abs_dist(fc.p2, cc, solve_inf + (i << 2));
-            minThickness = mu_min(mu_min(d0, d1), minThickness);
+                //compute distances
+                const f32 d0 = simple_curve_point_abs_dist(fc.p0, cc, solve_inf + (i << 2)),
+                        d1 = simple_curve_point_abs_dist(fc.p2, cc, solve_inf + (i << 2));
+                minThickness = mu_min(mu_min(d0, d1), minThickness);
 
-            //std::cout << "estimated chonk: " << minThickness << std::endl;
+                //std::cout << "estimated chonk: " << minThickness << std::endl;
 
-            if (get_rc_cu_left_pos(font->rc_dat.lcs[j]) < get_rc_cu_left_pos(font->rc_dat.lcs[lc]))
-                lc = j;
+                if (get_rc_cu_left_pos(font->rc_dat.lcs[j]) < get_rc_cu_left_pos(font->rc_dat.lcs[lc]))
+                    lc = j;
+            }
+
+            //TODO: ensure that the curve that the minW is assigned to is the left most curve of the min pair
+            //--> you can sort the curve left to right first if needed
+            //--> the above solution could fuck the whole connection mapping
+            //TODO: the actual connections mapping
+            if (minThickness < 99.9e7f) {
+                font->rc_dat.lcs[lc].minW = minThickness;
+                //std::cout << font->rc_dat.lcs[lc].minW << std::endl;
+            }
         }
+    };
 
-        //TODO: ensure that the curve that the minW is assigned to is the left most curve of the min pair
-        //--> you can sort the curve left to right first if needed
-        //--> the above solution could fuck the whole connection mapping
-        //TODO: the actual connections mapping
-        if (minThickness < 99.9e7f) {
-            font->rc_dat.lcs[lc].minW = minThickness;
-            std::cout << font->rc_dat.lcs[lc].minW << std::endl;
-        }
+    for (k = 0; k < font->ad_inf.ngdata; k++) {
+        Character& c = font->gdata[k];
+
+        process_glf(c, process_glf);
     }
 
     _safe_free_a(solve_inf);
