@@ -119,10 +119,6 @@ void main() {
 
     int counts[9] = {0,0,0,0,0,0,0,0,0};
 
-    /*vec2 offsets[9] = {vec2(0.25, 0.25),vec2(0.25, 0.50),vec2(0.25, 0.75),
-                       vec2(0.50, 0.25),vec2(0.50, 0.50),vec2(0.50, 0.75),
-                       vec2(0.75, 0.25),vec2(0.75, 0.50),vec2(0.75, 0.75)};*/
-
     vec2 offsets[9] = {vec2(-blurr, -blurr),vec2(-blurr, 0.0),vec2(-blurr, blurr),
                        vec2(0.0, -blurr),vec2(0.0, 0.0),vec2(0.0, blurr),
                        vec2(blurr, -blurr),vec2(blurr, 0.0),vec2(blurr, blurr)};
@@ -142,25 +138,23 @@ void main() {
 
         cuBuddy bDat = decode_buddy_inf(tCurve.cu_connect);
 
-        //tCurve0 = glyph_curves[bDat.i0];
-        //tCurve1 = glyph_curves[bDat.i1];
-
-        //glyph_curves[i].p0.x = 0.0;
-        //glyph_curves[i].p2.x = 0.0;
-
-        const float sscalee = 3.0;
+        const float sscalee = 1.0, scl = delta.x * sscalee;
 
         //determine what point is connected
         if (bDat.rp00) {
-            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p0.x = floor(glyph_curves[i].p0.x / (delta.x * sscalee)) * delta.x * sscalee);
+            glyph_curves[i].p0.x = (floor(glyph_curves[i].p0.x / scl) * scl);
+            glyph_curves[bDat.i0].p0.x = glyph_curves[i].p0.x;
         } else {
-            glyph_curves[i].p0.x = (glyph_curves[bDat.i0].p2.x = floor(glyph_curves[i].p0.x / (delta.x * sscalee)) * delta.x * sscalee);
+            glyph_curves[i].p0.x = (floor(glyph_curves[i].p0.x / scl) * scl);
+            glyph_curves[bDat.i0].p2.x = glyph_curves[i].p0.x;
         }
 
         if (bDat.rp01) {
-            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p0.x = floor(glyph_curves[i].p2.x / (delta.x * sscalee)) * delta.x * sscalee);
+            glyph_curves[i].p2.x = (floor(glyph_curves[i].p2.x / scl) * scl);
+            glyph_curves[bDat.i1].p0.x = glyph_curves[i].p2.x;
         } else {
-            glyph_curves[i].p2.x = (glyph_curves[bDat.i1].p2.x = floor(glyph_curves[i].p2.x / (delta.x * sscalee)) * delta.x * sscalee);
+            glyph_curves[i].p2.x = (floor(glyph_curves[i].p2.x / scl) * scl);
+            glyph_curves[bDat.i1].p2.x = glyph_curves[i].p2.x;
         }
     }
 
@@ -200,12 +194,6 @@ void main() {
         }
     }
 
-    /*if (count % 2 != 0) {
-        FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-    } else {   
-        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-    }*/
-
     int c = (counts[0] % 2) + (counts[1] % 2) + (counts[2] % 2) + 
             (counts[3] % 2) + (counts[4] % 2) + (counts[5] % 2) + 
             (counts[6] % 2) + (counts[7] % 2) + (counts[8] % 2);
@@ -215,6 +203,4 @@ void main() {
     //luma_scale = lumaTransform(luma_scale);
 
     FragColor = vec4(font_color, luma_scale);
-
-    //FragColor = vec4(luma_scale, luma_scale, luma_scale, 1.0);
 }

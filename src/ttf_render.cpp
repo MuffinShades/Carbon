@@ -1342,10 +1342,15 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu, i32 connect) {
 
         //adjust the connections
         //that's gonna be fun
-        i32 con0 = (connect & 0xFFFF) 
-                 + (((ctx->wOff + 1) & 0x7FFF) << 15),
-            con1 = (((connect + 1) & 0x7FFF | (connect & 0x8000)) & 0xFFFF0000) 
-                 + (0x8000 + ctx->wOff & 0x7FFF);
+        const u32 c0 = ctx->wOff, c1 = ctx->wOff+1;
+        i32 con0 = (connect & 0xFFFF0000)
+                 | (c1 & 0x7FFF), // Creates connection where left half (con0) is the original connection and the right half (con1 is the next curve p0)
+            con1 = 
+                 ((0x8000 + (c0 & 0x7FFF)) << 16) | //p0 connection for curve 2
+                 (
+                    ((connect + 1) & 0x7FFF) | 
+                    (connect & 0x8000)
+                );
 
         ctx->curveBuf[ctx->wOff++] = {
             .p0 = {cu->p[0].x, cu->p[0].y},
@@ -1450,13 +1455,37 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
             std::cout << "ttf warning: funky contour ending!" << std::endl;
         }
 
+        /*
+            ================Format of cu_connect================
+
+            1 i32 split into 2 i16s
+
+            0x00000000 --> 0x0000 << 16 + 0x0000
+
+            Formatted big endian such that I0 << 16 + I1
+
+            i16 0: refers to the connection for point 0 on the curve
+            i16 1: refers to the connection for point 2 on the curve
+
+            Each i16 follows the following format:
+            *note in the following the bits will read left to right (big endian)
+
+            Bit 0 1 2 3 4 5 6 7 ... 15
+             0b C I I I I I I I ... I
+
+            C --> 1bit curve selector that determines whether the curve is connected to point 0 or 1
+            C=0: curve is attached to p0 of the other curve
+            C=1: curve is attached to p2 of the other curve
+            I --> 15bit uint that stores the index of the curve that the connection references
+        */
+
         #define _wOff(ctx) ctx->wOff
         #define _wOff_next(ctx) (ctx->wOff+1)
         #define _wOff_prev(ctx) (ctx->wOff-1)
         #define _mask_con0(co) co &= 0xFFFF0000
         #define _mask_con2(co) co &= 0x0000FFFF
-        #define _set_con0(co, pSelect, cuIdx) co |= (((pSelect << 15) + cuIdx & 0x7FFF) << 16)
-        #define _set_con2(co, pSelect, cuIdx) co |= ((pSelect << 15) + cuIdx & 0x7FFF)
+        #define _set_con0(co, pSelect, cuIdx) co |= (((((pSelect) & 1) << 15) | ((cuIdx) & 0x7FFF)) << 16)
+        #define _set_con2(co, pSelect, cuIdx) co |= ((((pSelect) & 1) << 15) | ((cuIdx) & 0x7FFF))
         #define TTF_CU_CONNECTION_SELECT_P0 0
         #define TTF_CU_CONNECTION_SELECT_P2 1
 
@@ -1465,7 +1494,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
             _mask_con0(cur_connect);
 
             if (rcCtx) { 
-                if ((i == glyph_data.modifiedContourEnds[c] || i >= nPoints-1) && rcCtx->nCurves > contStart) {     // -----------------------------------------------------------------
+                if ((i == glyph_data.modifiedContourEnds[c] || i >= nPoints-3) && rcCtx->nCurves > contStart) {     // -----------------------------------------------------------------
                     _mask_con0(rcCtx->curveBuf[contStart].cu_connect);                                              // Discard any junk in the p0 slot of the contour curve's connection
                     _set_con0(rcCtx->curveBuf[contStart].cu_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff(rcCtx));    // Set the p0 slot of the contour curve's connection to the second point in the current curve (final point in the contour)
                     _set_con2(cur_connect, TTF_CU_CONNECTION_SELECT_P0, contStart);                                 // Set the p2 slot of the current curve's connection to be the p0 (first) point of the first curve in the contour
@@ -1486,7 +1515,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
                 Set the connection for p0 (_set_con0) of the next curve to the last
                 point of the current curve | point: p2, index: prev_woff (since after rc_process call)
                 */
-                _set_con0(cur_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff_prev(rcCtx));
+                _set_con0(cur_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff_prev(rcCtx)); //this is good and correct
             }
 
             _set_cur_con_0_skip:
@@ -4204,26 +4233,6 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         //find the character info
         Character o_char; //TODO: set this to the missing char for easy escape if given char does not exist
 
-        /*if (font->map.ty == CharMapType::Direct) {
-            //std::cout << "Reading direct char: " << (i32)cc << " / " << font->map.hash_inf.sz << std::endl;
-            if (cc < font->map.hash_inf.sz) o_char = font->map.hash_map[cc].ochar;
-        } else {
-            std::cout << "hashing currently not supported!" << std::endl;
-            return;
-            //std::cout << "Reading indirect char" << std::endl;
-            const u32 hVal = compute_basic_hash_32(font->map.hash_inf.nBits, &cc, 1);
-            CharLink *lnk = (font->map.hash_map+hVal);
-
-            //render missing glyph if bad
-            while (lnk && lnk->ochar.val != cc) {
-                lnk = lnk->next;
-            }
-
-            if (lnk) {
-                o_char = lnk->ochar;
-            }
-        }*/
-
         //render glyph parts
         f32 part_w, part_h, part_y, part_x, HemRatio, cx_max = s_ctx.x;
 
@@ -4419,8 +4428,6 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
         if (cIdx < font->ad_inf.ngdata) render_part(font->gdata[cIdx], def_pos_mat, render_part);
 
-        //std::cout << "char inf: " << cc << " " << cIdx << std::endl;
-
         xxtra = mu_max(1, prop.scale.pt * 0.1);
         s_ctx.x = cx_max + xxtra;
 
@@ -4510,7 +4517,9 @@ inline f32 ap_mag(f32 p[2]) {
     return  sqrtf(p[0]*p[0]+p[1]*p[1]);
 }
 
-f32 simple_curve_point_abs_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
+//direction based distance solve
+//dist < 0 --> left, dist > 0 --> right, dist == 0 (:Skull:)
+f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
     auto p0 = cu.p0, p1 = cu.p1, p2 = cu.p2;
 
     //when solving the min dist / roots --> optimize to use solve_re_cubic_32_b or solve_re_cubic_64_b
@@ -4682,6 +4691,10 @@ void find_font_curve_friends(FontInst *font) {
         for (i = c.rc_Dat.rc_curve_start; i <= c.rc_Dat.rc_curve_end; i++) {
             cc = font->rc_dat.lcs[i];
 
+            //skip curves that the minW was already computed for
+            if (cc.minW > 0.0f)
+                continue;
+
             f32 minThickness = chonk_number;
 
             i32 lc = i;
@@ -4717,14 +4730,24 @@ void find_font_curve_friends(FontInst *font) {
                     continue;
 
                 //compute distances
-                const f32 d0 = simple_curve_point_abs_dist(fc.p0, cc, solve_inf + (i << 2)),
-                        d1 = simple_curve_point_abs_dist(fc.p2, cc, solve_inf + (i << 2));
-                minThickness = mu_min(mu_min(d0, d1), minThickness);
-
-                //std::cout << "estimated chonk: " << minThickness << std::endl;
-
-                if (get_rc_cu_left_pos(font->rc_dat.lcs[j]) < get_rc_cu_left_pos(font->rc_dat.lcs[lc]))
-                    lc = j;
+                const f32 d0 = simple_curve_point_dir_dist(fc.p0, cc, solve_inf + (i << 2)),
+                        d1 = simple_curve_point_dir_dist(fc.p2, cc, solve_inf + (i << 2));
+                f32 T = d0;
+                if (abs(d1) < abs(d0)) T = d1;
+                
+                //min distance and ensure that the left most curve is the one being noted to store the minthickness
+                //also make sure that the curve doesn't already have a computed width
+                if (abs(T) < abs(minThickness)) {
+                    minThickness = T;
+                    if (
+                        get_rc_cu_left_pos(font->rc_dat.lcs[j]) < get_rc_cu_left_pos(font->rc_dat.lcs[i]) && 
+                        font->rc_dat.lcs[j].minW <= 0.0f
+                    ) {
+                        lc = j;
+                    } else {
+                        lc = i;
+                    }
+                }
             }
 
             //TODO: ensure that the curve that the minW is assigned to is the left most curve of the min pair
@@ -4744,5 +4767,27 @@ void find_font_curve_friends(FontInst *font) {
         process_glf(c, process_glf);
     }
 
+    //check width orientation
+
+
     _safe_free_a(solve_inf);
 }
+
+/*
+
+#include <iostream>
+#include <iomanip>
+#include <bitset>
+
+int main()
+{
+    float v = 0.5f;
+    
+    int iv = *((int*)(&v));
+    
+    std::cout << std::bitset<32>(iv) << std::endl;
+
+    return 0;
+}
+
+*/
