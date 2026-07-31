@@ -153,7 +153,64 @@ struct gpu_rc_curve {
     f32 p2[2];
 
     //specifies the min width of the stem formed by the curve
-    f32 minW = -100.0f;
+    // value of 0 indicates an invalid thickness
+    /*
+    
+    Format of minW
+    
+    Typical float is in the form
+
+    S EEEEEEEE DDDDDDDDDDDDDDDDDDDDDDD
+
+    Where: S -> sign, E -> base 2 exponent, D -> decimal
+    and: val = (-1)^S + 2^(E-127) + (1+D)
+
+    The format for minw is
+
+    Xs R Ys EEEEEE DDDDDDDDDDDDDDDDDDDDDDD
+
+    Where E and D remain the same and: Xs -> x sign, R -> reserved value set to 0, Ys -> y sign
+        x sign: refers to whether or not to round up or round down when adjusting the current curve's xpos
+        y sign: refers to whether or not to round up or round down when adjusting the current curve's ypos
+
+    A sign value of 1 indicates round down, and a sign value of 0 indicates round up
+
+    Note: the width value is in the range 0.0625 to ~5.764e17 (inclusive)
+
+    -----------------------To Decode the Values------------------------
+
+    Xs - x sign | Ys - y sign | v - encoded value | W - width of curve
+
+    Xs = sgn(v)
+    v *= sgn(v)
+    if v >= 1.0842022e-19
+        Ys = 1
+        v *= 5.4210109e20
+    else
+        Ys = 0
+    W = v * 1.0633824e37
+
+    --------------------------------------------------------------------
+
+    Note: 
+        - 1.0842022e-19 = 2^(-63)
+        - 5.4210109e20 = 2^63
+        - 1.0633824e37 = 2^123 = 2^(b+127)
+        - 5.764e17     = 2^59 = 2^(b+63)
+        - 0.0625       = 2^(-4) = 2^(b)
+
+    where b is the base for the modified float range
+
+    The packed version is analogous to the C/C++ struct
+
+    struct pack_w {
+        bool xSign;
+        bool ySign;
+        f32 w; //0.0625 <= w <= ~5.764e17
+    }
+    
+    */
+    f32 minW = 0.0f;
 
     /*
     ================Format of cu_connect================

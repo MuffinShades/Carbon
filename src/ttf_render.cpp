@@ -4517,6 +4517,16 @@ inline f32 ap_mag(f32 p[2]) {
     return  sqrtf(p[0]*p[0]+p[1]*p[1]);
 }
 
+//the whole fancy float encoding, base=-4
+//note: look at the google doc for explanation on works of the system
+//range for width is [0.0625, ~5.764e17]
+constexpr f32 weba  = 9.403954806578300063749892e-38f;
+constexpr f32 iweba = 1.063382396627932698323046e+37f;
+
+inline f32 wEncodeF32(f32 w, f32 xSgn, f32 ySgn) {
+    return (w * weba) * (((-ySgn + 1.0f) * 0.5f) * 1.8446744073709551616e19f) * xSgn;
+}
+
 //direction based distance solve
 //dist < 0 --> left, dist > 0 --> right, dist == 0 (:Skull:)
 f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
@@ -4551,6 +4561,7 @@ f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
 
     i32 i;
     f32 dx, dy, t, t_i, _D, alpha, beta, gamma;
+    f32 xSgn = 1.0f, ySgn = 1.0f;
 
     for (i = 0; i < nRoots; i++) {
         t = root_pass[i];
@@ -4562,7 +4573,7 @@ f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
         beta = 2.0f * t_i * t;
         gamma = t * t;
 
-        dx = (alpha * p0[0] + beta * p1[0] + gamma * p2[0]) - p[0];
+        dx = (alpha * p0[0] + beta * p1[0] + gamma * p2[0]) - p[0];; //ERROR ADDED READ THIS PLEASE: add code to actually set the x and y sign values to the right thing before testing :P
         dy = (alpha * p0[1] + beta * p1[1] + gamma * p2[1]) - p[1];
         _D = dx*dx + dy*dy;
             
@@ -4570,7 +4581,7 @@ f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
             d_best = _D;
     }
 
-    return sqrtf(d_best);
+    return wEncodeF32(sqrtf(d_best), xSgn, ySgn);
 }
 
 #define USE_FAST_RC_CURVE_LEFT
@@ -4750,7 +4761,7 @@ void find_font_curve_friends(FontInst *font) {
                 }
             }
 
-            //TODO: ensure that the curve that the minW is assigned to is the left most curve of the min pair
+            //TODO: ensure that the curve that the minW is assigned to is the left most curve of the min pair (doesn't matter anymore with enw developments)
             //--> you can sort the curve left to right first if needed
             //--> the above solution could fuck the whole connection mapping
             //TODO: the actual connections mapping
