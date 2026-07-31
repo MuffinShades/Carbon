@@ -4573,12 +4573,15 @@ f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
         beta = 2.0f * t_i * t;
         gamma = t * t;
 
-        dx = (alpha * p0[0] + beta * p1[0] + gamma * p2[0]) - p[0];; //ERROR ADDED READ THIS PLEASE: add code to actually set the x and y sign values to the right thing before testing :P
+        dx = (alpha * p0[0] + beta * p1[0] + gamma * p2[0]) - p[0];
         dy = (alpha * p0[1] + beta * p1[1] + gamma * p2[1]) - p[1];
         _D = dx*dx + dy*dy;
             
-        if (_D < d_best)
+        if (_D < d_best) {
+            xSgn = mu_sign(dx); //- sign will floor, + sign will ceil
+            ySgn = mu_sign(dy); //same as above comment
             d_best = _D;
+        }
     }
 
     return wEncodeF32(sqrtf(d_best), xSgn, ySgn);

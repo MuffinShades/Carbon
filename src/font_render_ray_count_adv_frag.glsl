@@ -133,7 +133,7 @@ void main() {
     for (i = curve_range.x; i <= curve_range.y; i++) {
         tCurve = glyph_curves[i];
 
-        if (tCurve.minW < 0.0)
+        if (tCurve.minW == 0.0)
            continue;
 
         cuBuddy bDat = decode_buddy_inf(tCurve.cu_connect);
