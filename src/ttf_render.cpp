@@ -4527,6 +4527,11 @@ inline f32 wEncodeF32(f32 w, f32 xSgn, f32 ySgn) {
     return (w * weba) * (((-ySgn + 1.0f) * 0.5f) * 1.8446744073709551616e19f) * xSgn;
 }
 
+inline f32 wDecodeF32(f32 v) {
+    v = abs(v);
+    return ((v) >= 1.084202172485504434007453e-19f) ? (((v) * 5.421010862427522170037264e-20f) * iweba) : ((v) * iweba);
+}
+
 //direction based distance solve
 //dist < 0 --> left, dist > 0 --> right, dist == 0 (:Skull:)
 f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
@@ -4584,7 +4589,9 @@ f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
         }
     }
 
-    return wEncodeF32(sqrtf(d_best), xSgn, ySgn);
+    f32 vvv = wEncodeF32(sqrtf(d_best), xSgn, ySgn);
+    std::cout << "v: " << vvv << " " << wDecodeF32(vvv) << " " << sqrtf(d_best) << std::endl;
+    return vvv;
 }
 
 #define USE_FAST_RC_CURVE_LEFT
@@ -4709,7 +4716,7 @@ void find_font_curve_friends(FontInst *font) {
             if (cc.minW > 0.0f)
                 continue;
 
-            f32 minThickness = chonk_number;
+            f32 minThickness = 2.524354746243960872064730e-29f;
 
             i32 lc = i;
 
@@ -4747,11 +4754,11 @@ void find_font_curve_friends(FontInst *font) {
                 const f32 d0 = simple_curve_point_dir_dist(fc.p0, cc, solve_inf + (i << 2)),
                         d1 = simple_curve_point_dir_dist(fc.p2, cc, solve_inf + (i << 2));
                 f32 T = d0;
-                if (abs(d1) < abs(d0)) T = d1;
+                if (abs(wDecodeF32(d1)) < abs(wDecodeF32(d0))) T = d1;
                 
                 //min distance and ensure that the left most curve is the one being noted to store the minthickness
                 //also make sure that the curve doesn't already have a computed width
-                if (abs(T) < abs(minThickness)) {
+                if (abs(wDecodeF32(T)) < abs(wDecodeF32(minThickness))) {
                     minThickness = T;
                     if (
                         get_rc_cu_left_pos(font->rc_dat.lcs[j]) < get_rc_cu_left_pos(font->rc_dat.lcs[i]) && 
@@ -4768,9 +4775,9 @@ void find_font_curve_friends(FontInst *font) {
             //--> you can sort the curve left to right first if needed
             //--> the above solution could fuck the whole connection mapping
             //TODO: the actual connections mapping
-            if (minThickness < 99.9e7f) {
+            if (wDecodeF32(minThickness) < 99.9e7f) {
                 font->rc_dat.lcs[lc].minW = minThickness;
-                //std::cout << font->rc_dat.lcs[lc].minW << std::endl;
+                std::cout << "Set W: " << wDecodeF32(font->rc_dat.lcs[lc].minW) << std::endl;
             }
         }
     };

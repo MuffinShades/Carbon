@@ -129,33 +129,58 @@ void main() {
 
     Curve tCurve, tCurve0, tCurve1;
 
+    float ys,xs,w;
+
     //adjust curves first
     for (i = curve_range.x; i <= curve_range.y; i++) {
         tCurve = glyph_curves[i];
 
         if (tCurve.minW == 0.0)
            continue;
+        
+        //decode width stuff
+        xs = sign(tCurve.minW);
+        w = tCurve.minW * xs;
+        if (w >= 1.0842022e-19) {
+            ys = 1.0;
+            w *= 5.4210109e20;
+        } else {
+            ys = 0.0;
+        }
+        w *= 1.0633824e37;
 
         cuBuddy bDat = decode_buddy_inf(tCurve.cu_connect);
 
-        const float sscalee = 1.0, scl = delta.x * sscalee;
+        const float sscalee = 4.0, scl = delta.x * sscalee;
 
         //determine what point is connected
-        if (bDat.rp00) {
-            glyph_curves[i].p0.x = (floor(glyph_curves[i].p0.x / scl) * scl);
+        /*if (bDat.rp00) {
+            if (xs < 0.0)
+                glyph_curves[i].p0.x = (floor(glyph_curves[i].p0.x / scl) * scl);
+            else
+                glyph_curves[i].p0.x = (ceil(glyph_curves[i].p0.x / scl) * scl);
             glyph_curves[bDat.i0].p0.x = glyph_curves[i].p0.x;
         } else {
-            glyph_curves[i].p0.x = (floor(glyph_curves[i].p0.x / scl) * scl);
+            if (xs < 0.0)
+                glyph_curves[i].p0.x = (floor(glyph_curves[i].p0.x / scl) * scl);
+            else
+                glyph_curves[i].p0.x = (ceil(glyph_curves[i].p0.x / scl) * scl);
             glyph_curves[bDat.i0].p2.x = glyph_curves[i].p0.x;
         }
 
         if (bDat.rp01) {
-            glyph_curves[i].p2.x = (floor(glyph_curves[i].p2.x / scl) * scl);
+            if (xs < 0.0)
+                glyph_curves[i].p2.x = (floor(glyph_curves[i].p2.x / scl) * scl);
+            else
+                glyph_curves[i].p2.x = (ceil(glyph_curves[i].p2.x / scl) * scl);
             glyph_curves[bDat.i1].p0.x = glyph_curves[i].p2.x;
         } else {
-            glyph_curves[i].p2.x = (floor(glyph_curves[i].p2.x / scl) * scl);
+            if (xs < 0.0)
+                glyph_curves[i].p2.x = (floor(glyph_curves[i].p2.x / scl) * scl);
+            else
+                glyph_curves[i].p2.x = (ceil(glyph_curves[i].p2.x / scl) * scl);
             glyph_curves[bDat.i1].p2.x = glyph_curves[i].p2.x;
-        }
+        }*/
     }
 
     //now render the curves
