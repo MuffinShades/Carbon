@@ -18,8 +18,8 @@ enum UIFontWeight {
 
 struct UITextStyle {
     FontInst *font = nullptr;
-    i32 font_size = 40;
-    Color font_color = Color(255, 255, 255);
+    i32 font_size = 31;
+    Color font_color = Color(0, 0, 0);
     bool bold = false, italic = false, underline = false, strikethrough = false;
     i32 font_weight = (i32) UIFontWeight::Normal;
 };
@@ -45,6 +45,7 @@ public:
 
     void setText(std::string str);
     void setFont(FontInst *font);
+    void setFontPtSize(u32 pt);
     std::string getText();
 };
 

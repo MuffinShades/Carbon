@@ -366,7 +366,7 @@ struct FontInst {
         i16 descent;
         struct {
             bool useRayCountAtSmallScales = true;
-            i32 maxFontSizeForRayCount = 50;
+            i32 maxFontSizeForRayCount = 32;
             size_t nCurvesInRcBuffer = 2048;
         } render;
         maxVals mxv;

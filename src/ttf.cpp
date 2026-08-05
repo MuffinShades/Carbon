@@ -665,8 +665,6 @@ void read_hmtx(ttfStream *stream, ttfFile* f, _RangeData rd = {.good = false}) {
             max = rd.max[i]; min = rd.min[i]; n = max - min;
             
             if (max < f->h_inf.nLongHorMetrics) { //easy case
-                std::cout << "hmtx range mode 1 | min: " << min << " | max: " << max << std::endl;
-
                 stream->seek(f->hmtx_table.off + min * 2 * sizeof(u16));
 
                 for (j = 0; j < n; j++) {
@@ -676,8 +674,6 @@ void read_hmtx(ttfStream *stream, ttfFile* f, _RangeData rd = {.good = false}) {
                     };
                 }
             } else if (min < f->h_inf.nLongHorMetrics) { //hard case
-                std::cout << "hmtx range mode 2" << std::endl;
-
                 stream->seek(f->hmtx_table.off + min * 2 * sizeof(u16));
 
                 u16 aw;
@@ -698,8 +694,6 @@ void read_hmtx(ttfStream *stream, ttfFile* f, _RangeData rd = {.good = false}) {
                     };
                 }
             } else { // medium/easy case
-                std::cout << "hmtx range mode 3" << std::endl;
-
                 stream->seek(f->hmtx_table.off + (f->h_inf.nLongHorMetrics - 1) * 2 * sizeof(u16));
                 const u16 aw =  stream->readUInt16();
                 stream->seek(f->hmtx_table.off + (f->h_inf.nLongHorMetrics + min) * 2 * sizeof(u16));
@@ -1226,8 +1220,6 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     ZeroMem(gs.rangeLocations, rd.nRanges);
 
     for (r = 0; r < rd.nRanges; r++) {
-        std::cout << "glyph range: " << rd.max[r] << " " << rd.min[r] << std::endl;
-        std::cout << "d glyph: " << (rd.max[r] - rd.min[r]) << " | " << gs.nCharacters << std::endl;
         gs.nCharacters += rd.max[r] - rd.min[r];
     }
 
@@ -1247,7 +1239,6 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     //random setup stuff
     if (rd.nRanges > 0) {
         if (!rd.min || !rd.max) {
-            std::cout << "ttf error: failed to read range data!" << std::endl;
             if (rd.min) _safe_free_a(rd.min);
             if (rd.max) _safe_free_a(rd.max);
             _safe_free_a(fBytes.dat);
@@ -1277,8 +1268,6 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
         };
 
         gs.minChar = mu_min(gs.minChar, rd.min[r]);
-        
-        std::cout << "gn inc: " << gs.nCharacters << " " << rd.max[r] << " " << rd.min[r] << std::endl;
 
         for (ucode_i = rd.min[r]; ucode_i < rd.max[r]; ucode_i++) {
             i32 loc = getUnicodeOffset(&fStream, &f, ucode_i), offset;
@@ -1375,8 +1364,6 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
 
     gs.nGlyphs = cc.size() + n_o_glyphs;
     gs.glyphs = new Glyph[gs.nGlyphs];
-
-    std::cout << "Decoded: " << n_o_glyphs << "glfs and " << gs.nGlyphs << "parts" << std::endl;
 
     in_memcpy(gs.glyphs, o_gs_glyphs, n_o_glyphs * sizeof(Glyph));
     in_memcpy(gs.glyphs + n_o_glyphs, cc.data(), cc.size() * sizeof(Glyph));

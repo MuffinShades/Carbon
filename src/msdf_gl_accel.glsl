@@ -336,7 +336,7 @@ float median(float a, float b, float c) {
 }
 
 float distBlend(float d) {
-    float blend_amount = 100.0;
+    float blend_amount = 30.0;
 
     return clamp((d / blend_amount) + 0.5, 0.0, 1.0);
 }
@@ -382,6 +382,10 @@ void main() {
     vec3 cause_ortho = vec3(0,0,0);
 
     for (i = curve_range.x; i < curve_range.y; i++) {
+        if (i >= glyph_curves.length() || i < 0) {
+            continue;
+        }
+
         tCurve = glyph_curves[i];
         c_dist d = CurvePointSignedDist(p, tCurve);
 

@@ -19,19 +19,14 @@ float median(float a, float b, float c) {
 }
 
 float spxd() {
-    return 1.2;
+    return 1.0;
 }
 
 void main() {
-    vec4 text_color = vec4(1.0, 1.0, 1.0, 1.0);
+    vec4 text_color = vec4(0.0, 0.0, 0.0, 1.0);
     vec3 smp = texture(msdf_texture, texp).rgb;
-    
-    ivec2 sz = textureSize(msdf_texture, 0).xy;
-    float dx = dFdx(texp.x) * sz.x; 
-    float dy = dFdy(texp.y) * sz.y;
-    float toPixels = 8.0 * inversesqrt(dx * dx + dy * dy);
     float sigDist = median(smp.r, smp.g, smp.b);
     float w = fwidth(sigDist);
-    float opacity = smoothstep(0.5 - w, 0.5 + w, sigDist);
+    float opacity = smoothstep(-w, +w, sigDist - 0.5);
     FragColor = vec4(text_color.rgb, opacity);
 }

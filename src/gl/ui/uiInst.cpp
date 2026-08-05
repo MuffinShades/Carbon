@@ -26,9 +26,9 @@ UIInst *createUIInst(Window *win) {
     //load inst's bg
     inst->bgObj.ini();
     inst->bgObj.resize(UIScalarDimension(0.0f, 0.0f, inst->output_w, inst->output_h));
-    inst->bgObj._DBG.dbgBgColor.r = 0.5f;
-    inst->bgObj._DBG.dbgBgColor.g = 0.5f;
-    inst->bgObj._DBG.dbgBgColor.b = 0.5f;
+    inst->bgObj._DBG.dbgBgColor.r = 1.0f;
+    inst->bgObj._DBG.dbgBgColor.g = 1.0f;
+    inst->bgObj._DBG.dbgBgColor.b = 1.0f;
     
     return inst;
 }

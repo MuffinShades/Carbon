@@ -34,5 +34,5 @@ void main() {
     const float dx = (posf.x - floor(fposf.x)) / o_dim.x;
     const float dy = (posf.y - floor(fposf.y)) / o_dim.y;
 
-    FragColor = vec4(dx, dy, 1.0, 1.0);
+    FragColor = vec4(texture(f_tex, txp), 1.0, 1.0);
 }

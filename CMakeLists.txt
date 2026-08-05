@@ -2,6 +2,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(carbon VERSION 0.0.0 LANGUAGES C CXX)
 set (CMAKE_CXX_STANDARD 20)
+#set_property(TARGET carbon PROPERTY VERSION "dev080502026")
 
 #adds all the needed C, CPP, HPP and H files
 file(GLOB_RECURSE SOURCES
@@ -52,9 +53,9 @@ enable_testing()
 
 list(APPEND AWS_COMPILER_WARNINGS "-Wall" "-Werror" "-pedantic" "-Wextra" "-Wno-shorten-64-to-32")
 
-#option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 
-#if(ENABLE_ASAN)
+if(ENABLE_ASAN)
 if(MSVC)
     add_compile_options(/fsanitize=address)
     add_link_options(/fsanitize=address)
@@ -62,4 +63,6 @@ else()
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address)
 endif()
-#endif()
+endif()
+
+set(CMAKE_BUILD_TYPE "Release")

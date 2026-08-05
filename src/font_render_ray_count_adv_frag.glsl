@@ -112,16 +112,31 @@ Compute the stuff here
 
 */
 void main() {
-    const float boldness = 9.0;
-    const float blurr = 0.27;
+    const float boldness = 25.0;
+    const float blurr = 0.17;
 
     int i, j, count = 0;
 
-    int counts[9] = {0,0,0,0,0,0,0,0,0};
+    //int counts[9] = {0,0,0,0,0,0,0,0,0};
 
-    vec2 offsets[9] = {vec2(-blurr, -blurr),vec2(-blurr, 0.0),vec2(-blurr, blurr),
-                       vec2(0.0, -blurr),vec2(0.0, 0.0),vec2(0.0, blurr),
-                       vec2(blurr, -blurr),vec2(blurr, 0.0),vec2(blurr, blurr)};
+    //vec2 offsets[9] = {vec2(-blurr, -blurr),vec2(-blurr, 0.0),vec2(-blurr, blurr),
+    //                   vec2(0.0, -blurr),vec2(0.0, 0.0),vec2(0.0, blurr),
+    //                   vec2(blurr, -blurr),vec2(blurr, 0.0),vec2(blurr, blurr)};
+
+    int counts[25] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+    vec2 offsets[25];
+    float op_25[5] = {-blurr * 2.0, -blurr, 0.0, blurr, blurr * 2.0};
+
+    j=0;
+    for (i = 0; i < 25; i++) {
+        offsets[i] = vec2(
+            op_25[i % 5], op_25[j]
+        );
+
+        if (i % 5 == 0 && i > 0)
+            j++;
+    }
 
     vec2 rpos = vec2(floor(poss.x / delta.x) * delta.x, floor(poss.y / delta.y) * delta.y);
 
@@ -131,8 +146,15 @@ void main() {
 
     float ys,xs,w;
 
+    bool bad_Access = false;
+
     //adjust curves first
-    for (i = curve_range.x; i <= curve_range.y; i++) {
+    /*for (i = curve_range.x; i <= curve_range.y; i++) {
+        if (i >= glyph_curves.length() || i < 0) {
+            bad_Access = true;
+            break;
+        }
+
         tCurve = glyph_curves[i];
 
         if (tCurve.minW == 0.0)
@@ -154,7 +176,7 @@ void main() {
         const float sscalee = 4.0, scl = delta.x * sscalee;
 
         //determine what point is connected
-        /*if (bDat.rp00) {
+        if (bDat.rp00) {
             if (xs < 0.0)
                 glyph_curves[i].p0.x = (floor(glyph_curves[i].p0.x / scl) * scl);
             else
@@ -180,17 +202,22 @@ void main() {
             else
                 glyph_curves[i].p2.x = (ceil(glyph_curves[i].p2.x / scl) * scl);
             glyph_curves[bDat.i1].p2.x = glyph_curves[i].p2.x;
-        }*/
-    }
+        }
+    }*/
 
     //now render the curves
     for (i = curve_range.x; i <= curve_range.y; i++) {
+        if (i >= glyph_curves.length() || i < 0) {
+            bad_Access = true;
+            break;
+        }
+
         tCurve = glyph_curves[i];
 
         p0 = tCurve.p0; p1 = tCurve.p1; p2 = tCurve.p2; 
 
         //easy kinda bulk check
-        for (j = 0; j < offsets.length; j++) {
+        for (j = 0; j < offsets.length(); j++) {
             posf = rpos + (offsets[j] + vec2(0.5, 0.5)) * delta;
 
             if (p0.y > p2.y) {
@@ -219,13 +246,22 @@ void main() {
         }
     }
 
-    int c = (counts[0] % 2) + (counts[1] % 2) + (counts[2] % 2) + 
-            (counts[3] % 2) + (counts[4] % 2) + (counts[5] % 2) + 
-            (counts[6] % 2) + (counts[7] % 2) + (counts[8] % 2);
+    int c = 0;
+
+    for (i = 0; i < offsets.length(); i++) {
+        c += counts[i] % 2;
+    }
+
+    //int c = (counts[0] % 2) + (counts[1] % 2) + (counts[2] % 2) + 
+    //        (counts[3] % 2) + (counts[4] % 2) + (counts[5] % 2) + 
+    //        (counts[6] % 2) + (counts[7] % 2) + (counts[8] % 2);
 
     float luma_scale = min(c / boldness, 1.0);
 
     //luma_scale = lumaTransform(luma_scale);
 
-    FragColor = vec4(font_color, luma_scale);
+    if (bad_Access)
+        FragColor = vec4(0.9,0.0,0.0,1.0);
+    else
+        FragColor = vec4(font_color, luma_scale);
 }

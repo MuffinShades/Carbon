@@ -131,8 +131,6 @@ MsdfGpuContext *CreateMsdfGPUAccelerationContext(u32 w, u32 h) {
     ctx->cc_fb = FrameBuffer(FrameBuffer::Texture, w, h, cc_inf); //contour correction buffer
     ctx->cc_composite_fb = FrameBuffer(FrameBuffer::Texture, w, h, cc_composite_inf);
 
-    std::cout << "Creating context: " << w << " " << h << std::endl;
-
     ctx->good = true;
 
     return ctx;
@@ -355,7 +353,6 @@ gPData cleanGlyphPoints(Glyph& tGlyph) {
     size_t currentContour = 0;
 
     if (!tGlyph.modifiedContourEnds) {
-        //std::cout << "generating contour ends!" << std::endl;
         tGlyph.modifiedContourEnds = new i32[tGlyph.nContours];
         in_memcpy(tGlyph.modifiedContourEnds, tGlyph.contourEnds, sizeof(i32) * (tGlyph.nContours));
     }
@@ -1000,7 +997,6 @@ CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) 
 
     const f32 r2 = sqrtf((centroid.x - p3.x) * (centroid.x - p3.x) + (centroid.y - p3.y) * (centroid.y - p3.y));
 
-    //std::cout << "Radius: " << r2 << " " << r1 << std::endl;
     vec2 va = vec2(p3.x - p0.x, p3.y - p0.y),
          vb = vec2(p2.x - p0.x, p2.y - p0.y),
          vc = vec2(p2.x - p3.x, p2.y - p3.y);
@@ -1023,8 +1019,6 @@ CurveBounds computeCurveBoundingRadius(BCurve* curve, bool add_to_curve = true) 
               sin_2b = sinf(2.0f * iota),
               sin_2c = sinf(2.0f * kappa),
               I = 1.0f / (sin_2a + sin_2b + sin_2c);
-
-    //std::cout << "SOM: " << theta + iota + kappa << std::endl;
 
     Point ccenter = {
         .x = (p0.x * sin_2a + p3.x * sin_2b + p2.x * sin_2c) * I,
@@ -1067,8 +1061,6 @@ CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
     for (c = 0; c < nc; c++) {
         cu = e.curves + c;
 
-        //std::cout << "idek " << cu->bounds.r << std::endl;
-
         if (cu->bounds.r <= 0)
             computeCurveBoundingRadius(cu);
 
@@ -1079,8 +1071,6 @@ CurveBounds computeEdgeBounds(Edge& e, bool add_to_edge = true) {
     const f32 is = 1.0f / (f32) nc;
 
     Point center = {.x = csumX * is, .y = csumY * is};
-
-    //std::cout << csumX << " " << csumY << std::endl;
 
     CurveBounds b = {
         .center = center
@@ -2879,9 +2869,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         ConfigureGenContext(g_ctx_store+i, tg, ctx->rc_ctx, true);
 
         if (ochar && ctx->rc_ctx && ctx->rc_ctx->wOff > 0) {
-
-            std::cout << "setting rc data for index: " << ((u32) i) << " | " << rc_wposb4 << " -> " << (ctx->rc_ctx->wOff - 1) << std::endl;
-
             ochar->rc_Dat.rc_curve_start = rc_wposb4;
             ochar->rc_Dat.rc_curve_end = ctx->rc_ctx->wOff - 1;
         } else {
@@ -2954,8 +2941,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
         region_vec = vec4((g_pos.x * space_normal_x) * 2.0f - 1.0f, (g_pos.y * space_normal_y) * 2.0f - 1.0f, (g_pos.w * space_normal_x) * 2.0f, (g_pos.h * space_normal_y) * 2.0f);
         scan_rgn = vec4(tg.xMin - padding_scl * gw, tg.yMin - padding_scl * gh, gw + padding_scl * gw * 2.0f, gh + padding_scl * gh * 2.0f);
 
-        std::cout << "curve range: " << curveMin << "-->" << curveMax << " REGIONS: " << ctx->fb.w << "/" << ctx->fb.h << std::endl;
-
         //region_vec = vec4(0.0f, 0.0f, 1.0f, 1.0f);
 
         //render
@@ -3011,7 +2996,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
             const size_t NV = sizeof(out_rect) / sizeof(msdf_vert);
 
             ctx->g.PushVerts(out_rect, NV, true);
-            std::cout << "push " << NV << " char tex verts!" << std::endl;
         }
 
         //DeleteMsdfGenContext(&g_ctx);
@@ -3029,8 +3013,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, o_fb);
 
-    std::cout << "generating correction texture.." << std::endl;
-
     ///////////
     ctx->g.SetRenderState(ctx->cc_rstate);
     ctx->g.SetTesselationVertNum(3);
@@ -3040,12 +3022,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
     constexpr i32 bcc_detail = 32; //num segments for each curve being rendered
 
     vec2 oDim = vec2(ctx->cc_fb.w, ctx->cc_fb.h);
-
-    std::cout << oDim.x << " ||||||||||||||| " << oDim.y << std::endl;
-
-    std::cout << "Warning delete the two lines below since theyre only for debug!!!" << std::endl;
-    //glActiveTexture(GL_TEXTURE1);
-    //glBindTexture(GL_TEXTURE_2D, cc_fb_tHand);
 
     msdf_gen_cc_shader.SetInt("curve_detail", bcc_detail);
     msdf_gen_cc_shader.SetVec2("output_dim", &oDim);
@@ -3090,8 +3066,6 @@ i32 render_multi_positioned_msdf_gpu_accel(Glyph* tGlyphs, CharSpritePos* pos, F
                   pxt_B = space_cc_normal_x * 2.0f,
                   pyt_A = (1.0f / (gfh + padding_scl * 2.0f * gfh)) * g_pos.h,
                   pyt_B = space_cc_normal_y * 2.0f;
-
-        std::cout << "drawing: " << g_ctx.nCurves << "curves" << std::endl;
 
         const f32 dpx = padding_scl * gfw, dpy = gfh * padding_scl;
 
@@ -3702,8 +3676,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
         //ochar.nParts = 
         ochar.nParts = g.compound ? g.compound_inf.nGlyphParts : 0;
 
-        std::cout << "Is glyph compound? ID: " << g.glyph_id << " Character: \"" << (char)g.char_id << "\" Compound: " << (g.compound ? "Y" : "N") << std::endl;
-
         if (ochar.nParts > 0) {
             ochar.spriteParts = new GlyphPart[ochar.nParts];
             ZeroMem(ochar.spriteParts, ochar.nParts);
@@ -3727,7 +3699,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             font.gdata = gd;
         }
 
-        //font.gdata[gInsert] = ochar;
         memcpy(font.gdata+gInsert, &ochar, sizeof(Character));
         (*(gly+i)).arb_char_idx = gInsert;
 
@@ -3766,26 +3737,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
             r_pos = c_pos[i];
 
             //add spritesheet location for compound glyph parts since they depend on already being computed
-            //TODO: add support for the hash map
-            /*if (glf.compound) {
-                switch (font.map.ty) {
-                case CharMapType::Direct: {
-                    Character *ochar = &font.map.hash_map[glf.char_id].ochar;
-
-                    for (j = 0; j < ochar->nParts; j++)
-                        ochar->spriteParts[j].sheet_loc = c_pos[ochar->val]; //TODO: fix this cause it straight up isn't right
-                    
-                    break;
-                }
-                case CharMapType::Hash: {
-
-                    break;
-                }
-                default:
-                    std::cout << "ttf_render error: invalid char_map_type when generating msdfs" << std::endl;
-                    break;
-                }
-            }*/
 
             if (r_pos.w <= 0 || r_pos.h <= 0)
                 continue;
@@ -3799,10 +3750,6 @@ FontInst ttfRender::GenerateUnicodeMSDFSubset(std::string src, UnicodeRange rang
                 padding, padding, padding, padding
             );
         }
-    }
-
-    for (i32 kk = 0; kk < font.ad_inf.ngdata; kk++) {
-        std::cout << "Found curve ranges: " << font.gdata[kk].rc_Dat.rc_curve_start << std::endl;
     }
 
     if (accel) {
@@ -4018,9 +3965,6 @@ str_pre_metrics computePreStringMetrics(FontInst *font, f32 x, f32 y, f32 z, con
     metrics.space_distance = font->ad_inf.unitsPerEm * metrics.pRatio * 0.33f;
     metrics.tab_distance = metrics.space_distance * metrics.tab_size;
 
-    //std::cout << "Line h: " << metrics.line_h << std::endl;
-    //std::cout << std::endl;
-
     //
     return metrics;
 }
@@ -4123,33 +4067,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     const u32 screenW = this->getOutputWidth();
     const u32 screenH = this->getOutputHeight();
 
-    if (use_msdf)
-        this->SetRenderState(defFontRenderState);
-    else
-        this->SetRenderState(rcFontRenderState);
-    this->Resize(screenW, screenH);
-
     if (!defFontVertexDef && !rcFontVertexDef) {
-        str_proj_mat = mat4::CreateOrthoProjectionMatrix(this->getOutputWidth(), 0.0f, this->getOutputHeight(), 0.0f, -1.0f, 1.0f);
-        auto *uu = str_proj_mat.glPtr();
-    }
-
-    if (!defFontVertexDef) {
-        this->VertexDefineBegin(sizeof(genericFontVert));
-        this->DefineVertexPart(0, vertexClassPart(genericFontVert, pos));
-        this->DefineVertexPart(1, vertexClassPart(genericFontVert, tex));
-        this->VertexDefineEnd();
-        defFontVertexDef = true;
-    }
-
-    if (!rcFontVertexDef) {
-        this->VertexDefineBegin(sizeof(rcFontVert));
-        this->DefineVertexPart(0, vertexClassPart(rcFontVert, pos));
-        this->DefineVertexPart(1, vertexClassPart(rcFontVert, rgn));
-        this->DefineVertexPart(2, vertexClassPart(rcFontVert, curve_range));
-        this->DefineVertexPart(3, vertexClassPart(rcFontVert, delta));
-        this->VertexDefineEnd();
-        rcFontVertexDef = true;
+        str_proj_mat = mat4::CreateOrthoProjectionMatrix(screenW, 0.0f, screenH, 0.0f, -1.0f, 1.0f);
     }
 
     if (!defFontShader.good()) {
@@ -4164,15 +4083,38 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBlendEquation(GL_FUNC_ADD);
-
-    //begin render
-    this->RenderBegin();
+    glDepthFunc(GL_GEQUAL);
+    glDisable(GL_CULL_FACE);
 
     if (use_msdf) {
+        this->SetRenderState(defFontRenderState);
+
+        if (!defFontVertexDef) {
+            this->VertexDefineBegin(sizeof(genericFontVert));
+            this->DefineVertexPart(0, vertexClassPart(genericFontVert, pos));
+            this->DefineVertexPart(1, vertexClassPart(genericFontVert, tex));
+            this->VertexDefineEnd();
+            defFontVertexDef = true;
+        }
+
         this->SetShader(&defFontShader);
         defFontShader.SetMat4("screen_project", &str_proj_mat);
         font->msdf_dat.MSDF.gl_texture.bind();
+
+        
     } else {
+        this->SetRenderState(rcFontRenderState);
+
+        if (!rcFontVertexDef) {
+            this->VertexDefineBegin(sizeof(rcFontVert));
+            this->DefineVertexPart(        0, vertexClassPart(rcFontVert, pos));
+            this->DefineVertexPart(        1, vertexClassPart(rcFontVert, rgn));
+            this->DefineIntegerVertexPart( 2, vertexClassPart(rcFontVert, curve_range));
+            this->DefineVertexPart(        3, vertexClassPart(rcFontVert, delta));
+            this->VertexDefineEnd();
+            rcFontVertexDef = true;
+        }
+
         this->SetShader(&smplRayCountShader);
         smplRayCountShader.SetMat4("screen_project", &str_proj_mat);
 
@@ -4186,14 +4128,9 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             glGenBuffers(1, &font->rc_dat.cu_buf);
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, font->rc_dat.cu_buf);
             glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gpu_rc_curve) * font->rc_dat.nCurves, font->rc_dat.lcs, GL_STATIC_DRAW);
-            std::cout << "COPYING: " << font->rc_dat.nCurves << "curves | Align: " << sizeof(gpu_rc_curve) << std::endl;
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, font->rc_dat.cu_buf);
             font->rc_dat.cu_buf_good = true;
         }
-
-        //copy over the curves
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, font->rc_dat.cu_buf);
-        //glBufferSubData(GL_SHADER_STORAGE_BUFFER, nextCurveInsert * sizeof(gpu_light_curve), sizeof(gpu_light_curve) * g_ctx.nCurves, g_ctx.curves);
     }
 
     char cc;
@@ -4203,6 +4140,10 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
         1.0f, 0.0f, /********************   E     F     M     N*/
         0.0f, 1.0f, /********************/ 0.0f, 0.0f, 1.0f, 1.0f
     };
+
+    //begin render
+    this->Resize(screenW, screenH);
+    this->RenderBegin();
 
     while ((cc = *s_ctx.cur_char) != 0x00) {
         switch (cc) {
@@ -4293,15 +4234,6 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
             if (font->h_inf.metrics) {
                 h_char_metric hm;
 
-                /*if (font->map.ty == CharMapType::Direct) {
-                    hm = (font->ad_inf.monospace ? 
-                        font->h_inf.metrics[0] :
-                        font->h_inf.metrics[cp.id - font->ad_inf.minChar]
-                    );
-                } else {
-                    std::cout << "hash char map type not currently supported!" << std::endl;
-                }*/
-
                 hm = (font->ad_inf.monospace ? 
                     font->h_inf.metrics[0] :
                     font->h_inf.metrics[font->c_translate.mpa8[cc] - 1]
@@ -4315,28 +4247,16 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 part_x = s_ctx.x;
                 //cx_max = part_x + hm.advance_w * metrics.pRatio;
                 cx_max = part_x + part_w;
-
-                //std::cout << "loc: " << (font->c_translate.mpa8[cc] - 1) << " | " << font->ad_inf.ngdata  << " " << hm.advance_w << " " << hm.l_side_bearing << std::endl;
-
-                //std::cout << "aw: " << hm.advance_w << " " << (part_w * (1.0f / metrics.pRatio)) << " " << hm.l_side_bearing << " " << std::endl;
             } else {
                 cx_max = part_x + part_w;
             }
-
-            //part_x = (part_x - screenW * 0.5f) * dbg_iw * 2.0f;
-            //part_y = (part_y - screenH * 0.5f) * dbg_ih * 2.0f;
-            //part_w = part_w * dbg_iw * 2.0f;
-            //part_h = part_h * dbg_ih * 2.0f;
-
-            //std::cout << "more char inf: " << part_x << " / " << part_y << " / " << part_w << " / " << part_h << " | " << o_char.rc_Dat.rc_curve_start << " " << o_char.rc_Dat.rc_curve_end << std::endl;
-
 
             if (use_msdf) {
                 const f32 iTexX = 1.0f / font->msdf_dat.MSDF.gl_texture.width(),
                         iTexY = 1.0f / font->msdf_dat.MSDF.gl_texture.height();
 
                 //verticies
-                genericFontVert glyph_rect_base[] = { 
+                genericFontVert glyph_rect_base[6] = { 
                     part_x, part_y, z, 
                     (f32) cp.sprite_dat.sheet_loc.x * iTexX, (f32)(cp.sprite_dat.sheet_loc.y+cp.sprite_dat.sheet_loc.h) * iTexY, 
 
@@ -4357,20 +4277,8 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                 };
 
                 //TODO: actually render ts
-                this->PushVerts(glyph_rect_base, sizeof(glyph_rect_base) / sizeof(genericFontVert), true);
+                this->PushVerts(glyph_rect_base, 6, true);
             } else {
-                /*
-                
-                required data
-
-                layout(location = 0) in vec3 m_pos;
-                layout(location = 1) in vec2 region_pos;
-                layout(location = 2) in ivec2 t_curves;
-                
-                */
-
-                //std::cout << "Char: " << cc << " | " << cp.rc_Dat.rc_curve_start << " --> " << cp.rc_Dat.rc_curve_end << std::endl;
-
                 const f32 cw = cp.dim.ranges.xMax - cp.dim.ranges.xMin,
                           ch = cp.dim.ranges.yMax - cp.dim.ranges.yMin;
 
@@ -4381,7 +4289,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
 
                 const f32 px = part_x, py = part_y, pw = part_w + 2.0f, ph = part_h + 2.0f;
 
-                rcFontVert glyph_rc_verts[] = {
+                rcFontVert glyph_rc_verts[6] = {
                     px, py, z, 
                     (f32) cp.dim.ranges.xMin - sdx, (f32) cp.dim.ranges.yMax + sdy, 
                     (i32) cp.rc_Dat.rc_curve_start, (i32) cp.rc_Dat.rc_curve_end,
@@ -4413,7 +4321,7 @@ void graphics::RenderString(FontInst *font, f32 x, f32 y, f32 z, const char* str
                     sdx, sdy
                 };
 
-                this->PushVerts(glyph_rc_verts, sizeof(glyph_rc_verts) / sizeof(rcFontVert), true);
+                this->PushVerts(glyph_rc_verts, 6, true);
             }
         };
 
@@ -4589,9 +4497,8 @@ f32 simple_curve_point_dir_dist(f32 p[2], gpu_rc_curve cu, f32 *solve_inf) {
         }
     }
 
-    f32 vvv = wEncodeF32(sqrtf(d_best), xSgn, ySgn);
-    std::cout << "v: " << vvv << " " << wDecodeF32(vvv) << " " << sqrtf(d_best) << std::endl;
-    return vvv;
+    //f32 vvv = wEncodeF32(sqrtf(d_best), xSgn, ySgn);
+    return sqrtf(d_best);
 }
 
 #define USE_FAST_RC_CURVE_LEFT
@@ -4687,6 +4594,9 @@ void find_font_curve_friends(FontInst *font) {
     //copyright James Weigand 2026-Present All Rights Reserved
     //TODO: interate this in a whole different way blud
 
+    f32 avg_w = 0.0f;
+    size_t nproc_glf = 0;
+
     auto process_glf = [&](Character& c, auto&& process_glf) -> void {
         if (c.nParts > 0) {
             u32 idx;
@@ -4701,7 +4611,7 @@ void find_font_curve_friends(FontInst *font) {
             return;
         }
 
-        std::cout << "cu range: " << c.rc_Dat.rc_curve_start << " --> " << c.rc_Dat.rc_curve_end << std::endl;
+        //std::cout << "cu range: " << c.rc_Dat.rc_curve_start << " --> " << c.rc_Dat.rc_curve_end << std::endl;
 
         if (c.rc_Dat.rc_curve_start >= font->rc_dat.nCurves && c.rc_Dat.rc_curve_end >= font->rc_dat.nCurves) {
             std::cout << "cannot font friends for glyph: " << c.val << std::endl;
@@ -4716,7 +4626,8 @@ void find_font_curve_friends(FontInst *font) {
             if (cc.minW > 0.0f)
                 continue;
 
-            f32 minThickness = 2.524354746243960872064730e-29f;
+            //f32 minThickness = 2.524354746243960872064730e-29f;
+            f32 minThickness = chonk_number;
 
             i32 lc = i;
 
@@ -4754,11 +4665,13 @@ void find_font_curve_friends(FontInst *font) {
                 const f32 d0 = simple_curve_point_dir_dist(fc.p0, cc, solve_inf + (i << 2)),
                         d1 = simple_curve_point_dir_dist(fc.p2, cc, solve_inf + (i << 2));
                 f32 T = d0;
-                if (abs(wDecodeF32(d1)) < abs(wDecodeF32(d0))) T = d1;
+                //if (abs(wDecodeF32(d1)) < abs(wDecodeF32(d0))) T = d1;
+                if (abs(d1) < abs(d0)) T = d1;
                 
                 //min distance and ensure that the left most curve is the one being noted to store the minthickness
                 //also make sure that the curve doesn't already have a computed width
-                if (abs(wDecodeF32(T)) < abs(wDecodeF32(minThickness))) {
+                //if (abs(wDecodeF32(T)) < abs(wDecodeF32(minThickness))) {
+                if (abs(T) < abs(minThickness)) {
                     minThickness = T;
                     if (
                         get_rc_cu_left_pos(font->rc_dat.lcs[j]) < get_rc_cu_left_pos(font->rc_dat.lcs[i]) && 
@@ -4775,9 +4688,11 @@ void find_font_curve_friends(FontInst *font) {
             //--> you can sort the curve left to right first if needed
             //--> the above solution could fuck the whole connection mapping
             //TODO: the actual connections mapping
-            if (wDecodeF32(minThickness) < 99.9e7f) {
+            //if (wDecodeF32(minThickness) < 99.9e7f) {
+            if (minThickness < 99.9e7f) {
                 font->rc_dat.lcs[lc].minW = minThickness;
-                std::cout << "Set W: " << wDecodeF32(font->rc_dat.lcs[lc].minW) << std::endl;
+                avg_w += minThickness;
+                nproc_glf++;
             }
         }
     };
@@ -4789,7 +4704,7 @@ void find_font_curve_friends(FontInst *font) {
     }
 
     //check width orientation
-
+    avg_w /= (f32) nproc_glf;
 
     _safe_free_a(solve_inf);
 }

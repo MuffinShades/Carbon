@@ -390,7 +390,6 @@ void graphics::SetRenderState(RenderState *s) {
     prev_state = state;
     state = s;
 
-    glViewport(0, 0, state->dim.w, state->dim.h);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     FrameBuffer *fb = nullptr;
@@ -454,15 +453,13 @@ void graphics::VertexDefineBegin(size_t v_obj_sz) {
 
     const RenderStateDescriptor desc = state->_p_inf._desc;
 
-    //check for descrenpency between vobjsz and stored size and fix it
-    if (state->vertex_size != v_obj_sz && desc.dynamic) {
-        glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
-        glBufferData(GL_ARRAY_BUFFER, desc.max_batch_verts * v_obj_sz, 0, GL_DYNAMIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
-
     glBindVertexArray(state->vao);
     glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+
+    //check for descrenpency between vobjsz and stored size and fix it
+    if (state->vertex_size != v_obj_sz && desc.dynamic) {
+        glBufferData(GL_ARRAY_BUFFER, desc.max_batch_verts * v_obj_sz, 0, GL_DYNAMIC_DRAW);
+    }
 
     state->vertex_size = v_obj_sz;
     state->cur_process = RenderState::Process::VertexDefine;
@@ -669,11 +666,16 @@ void graphics::PushVerts(void *verts, size_t n_verts, bool auto_flush_old) {
         }
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+    i32 bb;
+
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &bb);
+    if (bb != state->vbo)
+        glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
 
     switch (state->g_fmt) {
     case RenderState::__gs_fmt::_dynamic:
         glBufferSubData(GL_ARRAY_BUFFER, state->c_vert * state->vertex_size, n_verts * state->vertex_size, verts);
+        //std::cout << "vcopy: " << state->c_vert * state->vertex_size << " | >>to>> " << state->vbo << " | vsz: " << state->vertex_size << " | N: " << n_verts << std::endl;
         state->c_vert += n_verts;
         break;
     case RenderState::__gs_fmt::_static:
@@ -895,8 +897,7 @@ void graphics::SetOutputDevice(OutputDevice* device) {
 
         std::cout << "setting framebuffer " << fb->w << "x" << fb->h << std::endl;
 
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo); 
-        glViewport(0, 0, fb->w, fb->h);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
         if (!fb->texHandle && fb->ty == FrameBuffer::Texture)
             fb->texAttach(fb->w, fb->h, {});
@@ -976,7 +977,6 @@ void graphics::Resize(u32 w, u32 h) {
     }
 
     glEnable(GL_DEPTH_TEST);
-	glEnable(GL_ALPHA_TEST);
 	glDepthMask(GL_TRUE);
 	glDepthFunc(GL_LEQUAL);
 

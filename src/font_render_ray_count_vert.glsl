@@ -15,5 +15,5 @@ void main() {
     poss = region_pos;
     delta = del;
     curve_range = t_curves;
-    gl_Position = screen_project * vec4(m_pos.xy, 0.0, 1.0);
+    gl_Position = screen_project * vec4(m_pos, 1.0);
 }
