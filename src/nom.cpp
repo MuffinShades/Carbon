@@ -96,6 +96,45 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
     const size_t hashSz = 1 << hashBits;
     
     //compute the ideal int size for the offsets
+/*
+
+//faster log functions that are also aligned for certain bases
+#define __log_def(align) {  \
+    long c = 0;              \
+                            \
+    while (val >>= align)   \
+        c++;                \
+                            \
+    return c;               \
+}
+
+static inline long fast_log2(long val) __log_def(1)
+
+#include <iostream>
+
+int main()
+{
+    long n = 25;
+    long hb = 4;
+    
+    const long hsz = 1 << hb;
+    
+    long v,x = 0;
+    
+    do {
+        x++;
+        v = fast_log2(n * x * 3);
+        v = (v >> 3) + ((v & 7) > 0);
+        std::cout << "V: " << v << " | x: " << x << " | " << (n * 3 * x) << " | " << fast_log2(n * x * 3) << std::endl;
+    } while(x < v && x < 8);
+    
+    std::cout << "N Bytes: " << x << std::endl;
+    
+    return 0;
+}
+
+*/
+
     u64 v,x = 0;
     
     do {
@@ -114,8 +153,10 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
 
     //write the hash table
     for (i = 0; i < hashSz; i++) {
-        
+
     }
+
+    //write all of the sectors
 }
 
 void WriteToFile(std::string opath, nomfile f, nomsettings ns) {
