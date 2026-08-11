@@ -1,4 +1,8 @@
 #include "nom.hpp"
+#include <type_traits>
+#include <assert.h>
+
+constexpr byte dictionary_fmt_1 = 0x01;
 
 const char fih[3] = {'N', 'E', 'A'};
 
@@ -40,17 +44,56 @@ const Version nea_ver = {
     0,1,826
 };
 
-enum class neaIntSz {
-    _8bit  = 0b00,
-    _16bit = 0b01,
-    _32bit = 0b10,
-    _64bit = 0b11
-};
+//prevent against goons tryna exceed 32bits in a hash
+#if __nea_max_hash > 32
+#error "NEA hash hard max (__nea_max_hash) exceeds 32bits!"
+#endif
 
-constexpr IntFormat defEndian = IntFormat_BigEndian;
-constexpr neaIntSz defISz = neaIntSz::_32bit;
+//will write the primary directory and all sub directory onto the end of the given stream
+//will also return the offset of the primary directory in the stream
+i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
+    static_assert(__nea_max_hash <= 32, "NEA hash hard max (__nea_max_hash) exceeds 32bits!");
 
-void WriteToFile(std::string opath, nomfile f) {
+    if (!s)
+        return -1;
+
+    size_t hashBits = fast_log2(f.nassets);
+
+    if (ns.maxHashBits > __nea_max_hash) ns.maxHashBits = __nea_max_hash;
+
+    if (hashBits > ns.maxHashBits)
+        hashBits = ns.maxHashBits;
+
+    s->writeByte(dictionary_fmt_1);
+
+    //do some sizing calculations
+    nomasset *fa = f.assets;
+
+    if (!fa || f.nassets == 0)
+        return -1;
+
+    i32 i;
+    nomasset na;
+
+    size_t nbll = 0; //num bytes in a label len
+
+    for (i = 0; i < f.nassets; i++) {
+        na = *fa;
+
+        if (!na.dat || na.len == 0) {
+            if (ns.delBlankAssets)
+                continue;
+            
+            continue; //uhh.. :3
+        }
+
+        nbll = mu_max(nbll, fast_log2(na._side_info.id.idp_lens[0]));
+
+        fa++;
+    }
+}
+
+void WriteToFile(std::string opath, nomfile f, nomsettings ns) {
     if (opath.length() == 0 || !f.assets || f.nassets == 0)
         return;
 
@@ -60,8 +103,8 @@ void WriteToFile(std::string opath, nomfile f) {
     s.writeBytes((byte*) const_cast<char*>(fih), 3); //fsig
     s.writeByte((byte) AssetTy::Generic);            //subformat
     stream_write_version(&s, nea_ver);
-    const byte unicorn_byte = ((((byte) defEndian) & 1) << 7) | ((((byte) defISz) & 3) << 5);
-    s.writeByte(unicorn_byte);
+    byte unicorn_byte = ((((byte) ns.endian) & 1) << 7) | ((((byte) ns.defISz) & 3) << 5);
+    //s.writeByte(unicorn_byte);
     //TODO: add stream functions to restore endians
 
     //first create the whole directory of le assets
