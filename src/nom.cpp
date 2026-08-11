@@ -75,7 +75,7 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
     i32 i;
     nomasset na;
 
-    size_t nbll = 0; //num bytes in a label len
+    size_t nbll = 0; //num bits in a label len
 
     for (i = 0; i < f.nassets; i++) {
         na = *fa;
@@ -88,8 +88,33 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
         }
 
         nbll = mu_max(nbll, fast_log2(na._side_info.id.idp_lens[0]));
+        
 
         fa++;
+    }
+
+    const size_t hashSz = 1 << hashBits;
+    
+    //compute the ideal int size for the offsets
+    u64 v,x = 0;
+    
+    do {
+        x++;
+        v = fast_log2(f.nassets * x * 3);
+        v = (v >> 3) + ((v & 7) > 0);
+        //std::cout << "V: " << v << " | x: " << x << " | " << (n * 3 * x) << " | " << fast_log2(n * x * 3) << std::endl;
+    } while(x < v && x < 8);
+
+    //complete the whole table sub header thing
+    const size_t hls = x;
+
+    s->writeByte(hls);
+    s->writeByte(nbll >> 3);
+    s->writeByte(hashBits);
+
+    //write the hash table
+    for (i = 0; i < hashSz; i++) {
+        
     }
 }
 
