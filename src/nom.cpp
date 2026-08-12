@@ -58,6 +58,7 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
         return -1;
 
     size_t hashBits = fast_log2(f.nassets);
+    hashBits = ((hashBits >> 3) + ((hashBits & 7) > 0)) << 3;
 
     if (ns.maxHashBits > __nea_max_hash) ns.maxHashBits = __nea_max_hash;
 
@@ -77,6 +78,24 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
 
     size_t nbll = 0; //num bits in a label len
 
+    struct s_sector {
+        size_t nss; //num sub sectors
+        size_t *llen; //length of items in the sector
+        u64 *off; //offsets
+    };
+
+    struct s_subsec {
+        size_t ne; //num entries
+        char *labels; //label for each entry (kinda form of shared memory)
+        u64 *off; //offsets
+    };
+
+    //create da hash table
+    const size_t hashEntryBytes = hashBits >> 3;
+    const size_t hz = f.nassets * hashEntryBytes;
+    byte *hashTable = new byte[hz];
+    ZeroMem(hashTable, hz);
+
     for (i = 0; i < f.nassets; i++) {
         na = *fa;
 
@@ -88,7 +107,8 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
         }
 
         nbll = mu_max(nbll, fast_log2(na._side_info.id.idp_lens[0]));
-        
+
+
 
         fa++;
     }
@@ -152,9 +172,9 @@ int main()
     s->writeByte(hashBits);
 
     //write the hash table
-    for (i = 0; i < hashSz; i++) {
+    s->writeBytes(hashTable, hz);
 
-    }
+    
 
     //write all of the sectors
 }
