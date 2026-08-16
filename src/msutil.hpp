@@ -458,18 +458,18 @@ const u32 mu_i_infinity_32 = 0xffffffff;
     if (nBits > 64) nBits = 64;                 \
                                                 \
     const char *c_dat = (const char*) dat;      \
-    const u32 mask = (1 << nBits) - 1;          \
+    const u64 mask = (1ULL << nBits) - 1ULL;          \
                                                 \
-    u32 hash = 0, g = 0xff;                     \
+    u64 hash = 0, g = 0xffULL;                     \
                                                 \
     i32 i;                                      \
                                                 \
     for (i = 0; i < len; i++) {                 \
         hash += (c_dat[i] * g);                 \
                                                 \
-        g <<= 8;                                \
-        g |= 0xff;                              \
-        g = (g >> 31) * 0xff + g * !(g >> 31);  \
+        g <<= 8ULL;                                \
+        g |= 0xffULL;                              \
+        g = (g >> 31ULL) * 0xffULL + g * !(g >> 31ULL);  \
     }                                           \
                                                 \
     return hash & mask;                         \
@@ -480,18 +480,18 @@ const u32 mu_i_infinity_32 = 0xffffffff;
                                                   \
     if (nBits > 64) nBits = 64;                   \
     const u64 *c_dat = (const u64*) dat;          \
-    const u64 mask = (1 << nBits) - 1;            \
-    u64 hash = 0, g = 0xff;                       \
-    const size_t len_8 = len >> 3;                \
+    const u64 mask = (1ULL << nBits) - 1ULL;            \
+    u64 hash = 0, g = 0xffULL;                       \
+    const size_t len_8 = len >> 3ULL;                \
                                                   \
     i32 i;                                        \
                                                   \
     for (i = 0; i < len_8; i++) {                 \
         hash += (c_dat[i] * g);                   \
                                                   \
-        g <<= 8;                                  \
-        g |= 0xff;                                \
-        g = (g >> 63) * 0xff + g * !(g >> 63);    \
+        g <<= 8ULL;                                  \
+        g |= 0xffULL;                                \
+        g = (g >> 63ULL) * 0xffULL + g * !(g >> 63ULL);    \
     }                                             \
                                                   \
     return hash & mask;                           \

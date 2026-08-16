@@ -424,14 +424,14 @@ bool _charEscaped(const char* code, int idx) {
 	return (bCount % 2) == 0 ? false : true;
 };
 
-JStruct jparse::parseStr(const char* jData, bool _clean) {
+JStruct jparse::parseStr(const char* jData, size_t datLen, bool _clean) {
 	char* jsonData;
 	if (_clean) {
 		std::string rStr = removeJunk(jData);
 		//std::cout << "Parsing: " << rStr << std::endl;
 		const char* c_str = rStr.c_str();
-		jsonData = new char[strlen(c_str)];
-		memcpy(jsonData, c_str, strlen(c_str));
+		jsonData = new char[datLen];
+		memcpy(jsonData, c_str, datLen);
 	}
 	else
 		jsonData = (char*)jData;

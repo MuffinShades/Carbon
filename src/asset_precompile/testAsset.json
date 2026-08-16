@@ -1,0 +1,18 @@
+{
+    "render": {
+        "shader": {
+            "font_frag": "",
+            "font_vert": "",
+            "msdf_frag": "",
+            "msdf_vert": ""
+        }
+    },
+    "dat": {
+
+    },
+    "funny": {
+        "cat": "",
+        "saul": "",
+        "getClipped": ""
+    }
+}

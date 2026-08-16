@@ -18,6 +18,19 @@ enum class CompressionMode {
     Zlib
 };
 
+ struct asset_id {
+    char *id_dat = nullptr;
+    u16 *idp_lens = nullptr;
+    size_t nParts = 0;
+    bool use_16bit_part_lens = false;
+    u32 *p_hash = nullptr; //hashes for each item
+    /*
+            
+    Format for 
+            
+    */
+};
+
 struct nomasset {
     byte *dat = nullptr;
     size_t len = 0;
@@ -28,20 +41,14 @@ struct nomasset {
             std::string internal_desc;
             _nomasset_origin oty = _nomasset_origin::Unknown;
         } origin;
-        struct {
-            char *id_dat;
-            u16 *idp_lens;
-            size_t nParts;
-            bool use_16bit_part_lens = false;
-            /*
-            
-            Format for 
-            
-            */
-        } id;
+        asset_id id;
         struct {
             CompressionMode compression = CompressionMode::None;
         } storage;
+        bool good;
+        struct {
+            size_t idPartSelect;
+        } _proc_inf;
     } _side_info;
 };
 
@@ -80,4 +87,11 @@ struct nomsettings {
 class omn {
 public:
     static void WriteToFile(std::string opath, nomfile f, nomsettings ns);
+    static nomfile GenNomFileFromJson(std::string jsonPath);
+};
+
+class omnLoad {
+public:
+    i32 LoadAsset(std::string path, std::string name);
+    nomasset Query(std::string item);
 };
