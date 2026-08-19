@@ -1,4 +1,5 @@
 #include "nom.hpp"
+#include "muvec.hpp"
 #include <type_traits>
 #include <assert.h>
 
@@ -501,20 +502,23 @@ void WriteToFile(std::string opath, nomfile f, nomsettings ns) {
 
         Chunk chonk = genAssetDataChunk(na);
 
+        //compressed dat vars
+        byte *sdat = sch.dat;
+        auto lg2l = (signed) fast_log2(na.len),
+                 nbl = (signed) ((lg2l >> 3) + ((lg2l & 7) > 0));
+
         switch (chonk.h.ty) {
         case ChunkType::RawDat:
             stream_write_chunk(actx, chonk);
+            break;
         case ChunkType::CompressedDat:
             //configure the sch
             //uncompressed length
-            auto lg2l = (signed) fast_log2(na.len),
-                 nbl = (signed) ((lg2l >> 3) + ((lg2l & 7) > 0));
             if (nbl > maxCDatHeaderLen) {
                 std::cout << "asset warning: nbl computation is sus" << std::endl;
                 nbl = 8;
             }
             sch.len = 2 + nbl;
-            byte *sdat = sch.dat;
             *sdat++ = nbl & 0xff;
             j = na.len;
             if (ns.endian == IntFormat_BigEndian) endian_swap(j, nbl);
@@ -555,6 +559,8 @@ void WriteToFile(std::string opath, nomfile f, nomsettings ns) {
 #include "json.hpp"
 
 nomfile omn::GenNomFileFromJson(std::string jsonPath) {
+    std::cout << "parsing path: " << jsonPath << std::endl;
+
     nomfile res;
 
     res.assets = nullptr;
@@ -565,6 +571,8 @@ nomfile omn::GenNomFileFromJson(std::string jsonPath) {
 
     file jf = FileWrite::readFromBin(jsonPath);
 
+    std::cout << "file len: " << jf.len << std::endl;
+
     if (!jf.dat || jf.len == 0) {
         if (jf.dat) _safe_free_a(jf.dat);
         return res;
@@ -572,12 +580,229 @@ nomfile omn::GenNomFileFromJson(std::string jsonPath) {
 
     JStruct fStruct = jparse::parseStr((const char*) const_cast<const byte*>(jf.dat), jf.len);
 
-    for (JToken tok : fStruct.body) {
-        if (tok.ty == JERR_INVALID_TOK)
-            continue;
+    size_t lStackSz = 256;
+    const size_t avgLabelLen = 16, lStackInc = 256;
 
-        tok.body->
+    #define _COMPUTE_STACK_SPACE_LEFT(len) (sizeof(u16) * (len))
+    #define _COMPUTE_STACK_SPACE_RIGHT(len) (sizeof(char) * (len) * avgLabelLen)
+    #define _COMPUTE_STACK_SPACE(len) (_COMPUTE_STACK_SPACE_LEFT(len) + _COMPUTE_STACK_SPACE_RIGHT(len))
+
+    size_t nsElem = lStackSz, sLen = _COMPUTE_STACK_SPACE(nsElem);
+
+    byte *labelStack = new byte[sLen], *sEnd = labelStack + sLen;
+    char *datStack = (char*) (labelStack + nsElem * sizeof(u16)), *dsCur = datStack;
+    u16 *lenStack = (u16*) labelStack, *lsCur = lenStack;
+
+    size_t stackOcu = 0;
+
+    struct protoAsset {
+        std::string src;
+        asset_id id;
+    };
+
+    auto freeProtoAsset = [&](protoAsset &pa) -> void {
+        pa.src = "";
+        if (pa.id.id_dat) _safe_free_a(pa.id.id_dat);
+        if (pa.id.idp_lens) _safe_free_a(pa.id.idp_lens);
+        if (pa.id.p_hash) _safe_free_a(pa.id.p_hash);
+        pa.id.nParts = 0;
+    };
+
+    //if return false then push failed and should exit function
+    auto lStackDatPush = [&](char *dat, size_t len) -> bool {
+        if (len > mu_ui_infinity_16) len = mu_ui_infinity_16; //length cap
+
+        std::cout << "stack push: ";
+        mu_strPrint(dat,len,true);
+        if ((uintptr_t) dsCur >= (uintptr_t) (sEnd - len)) {
+            std::cout << "stack realloc..." << std::endl;
+
+            //need to allocate more of le stack
+            nsElem += lStackInc;
+            const size_t snLen = _COMPUTE_STACK_SPACE(nsElem), prevNElem = nsElem - lStackInc;
+            byte *nStack = new byte[snLen];
+
+            if (!nStack) {
+                std::cout << "Asset gen failed: bad alloc" << std::endl;
+                return false;
+            }
+
+            ZeroMem(nStack, snLen);
+            in_memcpy(nStack, labelStack, _COMPUTE_STACK_SPACE_LEFT(prevNElem)); //copy lengths
+            in_memcpy(
+                nStack     + _COMPUTE_STACK_SPACE_LEFT(nsElem), 
+                labelStack + _COMPUTE_STACK_SPACE_LEFT(prevNElem), 
+                _COMPUTE_STACK_SPACE_RIGHT(prevNElem)
+            ); //copy strings
+            sLen = snLen;
+
+            _safe_free_a(labelStack);
+            labelStack = nStack;
+
+            //adjust current pointers
+            const size_t lOff = ((uintptr_t) lsCur - (uintptr_t) lenStack) / sizeof(u16),
+                         dOff = ((uintptr_t) dsCur - (uintptr_t) datStack) / sizeof(char);
+
+            lenStack = (u16*) labelStack;
+            lsCur = lenStack + lOff;
+
+            datStack = (char*) (labelStack + nsElem * sizeof(u16));
+            dsCur = datStack + dOff;
+        }
+
+        //push le data
+        std::cout << "ls push: " << (u16) len << std::endl;
+        *lsCur++ = (u16) len;
+        std::cout << " | " << *(lsCur) << std::endl;
+        in_memcpy(dsCur, dat, len * sizeof(char));
+        dsCur += len;
+        stackOcu++;
+
+        return true;
+    };
+
+    auto lStackDatIdPop = [&](bool noAsset = false) -> asset_id {
+        asset_id id = {
+            .id_dat = nullptr,
+            .nParts = 0
+        };
+
+        if ((uintptr_t) dsCur > (uintptr_t) datStack && (uintptr_t) lsCur > (uintptr_t) lenStack) {
+            const size_t np = stackOcu;
+            const size_t nc = ((uintptr_t) dsCur - (uintptr_t) datStack) / sizeof(char);
+
+            if (np == 0 || nc == 0 || noAsset)
+                goto pop_fin;
+
+            std::cout << "NP: " << np << " NC: " << nc << std::endl;
+            mu_strPrint(datStack, nc);
+
+            id.nParts = np;
+            id.idp_lens = new u16[np];
+            id.id_dat = new char[nc];
+
+            for (i32 ll = 0; ll < np; ll++) {
+                std::cout << "lcop: " << lenStack[ll] << std::endl;
+            }
+
+            in_memcpy(id.idp_lens, lenStack, sizeof(u16) * np);
+            in_memcpy(id.id_dat, datStack, sizeof(char) * nc);
+
+            id.use_16bit_part_lens = true;
+            id.p_hash = nullptr; //have this be autocalculated
+        }
+
+        pop_fin:
+
+        if (stackOcu > 0) {
+            dsCur -= *(--lsCur);
+            stackOcu--;
+        } else {
+            lsCur = lenStack;
+            std::cout << "uhh" << std::endl;
+        }
+
+        return id;
+    };
+
+    mu_vec<protoAsset> pAssets = mu_vec<protoAsset>();
+
+    //generate proto assets from le json
+    auto processJStruct = [&](JStruct *js, auto&& pjs) -> void {
+        std::cout << "g: " << js->body.size() << std::endl;
+
+        for (JToken tok : js->body) {
+            std::cout << "tok: " << tok.rawValue << " " << tok.rawValue.length() << " | " << (u32) tok.ty << std::endl;
+            std::cout << "mo tok: " << tok.label << std::endl;
+
+            if (tok.label.length() == 0)
+                continue;
+
+            if (!lStackDatPush((char*) tok.label.c_str(), tok.label.length())) {
+                std::cout << "asset gen warning: container label \"" << tok.rawValue << "\" failed to parse... skipping label" << std::endl; 
+                continue;
+            }
+
+            if (!tok.body) {
+                asset_id aId = lStackDatIdPop();
+
+                if (!aId.id_dat || aId.nParts == 0) {
+                    std::cout << "asset gen warning: asset label \"" << tok.rawValue << "\" failed to parse... skipping label" << std::endl;
+                    continue;
+                }
+
+                protoAsset pa = {
+                    .src = tok.rawValue,
+                    .id = aId
+                };
+
+                pAssets.push(pa);
+            } else {
+                pjs(tok.body, pjs);
+                lStackDatIdPop(true); //pop with no asset
+            }
+        }
+    };
+
+    processJStruct(&fStruct, processJStruct);
+
+    //convert proto assets into actual assets
+    res.nassets = pAssets.len();
+
+    if (res.nassets > 0)
+        res.assets = new nomasset[res.nassets];
+    else
+        res.assets = nullptr;
+
+    i32 i;
+    nomasset *ta;
+    protoAsset pa;
+
+    //WARNING: CANNOT INTERATE OR INTERACT WITH PASSETS AFTER THIS LOOP!!!!
+    //THIS LOOP CAN ALSO ONLY GO IN 1 DIRECTION (DO NOT MODIFY i WITHIN THE LOOP!!!!)
+    for (i = 0; i < res.nassets; i++) {
+        ta = res.assets + i; pa = pAssets[i];
+
+        std::cout << "PROTO: " << pa.id.nParts << " | " << (pa.id.nParts > 0 ? pa.id.idp_lens[0] : 9999) << std::endl;
+
+        ta->_side_info.id = pa.id;
+        ta->_side_info.storage.compression = CompressionMode::Zlib;
+        ta->_side_info.origin.f_path = pa.src;
+        ta->_side_info.good = true;
+        ta->_side_info.origin.oty = _nomasset_origin::File;
+        
+        //read file dat
+        file f = FileWrite::readFromBin(pa.src);
+
+        if (!f.dat || f.len == 0) {
+            std::cout << "asset gen error: failed to read from file \"" << pa.src << "\"" << std::endl;
+            freeProtoAsset(pa);
+            if (f.dat) _safe_free_a(f.dat);
+            ZeroMem(ta, 1);
+            continue;
+        }
+
+        //NOTE: asset data must be freed through freeing nomassets since it will not be freed by freeProtoAsset
+        //since id is passed to the asset
+        ZeroMem(&pa.id, 1); //zero out the id so freeing does nothing
+
+        std::cout << "asset sucess: \"" << pa.src << "\"" << std::endl;
+
+        ta->dat = f.dat;
+        ta->len = f.len;
+
+        //do not free f.dat since the data is just given to the asset
+        f.dat = nullptr; f.len = 0; //just incase i accidentally free it this will simply stop the free from working
+
+        freeProtoAsset(pa);
     }
 
+    pAssets.free();
+
+    //mem management
+    _safe_free_a(labelStack);
     _safe_free_a(jf.dat);
+
+    //
+    return res;
 };

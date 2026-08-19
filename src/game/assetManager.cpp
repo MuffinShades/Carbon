@@ -24,7 +24,7 @@ i32 AssetManager::compileDat(std::string map, std::string dat_out) {
 
     //now parse file
     //WARNING: buffer overflow could occur here although im not 100% sure so dont quote me ok
-    JStruct dMap = jparse::parseStr(const_cast<const char*>(reinterpret_cast<char*>(map_fDat.dat)));
+    JStruct dMap = jparse::parseStr(const_cast<const char*>(reinterpret_cast<char*>(map_fDat.dat)), map_fDat.len);
     _safe_free_a(map_fDat.dat);
 
     if (dMap.body.size() <= 0)
@@ -108,7 +108,7 @@ Asset *AssetManager::ReqAsset(std::string id, std::string core_map_path, std::st
         _map = _create_asset_copy(&e);
         std::string mapDat = CovertBytesToString(_map->bytes, _map->sz, true);
         std::cout << "MAP DAT: " << mapDat << std::endl;
-        map_struct = jparse::parseStr(mapDat.c_str());
+        map_struct = jparse::parseStr(mapDat.c_str(), mapDat.length());
 
         //DO NOT FREE ASSEST E SINCE THE DATA IS NOW OWNED BY THE COPY!!!
         //also _map does not need to be a pointer ;-;

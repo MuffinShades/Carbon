@@ -77,7 +77,7 @@ public:
 	MSFL_EXP static JStruct parseStr(const char* jData, size_t datLen, bool _clean = true);
 	MSFL_EXP static std::string GenerateString(JStruct json, bool min = false, std::string tab = "");
 private:
-	MSFL_EXP static void genTok(const char* rStr, JToken& tok);
+	MSFL_EXP static void genTok(const char* rStr, size_t strLen, JToken& tok);
 };
 
 #ifdef MSFL_DLL

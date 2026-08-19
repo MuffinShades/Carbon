@@ -406,8 +406,15 @@ static inline f64 mu_deg(f64 theta) {
     return theta * mu_dtr_const;
 }
 
-const u64 mu_i_infinity_64 = 0xffffffffffffffffULL;
-const u32 mu_i_infinity_32 = 0xffffffff;
+const u64 mu_ui_infinity_64 = 0xffffffffffffffffULL;
+const u32 mu_ui_infinity_32 = 0xffffffffU;
+const u16 mu_ui_infinity_16 = 0xffffU;
+const u8  mu_ui_infinity_8 = 0xffU;
+
+const i64 mu_i_infinity_64 = 0xffffffffffffffffLL;
+const i32 mu_i_infinity_32 = 0xffffffff;
+const i16 mu_i_infinity_16 = 0xffff;
+const i8  mu_i_infinity_8 = 0xff;
 
 #define __MSFL_HASH_32 {                        \
     if (!dat || nBits == 0 || len == 0) return 0;\
@@ -535,3 +542,15 @@ const i32 greedy_look_256[] = {
     0x8D,0x16,0x4E,0xF,0x0
 };
 
+static inline void mu_strPrint(char *str, size_t len, bool endl = true) {
+    if (!str || len == 0) return;
+
+    i32 i;
+
+    for (i = 0; i < len; i++) {
+        std::cout << str[i];
+    }
+
+    if (endl)
+        std::cout << std::endl;
+}

@@ -1,7 +1,7 @@
 {
     "render": {
         "shader": {
-            "font_frag": "",
+            "font_frag": "../../src/font_render_ray_count_frag.glsl",
             "font_vert": "",
             "msdf_frag": "",
             "msdf_vert": ""

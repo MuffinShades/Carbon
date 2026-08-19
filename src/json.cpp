@@ -254,17 +254,17 @@ std::string jp_raw_val(std::string val) {
 		return val;
 }
 
-void jparse::genTok(const char* rStr, JToken& tok) {
+void jparse::genTok(const char* rStr, size_t strLen, JToken& tok) {
 	if (rStr[0] == '{') {
 		//parse as JStruct
-		JStruct _r = jparse::parseStr(rStr);
+		JStruct _r = jparse::parseStr(rStr, strLen);
 		tok.body = new JStruct();
 		tok.body->body = _r.body;
 		tok.body->mode = _r.mode;
 	}
 	else if (rStr[0] == '[') {
 		//parse as JStruct
-		JStruct _r = jparse::parseStr(rStr, false);
+		JStruct _r = jparse::parseStr(rStr, strLen, false);
 		tok.body = new JStruct();
 		tok.body->body = _r.body;
 		tok.body->mode = _r.mode;
@@ -603,7 +603,7 @@ JStruct jparse::parseStr(const char* jData, size_t datLen, bool _clean) {
 
 			//value
 			const char* rStr = lSplit[1].c_str();
-			genTok(rStr, tok);
+			genTok(rStr, lSplit[1].length(), tok);
 
 			//std::cout << "Token: " << tok.label << " " << tok.rawValue << std::endl;
 
@@ -614,7 +614,7 @@ JStruct jparse::parseStr(const char* jData, size_t datLen, bool _clean) {
 		//parse as an array
 		for (std::string c : chunks) {
 			JToken _tok;
-			genTok(c.c_str(), _tok);
+			genTok(c.c_str(), c.length(), _tok);
 			rStruct.body.push_back(_tok);
 		}
 	}

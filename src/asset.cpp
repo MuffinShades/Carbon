@@ -800,7 +800,7 @@ i32 AssetParse::WriteToFile(std::string src, std::string jsonMap, std::string pa
     if (src.length() <= 0)
         return 1;
 
-    JStruct jMap = jparse::parseStr(jsonMap.c_str());
+    JStruct jMap = jparse::parseStr(jsonMap.c_str(), jsonMap.length());
     AssetStruct fStruct; //file struct
 
     std::vector<_jAsset> _toAdd;

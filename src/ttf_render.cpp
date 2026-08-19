@@ -4376,7 +4376,7 @@ FontInst ttfRender::GenerateFontFromForeign(std::string img_src, std::string jso
         return fnt;
     }
 
-    JStruct fmap = jparse::parseStr(jf.dat);
+    JStruct fmap = jparse::parseStr(jf.dat, jf.len);
 
     //TODO: parse the map
 
