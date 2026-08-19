@@ -451,7 +451,7 @@ int main()
     //write all of the sectors
 }
 
-void WriteToFile(std::string opath, nomfile f, nomsettings ns) {
+void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
     if (opath.length() == 0 || !f.assets || f.nassets == 0)
         return;
 
@@ -480,7 +480,7 @@ void WriteToFile(std::string opath, nomfile f, nomsettings ns) {
     byte cidlb = (ns.chunk_id_len - 1);
 
     //do some pre-asset analysis
-    nomasset na; nomasset *fa;
+    nomasset na; nomasset *fa = f.assets;
 
     i32 i, j;
 
