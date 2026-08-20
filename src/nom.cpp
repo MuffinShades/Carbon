@@ -338,12 +338,6 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
         u64 *off; //offsets
     };
 
-    //create da hash table
-    const size_t hashEntryBytes = hashBits >> 3;
-    const size_t hz = f.nassets * hashEntryBytes;
-    byte *hashTable = new byte[hz];
-    ZeroMem(hashTable, hz);
-
     size_t maxLen = 0, n_unqLens = 1, uLen = fa[0]._side_info.id.idp_lens[0];
 
     size_t l;
@@ -372,8 +366,6 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
     }
 
     s_sector *p_sectors = new s_sector[n_unqLens];
-
-    const size_t hashSz = 1 << hashBits;
     
     //compute the ideal int size for the offsets
 
@@ -444,9 +436,18 @@ int main()
     s->writeByte(hashBits);
 
     //write the hash table
+    //create da hash table
+    const size_t hashSz = 1 << hashBits;
+    const size_t hz = hls * hashSz;
+    byte *hashTable = new byte[hz];
+    ZeroMem(hashTable, hz);
+
+    //populate da hash table
+
+    //write da hash table
     s->writeBytes(hashTable, hz);
 
-    
+    //free da hash table
 
     //write all of the sectors
 }
@@ -492,6 +493,8 @@ void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
     constexpr size_t maxCDatHeaderLen = 10; //9 bytes for uncompressed length + 1 byte for compression format
 
     sch.dat = new byte[maxCDatHeaderLen];
+
+    s.writeByte(unicorn_byte);
 
     //write all the assets first
     for (i = 0; i < f.nassets; i++) {
