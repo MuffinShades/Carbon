@@ -44,6 +44,7 @@ struct nomasset {
         asset_id id;
         struct {
             CompressionMode compression = CompressionMode::None;
+            size_t offset = 0; //offset for the data chunk within the file (used when writing directories)
         } storage;
         bool good;
         struct {

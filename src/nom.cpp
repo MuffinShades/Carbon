@@ -3,6 +3,46 @@
 #include <type_traits>
 #include <assert.h>
 
+/*
+
+//faster log functions that are also aligned for certain bases
+#define __log_def(align) {  \
+    long c = 0;              \
+                            \
+    while (val >>= align)   \
+        c++;                \
+                            \
+    return c;               \
+}
+
+static inline long fast_log2(long val) __log_def(1)
+
+#include <iostream>
+
+int main()
+{
+    long n = 25;
+    long hb = 4;
+    
+    const long hsz = 1 << hb;
+    
+    long v,x = 0;
+    
+    do {
+        x++;
+        v = fast_log2(n * x * 3);
+        v = (v >> 3) + ((v & 7) > 0);
+        std::cout << "V: " << v << " | x: " << x << " | " << (n * 3 * x) << " | " << fast_log2(n * x * 3) << std::endl;
+    } while(x < v && x < 8);
+    
+    std::cout << "N Bytes: " << x << std::endl;
+    
+    return 0;
+}
+
+*/
+
+
 enum class ChunkType {
     Padd = 0x00,
     Reservation = 0x0c,
@@ -112,8 +152,10 @@ void stream_write_version(ByteStream *s, Version ver) {
 
 struct ChunkHeader {
     ChunkType ty = ChunkType::Null;
-    size_t len = 0;
+    size_t len = 0, writeLen = 0;
     u32 checksum = 0;
+
+    bool sepLen = false;
 };
 
 struct Chunk {
@@ -126,7 +168,12 @@ struct SubChunkHeader {
     size_t len = 0;
 };
 
-i64 stream_write_chunk(AfileGenContext ctx, Chunk c, SubChunkHeader sch = {}, bool computeChecksum = false) {
+struct PostChunkData {
+    byte *dat = nullptr;
+    size_t len = 0;
+};
+
+i64 stream_write_chunk(AfileGenContext ctx, Chunk c, SubChunkHeader sch = {}, PostChunkData pcd = {}, bool computeChecksum = false) {
     ByteStream *stream = ctx.stream;
 
     size_t woff = stream->tell();
@@ -145,17 +192,30 @@ i64 stream_write_chunk(AfileGenContext ctx, Chunk c, SubChunkHeader sch = {}, bo
     }
 
     //write the chunk length
-    const size_t lg2len = fast_log2(c.h.len),
+    if (c.h.sepLen) {
+        const size_t lg2len = fast_log2(c.h.writeLen),
                  nbToRepCL = (lg2len >> 3) + ((lg2len & 7) > 0);
 
-    if (nbToRepCL > 8) {
-        std::cout << "Very odd error: cannot represent chunk length with more than 8 bytes!" << std::endl;
-        c.h.len &= 0xffffffffffffffffULL;
-        stream->writeUInt(c.h.len, 8);
+        if (nbToRepCL > 8) {
+            std::cout << "Very odd error: cannot represent chunk length with more than 8 bytes!" << std::endl;
+            c.h.writeLen &= 0xffffffffffffffffULL;
+            c.h.len &= 0xffffffffffffffffULL;
+            stream->writeUInt(c.h.writeLen, 8);
+        } else {
+            stream->writeUInt(c.h.writeLen, nbToRepCL);
+        }
     } else {
-        stream->writeUInt(c.h.len, nbToRepCL);
-    }
+        const size_t lg2len = fast_log2(c.h.len),
+                 nbToRepCL = (lg2len >> 3) + ((lg2len & 7) > 0);
 
+        if (nbToRepCL > 8) {
+            std::cout << "Very odd error: cannot represent chunk length with more than 8 bytes!" << std::endl;
+            c.h.len &= 0xffffffffffffffffULL;
+            stream->writeUInt(c.h.len, 8);
+        } else {
+            stream->writeUInt(c.h.len, nbToRepCL);
+        }
+    }
     //write check sum
     if (!computeChecksum)
         stream->writeUInt32(c.h.checksum);
@@ -170,6 +230,9 @@ i64 stream_write_chunk(AfileGenContext ctx, Chunk c, SubChunkHeader sch = {}, bo
 
     //write chunk data
     stream->writeBytes(c.dat, c.h.len);
+
+    if (pcd.dat && pcd.len > 0)
+        stream->writeBytes(pcd.dat, pcd.len);
 
     return (signed) (woff & ((1ULL << 63ULL) - 1ULL));
 }
@@ -284,24 +347,56 @@ void computeAssetPathHashes(nomfile &f) {
 struct dirEntry {
     asset_id id;
     size_t off;
+    u32 hash;
 };
 
-struct directorGenContext1 {
-
+struct dirInf {
+    size_t nbll = 0;
+    size_t nUnqLens = 0;
 };
 
-void _addDirectorFmt1(directorGenContext1 ctx) {
+struct directoryGenContext1 {
+    dirEntry *entries = nullptr;
+    size_t nEntries = 0;
+    nomsettings set;
+    dirInf dInf;
+    ByteStream *s;
+    size_t pSelect = 0;
+};
 
+void _addDirectorFmt1(directoryGenContext1 ctx) {
+    if (!ctx.s || !ctx.entries)
+        return;
+
+    i32 i;
+    dirEntry *e;
+    asset_id eid;
+
+    for (i = 0; i < ctx.nEntries; i++) {
+        e = ctx.entries + i; eid = e->id;
+
+        if (eid.nParts <= ctx.pSelect) continue;
+
+        const size_t iLen = eid.idp_lens[ctx.pSelect];
+        
+    }
 }
+
+#define _NOM_MAKE_FMT_BYTE(osign, fmt) (((osign) << 7) | (((byte)(fmt)) & 127))
 
 //will write the primary directory and all sub directory onto the end of the given stream
 //will also return the offset of the primary directory in the stream
 i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
     static_assert(__nea_max_hash <= 32, "NEA hash hard max (__nea_max_hash) exceeds 32bits!");
 
-    if (!s)
+    if (!s || f.nassets == 0)
         return -1;
 
+    //write dictionary format
+    constexpr bit dictionary_offset_sign = 0; //negative offsets
+    s->writeByte(_NOM_MAKE_FMT_BYTE(dictionary_offset_sign, dictionary_fmt_1));
+
+    //compute hash sizing
     size_t hashBits = fast_log2(f.nassets);
     hashBits = ((hashBits >> 3) + ((hashBits & 7) > 0)) << 3;
 
@@ -309,8 +404,6 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
 
     if (hashBits > ns.maxHashBits)
         hashBits = ns.maxHashBits;
-
-    s->writeByte(dictionary_fmt_1);
 
     //do some sizing calculations
     nomasset *fa = f.assets;
@@ -379,45 +472,8 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
             continue; //uhh.. :3
         }
 
+
     }
-/*
-
-//faster log functions that are also aligned for certain bases
-#define __log_def(align) {  \
-    long c = 0;              \
-                            \
-    while (val >>= align)   \
-        c++;                \
-                            \
-    return c;               \
-}
-
-static inline long fast_log2(long val) __log_def(1)
-
-#include <iostream>
-
-int main()
-{
-    long n = 25;
-    long hb = 4;
-    
-    const long hsz = 1 << hb;
-    
-    long v,x = 0;
-    
-    do {
-        x++;
-        v = fast_log2(n * x * 3);
-        v = (v >> 3) + ((v & 7) > 0);
-        std::cout << "V: " << v << " | x: " << x << " | " << (n * 3 * x) << " | " << fast_log2(n * x * 3) << std::endl;
-    } while(x < v && x < 8);
-    
-    std::cout << "N Bytes: " << x << std::endl;
-    
-    return 0;
-}
-
-*/
 
     u64 v,x = 0;
     
@@ -425,7 +481,6 @@ int main()
         x++;
         v = fast_log2(f.nassets * x * 3);
         v = (v >> 3) + ((v & 7) > 0);
-        //std::cout << "V: " << v << " | x: " << x << " | " << (n * 3 * x) << " | " << fast_log2(n * x * 3) << std::endl;
     } while(x < v && x < 8);
 
     //complete the whole table sub header thing
@@ -533,10 +588,22 @@ void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
             //compression format
             *sdat++ = (u8) na._side_info.storage.compression;
 
+            //some chonk config
+            chonk.h.sepLen = true;
+            chonk.h.writeLen = chonk.h.len + 4; //add for 4 bytes for checksum at end
+
             //write the chunk
             //note: data is already compressed in genAssetDataChunk so no need to compress it here
-            stream_write_chunk(actx, chonk, sch);
+            i64 wpos = stream_write_chunk(actx, chonk, sch);
+
+            if (wpos < 0) {
+                std::cout << "error failed to write asset: " << na._side_info.origin.f_path << std::endl;
+                continue;
+            }
+
             s.writeUInt32(0); //append the uncompressed checksum at the end
+
+            fa->_side_info.storage.offset = wpos;
         break;
         default:
             std::cout << "warning: invalid chunk type encountered!" << std::endl;
