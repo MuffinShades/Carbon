@@ -368,7 +368,7 @@ std::string removeXmlComments(std::string dat) {
         } while (cmp < cEnd);
 
         return true;
-        };
+    };
 
     bool inComment = false; //comment flag
 
@@ -437,7 +437,7 @@ xml_file* xml_parse::parseXml(std::string dat) {
         }
 
         return nTok;
-        };
+    };
 
     //parse le file
     do {
