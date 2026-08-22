@@ -386,7 +386,7 @@ void _addDirectorFmt1(directoryGenContext1 ctx) {
 
 //will write the primary directory and all sub directory onto the end of the given stream
 //will also return the offset of the primary directory in the stream
-i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
+i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns, size_t maxFdatOff = 0) {
     static_assert(__nea_max_hash <= 32, "NEA hash hard max (__nea_max_hash) exceeds 32bits!");
 
     if (!s || f.nassets == 0)
@@ -460,8 +460,7 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
 
     s_sector *p_sectors = new s_sector[n_unqLens];
     
-    //compute the ideal int size for the offsets
-
+    //create the sectors and sub-sectors
     for (i = 0; i < f.nassets; i++) {
         na = *fa;
 
@@ -471,21 +470,18 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns) {
             
             continue; //uhh.. :3
         }
-
-
     }
 
+    //compute hls
     u64 v,x = 0;
-    
     do {
         x++;
         v = fast_log2(f.nassets * x * 3);
         v = (v >> 3) + ((v & 7) > 0);
     } while(x < v && x < 8);
-
-    //complete the whole table sub header thing
     const size_t hls = x;
-
+    
+    //fmt1 header
     s->writeByte(hls);
     s->writeByte(nbll >> 3);
     s->writeByte(hashBits);
