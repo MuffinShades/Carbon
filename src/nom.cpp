@@ -42,6 +42,7 @@ int main()
 
 */
 
+constexpr size_t nOffsetBytes = 8;
 
 enum class ChunkType {
     Padd = 0x00,
@@ -288,6 +289,31 @@ const Version nea_ver = {
     0,1,826
 };
 
+struct dirEntry {
+    asset_id id;
+    size_t off;
+    u32 hash;
+};
+
+struct dirInf {
+    size_t nbll = 0;
+    size_t nUnqLens = 0;
+};
+
+struct directoryGenContext1 {
+    dirEntry *entries = nullptr;
+    size_t nEntries = 0;
+    nomsettings ns;
+    dirInf dInf;
+    ByteStream *s;
+    size_t pSelect = 0;
+    struct {
+        void **dat = nullptr;
+        size_t ndat = 0;
+    } junk; //all junk will be freed when context is deleted
+    //this will just include ever entry's id data since it is spliced and what not and junk will be generated
+};
+
 //prevent against goons tryna exceed 32bits in a hash
 #if __nea_max_hash > 32
 #error "NEA hash hard max (__nea_max_hash) exceeds 32bits!"
@@ -314,29 +340,44 @@ i32 __as_comp(nomasset &a, nomasset &b) {
     return ((i32)aid.id_dat[i]) - ((i32) bid.id_dat[i]);
 }
 
-void computeAssetPathHashes(nomfile &f) {
+i32 __de_comp(dirEntry &a, dirEntry &b) {
+    asset_id aid = a.id,
+             bid = b.id;
+
+    if (aid.idp_lens[0] != bid.idp_lens[0])
+        return aid.idp_lens[0] - bid.idp_lens[0];
+
+    i32 i = 0;
+
+    while (aid.id_dat[i] == bid.id_dat[i])
+        i++;
+
+    return ((i32)aid.id_dat[i]) - ((i32) bid.id_dat[i]);
+}
+
+void computeAssetPathHashes(dirEntry *e, size_t n) {
     i32 i,j;
 
-    nomasset *fa = f.assets;
+    dirEntry *fa = e;
     asset_id fid;
     char *idat;
     size_t ilen;
 
-    if (!fa || f.nassets == 0)
+    if (!fa || n == 0)
         return;
 
-    for (i = 0; i < f.nassets; i++) {
-        fid = fa->_side_info.id;
+    for (i = 0; i < n; i++) {
+        fid = fa->id;
         
         if (!fid.id_dat || !fid.idp_lens || fid.nParts == 0 || fid.p_hash)
             continue;
 
-        fa->_side_info.id.p_hash = new u32[fid.nParts];
+        fa->id.p_hash = new u32[fid.nParts];
         idat = fid.id_dat;
 
         for (j = 0; j < fid.nParts; j++) {
             ilen = fid.idp_lens[j];
-            fa->_side_info.id.p_hash[j] = compute_basic_hash_32_inline(32, idat, ilen);
+            fa->id.p_hash[j] = compute_basic_hash_32_inline(32, idat, ilen);
             idat += ilen;
         }
 
@@ -344,78 +385,39 @@ void computeAssetPathHashes(nomfile &f) {
     }
 }
 
-struct dirEntry {
-    asset_id id;
-    size_t off;
-    u32 hash;
-};
-
-struct dirInf {
-    size_t nbll = 0;
-    size_t nUnqLens = 0;
-};
-
-struct directoryGenContext1 {
-    dirEntry *entries = nullptr;
-    size_t nEntries = 0;
-    nomsettings set;
-    dirInf dInf;
-    ByteStream *s;
-    size_t pSelect = 0;
-};
-
-void _addDirectorFmt1(directoryGenContext1 ctx) {
-    if (!ctx.s || !ctx.entries)
-        return;
-
-    i32 i;
-    dirEntry *e;
-    asset_id eid;
-
-    for (i = 0; i < ctx.nEntries; i++) {
-        e = ctx.entries + i; eid = e->id;
-
-        if (eid.nParts <= ctx.pSelect) continue;
-
-        const size_t iLen = eid.idp_lens[ctx.pSelect];
-        
-    }
-}
-
 #define _NOM_MAKE_FMT_BYTE(osign, fmt) (((osign) << 7) | (((byte)(fmt)) & 127))
 
 //will write the primary directory and all sub directory onto the end of the given stream
-//will also return the offset of the primary directory in the stream
-i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns, size_t maxFdatOff = 0) {
+//will return the offset of the directory in the stream
+i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
     static_assert(__nea_max_hash <= 32, "NEA hash hard max (__nea_max_hash) exceeds 32bits!");
 
-    if (!s || f.nassets == 0)
+    ByteStream *s = ctx.s;
+
+    if (!s || ctx.nEntries == 0 || !ctx.entries)
         return -1;
 
     //write dictionary format
-    constexpr bit dictionary_offset_sign = 0; //negative offsets
+    constexpr bit dictionary_offset_sign = 1; //positive hash table offsets
     s->writeByte(_NOM_MAKE_FMT_BYTE(dictionary_offset_sign, dictionary_fmt_1));
 
     //compute hash sizing
-    size_t hashBits = fast_log2(f.nassets);
+    size_t hashBits = fast_log2(ctx.nEntries);
     hashBits = ((hashBits >> 3) + ((hashBits & 7) > 0)) << 3;
 
-    if (ns.maxHashBits > __nea_max_hash) ns.maxHashBits = __nea_max_hash;
+    if (ctx.ns.maxHashBits > __nea_max_hash) ctx.ns.maxHashBits = __nea_max_hash;
 
-    if (hashBits > ns.maxHashBits)
-        hashBits = ns.maxHashBits;
+    if (hashBits > ctx.ns.maxHashBits)
+        hashBits = ctx.ns.maxHashBits;
 
     //do some sizing calculations
-    nomasset *fa = f.assets;
+    dirEntry *fa = ctx.entries;
 
-    if (!fa || f.nassets == 0)
-        return -1;
-
-    computeAssetPathHashes(f);
-    mu_qsort<nomasset>(fa, &__as_comp, f.nassets);
+    computeAssetPathHashes(ctx.entries, ctx.nEntries);
+    mu_qsort<dirEntry>(fa, &__de_comp, ctx.nEntries);
 
     i32 i;
-    nomasset na;
+    dirEntry na;
 
     size_t nbll = 0; //num bits in a label len
 
@@ -431,26 +433,22 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns, size_t maxFdatOff
         u64 *off; //offsets
     };
 
-    size_t maxLen = 0, n_unqLens = 1, uLen = fa[0]._side_info.id.idp_lens[0];
+    size_t maxLen = 0, n_unqLens = 1, uLen = fa[0].id.idp_lens[0], 
+           maxSuSz = 0; //max entries in a sub sector
 
-    size_t l;
+    size_t l,m=0;
 
-    for (i = 0; i < f.nassets; i++) {
+    for (i = 0; i < ctx.nEntries; i++) {
         na = *fa;
 
-        if (!na.dat || na.len == 0) {
-            if (ns.delBlankAssets)
-                continue;
-            
-            continue; //uhh.. :3
-        }
-
-        l = na._side_info.id.idp_lens[0];
+        l = na.id.idp_lens[0];
 
         nbll = mu_max(nbll, fast_log2(l));
         maxLen = mu_max(maxLen, l);
 
+        m++;
         if (l != uLen) {
+            maxSuSz = mu_max(maxSuSz, 0); m = 0;
             uLen = l;
             n_unqLens++;
         }
@@ -458,25 +456,11 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns, size_t maxFdatOff
         fa++;
     }
 
-    s_sector *p_sectors = new s_sector[n_unqLens];
-    
-    //create the sectors and sub-sectors
-    for (i = 0; i < f.nassets; i++) {
-        na = *fa;
-
-        if (!na.dat || na.len == 0) {
-            if (ns.delBlankAssets)
-                continue;
-            
-            continue; //uhh.. :3
-        }
-    }
-
     //compute hls
     u64 v,x = 0;
     do {
         x++;
-        v = fast_log2(f.nassets * x * 3);
+        v = fast_log2(ctx.nEntries * x * 3);
         v = (v >> 3) + ((v & 7) > 0);
     } while(x < v && x < 8);
     const size_t hls = x;
@@ -492,15 +476,93 @@ i64 genDirectoryFmt1(ByteStream *s, nomfile f, nomsettings ns, size_t maxFdatOff
     const size_t hz = hls * hashSz;
     byte *hashTable = new byte[hz];
     ZeroMem(hashTable, hz);
-
-    //populate da hash table
-
-    //write da hash table
-    s->writeBytes(hashTable, hz);
-
-    //free da hash table
+    const size_t hashFPos = s->tell(); //seek to here and then write the proper hash table once all sectors are written and calculated
+    s->skip(hz); //reserve area to hash table we will write here later
 
     //write all of the sectors
+    if (maxSuSz == 0) {
+        if (m > 0) {
+            maxSuSz = m;
+        } else {
+            std::cout << "nom error: max extries in a sub-sector was 0" << std::endl;
+            return -1;
+        }
+    }
+
+    i64 *us_off = new i64[n_unqLens], *off_stack = new i64[maxSuSz], *ofc = off_stack;
+    i32 u = -1, ngu = -1;
+
+    size_t ofo = 0; //off stack offset
+
+    uLen = mu_i_infinity_64;
+
+    i32 j;
+
+    #define _off_stack_push(v) (*ofc++ = (v)); ofo++
+    #define _off_stack_ptr_pop() (*--ofc)
+    #define _off_stack_reset() (ofc = off_stack); ofo=0
+    
+    //create the sectors and sub-sectors
+    //write sub-sectors
+    for (i = 0; i < ctx.nEntries; i++) {
+        na = *fa;
+        l = na.id.idp_lens[0];
+
+        if (l != uLen) {
+            uLen = l;
+            u++;
+
+            //u-check
+            if (u >= n_unqLens) {
+                std::cout << "nom error: large u value: " << u << std::endl;
+                break;
+            }
+
+            //write the sub-sector
+            us_off[u] = s->tell(); //note the offset of the subsector in order to write it in the sector
+            s->writeByte(0); //flags
+            s->writeUInt(ofo, hls); //n entries (hls byte uint)
+
+            i64 off;
+
+            for (j = 0; j < ofo; j++) {
+                off = _off_stack_ptr_pop();
+
+                if (off < 0) {
+                    std::cout << "nom warning: offset value was < 0" << std::endl;
+                    continue;
+                }
+
+                //write the entry
+                s->writeBytes(reinterpret_cast<byte*>(ctx.entries[i].id.id_dat), l);
+                s->writeUInt(ctx.entries[i].off, nOffsetBytes);
+            }
+            
+            _off_stack_reset();
+        }
+
+        if (u < 0) {
+            std::cout << "nom warning: weird u value: " << u << std::endl;
+            u = 0;
+        }
+
+        //////No code accessing p_sector above here///////
+        _off_stack_push(s->tell());
+
+        //last good u for debug / handling debug reasons
+        ngu = u;
+    }
+
+    //write main sectors
+
+    //write hash table
+    s->seek(hashFPos);
+
+    //todo: free memory
+    _safe_free_a(us_off);
+    _safe_free_a(off_stack);
+
+    //modify context and call this function again to write other tables
 }
 
 void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
@@ -519,9 +581,6 @@ void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
     actx.stream = &s;
     actx.file = f;
     actx.ns = ns;
-
-    constexpr size_t nOffsetBytes = 8;
-
     actx.ext_inf.nOffsetBytes = nOffsetBytes;
 
     //write first half of primary file header
