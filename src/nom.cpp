@@ -393,6 +393,11 @@ void computeAssetPathHashes(dirEntry *e, size_t n) {
 //will write the primary directory and all sub directory onto the end of the given stream
 //will return the offset of the directory in the stream
 //TODODODODOTOTOTODTODOTODTODOTDOTDOTODTODOTTODO: process the ids of the assets backwards instead of forwards or something since we need to properly note the offsets (or add something where the stream can just jump and write the offset in the entry ex-post-facto)
+//TODO: also make sure the recurssion doesn't exceed the stack size
+//TODO: only sort for the first iteration since the whole reshuffling thing for each consecutive call shouldn't scramble the entries; they should remained properly sorted
+//TODO: compute sha hashes to ensure that no entry shares the same id
+//      --> this can be done in the parent function that calls this recursion algorithm
+//TODO: add a function to properly add junk to ctx.junk within the entries and ids that would need to be freed at the end
 i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
     static_assert(__nea_max_hash <= 32, "NEA hash hard max (__nea_max_hash) exceeds 32bits!");
 
@@ -692,7 +697,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
         na.id.nParts--; //decrement number of parts
         na.id.id_dat += na.id.idp_lens[0]; //go to beginning of the next id
         na.id.idp_lens++; //go to the next length
-        na.id.p_hash++; //go to next phash (although not used :P)
+        na.id.p_hash++; //go to next phash
 
         //insert the entry properly (this whole thing should work since i should always trail ahead of j, and thus, j will never overwrite a non-processed entry)
         ctx.entries[j++] = na;
