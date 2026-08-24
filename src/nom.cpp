@@ -292,7 +292,7 @@ const Version nea_ver = {
 struct dirEntry {
     asset_id id;
     size_t off;
-    u32 hash;
+    u32 hash = 0;
 };
 
 struct dirInf {
@@ -344,6 +344,9 @@ i32 __de_comp(dirEntry &a, dirEntry &b) {
     asset_id aid = a.id,
              bid = b.id;
 
+    if (a.hash != b.hash)
+        return a.hash - b.hash;
+
     if (aid.idp_lens[0] != bid.idp_lens[0])
         return aid.idp_lens[0] - bid.idp_lens[0];
 
@@ -389,6 +392,7 @@ void computeAssetPathHashes(dirEntry *e, size_t n) {
 
 //will write the primary directory and all sub directory onto the end of the given stream
 //will return the offset of the directory in the stream
+//TODODODODOTOTOTODTODOTODTODOTDOTDOTODTODOTTODO: process the ids of the assets backwards instead of forwards or something since we need to properly note the offsets (or add something where the stream can just jump and write the offset in the entry ex-post-facto)
 i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
     static_assert(__nea_max_hash <= 32, "NEA hash hard max (__nea_max_hash) exceeds 32bits!");
 
@@ -396,6 +400,8 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
 
     if (!s || ctx.nEntries == 0 || !ctx.entries)
         return -1;
+
+    const i64 rePos = (signed) s->tell(); //position that'll be returned
 
     //write dictionary format
     constexpr bit dictionary_offset_sign = 1; //positive hash table offsets
@@ -437,6 +443,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
            maxSuSz = 0; //max entries in a sub sector
 
     size_t l,m=0;
+    size_t nNextE = 0;
 
     for (i = 0; i < ctx.nEntries; i++) {
         na = *fa;
@@ -453,6 +460,13 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
             n_unqLens++;
         }
 
+        //compute the hash for each entry
+        fa->hash = compute_basic_hash_32(hashBits, fa->id.id_dat, fa->id.idp_lens[0]);
+
+        //get a count of number of entries that'll pass on
+        if (na.id.nParts > 1)
+            nNextE++;
+
         fa++;
     }
 
@@ -463,7 +477,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
         v = fast_log2(ctx.nEntries * x * 3);
         v = (v >> 3) + ((v & 7) > 0);
     } while(x < v && x < 8);
-    const size_t hls = x;
+    size_t hls = x;
     
     //fmt1 header
     s->writeByte(hls);
@@ -478,6 +492,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
     ZeroMem(hashTable, hz);
     const size_t hashFPos = s->tell(); //seek to here and then write the proper hash table once all sectors are written and calculated
     s->skip(hz); //reserve area to hash table we will write here later
+    const size_t hashEPos = s->tell(); //end pos of hash which will be the reference point for the offsets of the sectors
 
     //write all of the sectors
     if (maxSuSz == 0) {
@@ -489,7 +504,13 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
         }
     }
 
-    i64 *us_off = new i64[n_unqLens], *off_stack = new i64[maxSuSz], *ofc = off_stack;
+    struct su_inf {
+        i64 off;
+        size_t len;
+    };
+
+    su_inf *us_off = new su_inf[n_unqLens];
+    i64 *off_stack = new i64[maxSuSz], *ofc = off_stack;
     i32 u = -1, ngu = -1;
 
     size_t ofo = 0; //off stack offset
@@ -504,56 +525,147 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
     
     //create the sectors and sub-sectors
     //write sub-sectors
-    for (i = 0; i < ctx.nEntries; i++) {
-        na = *fa;
-        l = na.id.idp_lens[0];
+    /*
+    
+    start --> index of starting entry
+    nes --> number of total entries in the whole sector / subsector group
+    
+    */
+    auto writeSubsectorGroup = [&](i32 start, size_t nes) -> void {
+        _off_stack_reset();
+        fa = ctx.entries + start;
+        uLen = fa->id.idp_lens[0]; //start at 0
 
-        if (l != uLen) {
-            uLen = l;
-            u++;
+        const size_t end = nes + start;
 
-            //u-check
-            if (u >= n_unqLens) {
-                std::cout << "nom error: large u value: " << u << std::endl;
-                break;
-            }
+        for (i = start; i < end; i++) {
+            na = *fa;
+            l = na.id.idp_lens[0];
 
-            //write the sub-sector
-            us_off[u] = s->tell(); //note the offset of the subsector in order to write it in the sector
-            s->writeByte(0); //flags
-            s->writeUInt(ofo, hls); //n entries (hls byte uint)
+            if (l != uLen) {
+                uLen = l;
+                u++;
 
-            i64 off;
-
-            for (j = 0; j < ofo; j++) {
-                off = _off_stack_ptr_pop();
-
-                if (off < 0) {
-                    std::cout << "nom warning: offset value was < 0" << std::endl;
-                    continue;
+                //u-check
+                if (u >= n_unqLens) {
+                    std::cout << "nom error: large u value: " << u << std::endl;
+                    break;
                 }
 
-                //write the entry
-                s->writeBytes(reinterpret_cast<byte*>(ctx.entries[i].id.id_dat), l);
-                s->writeUInt(ctx.entries[i].off, nOffsetBytes);
-            }
+                //write the sub-sector
+                us_off[u] = {
+                    .off = (signed) s->tell(),
+                    .len = l,
+                }; //note the offset of the subsector in order to write it in the sector
+                s->writeByte(0); //flags
+                s->writeUInt(ofo, hls); //n entries (hls byte uint)
+
+                i64 off;
+
+                for (j = 0; j < ofo; j++) {
+                    off = _off_stack_ptr_pop();
+
+                    if (off < 0) {
+                        std::cout << "nom warning: offset value was < 0" << std::endl;
+                        continue;
+                    }
+
+                    //write the entry
+                    s->writeBytes(reinterpret_cast<byte*>(ctx.entries[i].id.id_dat), l);
+                    s->writeUInt(ctx.entries[i].off, nOffsetBytes);
+                }
             
-            _off_stack_reset();
+                _off_stack_reset();
+            }
+
+            if (u < 0) {
+                std::cout << "nom warning: weird u value: " << u << std::endl;
+                u = 0;
+            }
+
+            //////No code accessing p_sector above here///////
+            _off_stack_push(s->tell());
+
+            //last good u for debug / handling debug reasons
+            ngu = u;
         }
-
-        if (u < 0) {
-            std::cout << "nom warning: weird u value: " << u << std::endl;
-            u = 0;
-        }
-
-        //////No code accessing p_sector above here///////
-        _off_stack_push(s->tell());
-
-        //last good u for debug / handling debug reasons
-        ngu = u;
-    }
+    };
 
     //write main sectors
+    u32 lHash = ctx.entries[0].hash;
+    dirEntry ce;
+
+    size_t nEForHash = 1;
+    i32 secStart = 0;
+
+    for (i = 0; i < ctx.nEntries; i++) {
+        ce = ctx.entries[i];
+
+        if (lHash != ce.hash) {
+            writeSubsectorGroup(secStart, nEForHash);
+
+            //number of subsectors is stored in u
+            const i32 nSubSec = u;
+
+            if (nSubSec < 0) {
+                std::cout << "failed to write format 1 sector: invalid number of sub-sectors" << std::endl;
+                continue;
+            }
+
+            //sector location check
+            size_t secPos = s->tell();
+
+            if (secPos < hashEPos) { //TODO: if what byte the end of hash means changes, then this must change too (to <= instead of <)
+                s->end();
+                secPos = s->tell();
+
+                if (secPos < hashEPos) {
+                    std::cout << "error hash is poorly positied" << std::endl;
+                    continue;
+                }
+            }
+
+            //ensure that hls is accurate
+            {
+                u32 chls = hls;
+                if ((chls = (fast_log2(secPos - hashEPos) >> 3)) > hls) {
+                    hls = chls;
+                    std::cout << "nom info/minor warning: hls was adjusted to: " << hls << std::endl;
+                }
+            }
+
+            //write the sector
+            s->writeByte(0); //write 0 for the offset sign of -1
+            s->writeUInt(nSubSec, hls);
+
+            for (j = 0; j < nSubSec; j++) { //write the length-offset pairs
+                s->writeUInt(us_off[j].len, nbll);
+
+                const i64 uoff = us_off[j].off;
+
+                if (uoff < 0 || uoff > mu_ui_infinity_32) {
+                    std::cout << "failed to write sub sector offset: " << uoff << " is not a valid offset" << std::endl;
+                    s->writeUInt32(0);
+                } else {
+                    s->writeUInt32((u32) uoff);
+                }
+            }
+
+            if (lHash >= hashSz || !hashTable) {
+                std::cout << "failed to log offset of sector in hash table! hash was: " << lHash << std::endl;
+            } else {
+                const size_t hoff = lHash * hls;
+                byte *htBase = hashTable + hoff;
+                for (j = ((hls-1) << 3); j >= 0; j -= 8)
+                    *htBase++ = ((secPos - hashEPos) >> j) & 0xff;
+            }
+            //prepare values for next sector write thingy
+            lHash = ce.hash;
+            nEForHash = 1;
+            secStart = i;
+        } else 
+            nEForHash++;
+    }
 
     //write hash table
     s->seek(hashFPos);
@@ -563,6 +675,32 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
     _safe_free_a(off_stack);
 
     //modify context and call this function again to write other tables
+    const size_t onEntries = ctx.nEntries;
+    ctx.nEntries = nNextE;
+
+    if (nNextE == 0)
+        return rePos;
+
+    j = 0; //j will be the insert position of the entry
+
+    for (i = 0; i < onEntries; i++) {
+        na = ctx.entries[i];
+
+        if (na.id.nParts <= 1)
+            continue; //skip since nothing left to pass on
+        
+        na.id.nParts--; //decrement number of parts
+        na.id.id_dat += na.id.idp_lens[0]; //go to beginning of the next id
+        na.id.idp_lens++; //go to the next length
+        na.id.p_hash++; //go to next phash (although not used :P)
+
+        //insert the entry properly (this whole thing should work since i should always trail ahead of j, and thus, j will never overwrite a non-processed entry)
+        ctx.entries[j++] = na;
+    }
+
+    _addDirectoryFmt1(ctx, maxFdatOff); //repeat le process
+
+    return rePos;
 }
 
 void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
