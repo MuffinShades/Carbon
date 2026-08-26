@@ -126,6 +126,19 @@ static bool _strCompare(std::string s1, std::string s2, bool lcmp = true, size_t
     return true;
 }
 
+static inline bool mu_safe_streq(char *s1, char *s2, size_t len1, size_t len2) {
+    if (!s1 || !s2) return false;
+    if (len1 != len2) return false;
+
+    i32 i = 0;
+
+    for (;i < len1; i++) {
+        if (*s1++ != *s2++) return false;
+    }
+
+    return true;
+}
+
 template<typename _Ty> static inline void _safe_free_a(_Ty*& m) {
     #ifdef MSFL_UTIL_MEM_DEBUG
     std::cout << "Freeing mem (A): " << (uintptr_t) m << std::endl;

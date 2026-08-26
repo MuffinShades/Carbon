@@ -293,6 +293,9 @@ struct dirEntry {
     asset_id id;
     size_t off;
     u32 hash = 0;
+    u64 hash64 = 0;
+    i64 woffAt = -1;
+    i32 link = -1;
 };
 
 struct dirInf {
@@ -398,7 +401,7 @@ void computeAssetPathHashes(dirEntry *e, size_t n) {
 //TODO: compute sha hashes to ensure that no entry shares the same id
 //      --> this can be done in the parent function that calls this recursion algorithm
 //TODO: add a function to properly add junk to ctx.junk within the entries and ids that would need to be freed at the end
-i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
+i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 writeOffAt = -1) {
     static_assert(__nea_max_hash <= 32, "NEA hash hard max (__nea_max_hash) exceeds 32bits!");
 
     ByteStream *s = ctx.s;
@@ -408,12 +411,25 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
 
     const i64 rePos = (signed) s->tell(); //position that'll be returned
 
+    //write the offset real quick in the prev dir
+    if (writeOffAt > 0) {
+        if (s->size() < writeOffAt) {
+            s->seek(writeOffAt);
+            s->writeUInt(rePos, nOffsetBytes);
+            s->seek(rePos);
+        } else {
+            std::cout << "failed to write offset for position: " << writeOffAt << std::endl;
+        }
+    }
+
     //write dictionary format
     constexpr bit dictionary_offset_sign = 1; //positive hash table offsets
     s->writeByte(_NOM_MAKE_FMT_BYTE(dictionary_offset_sign, dictionary_fmt_1));
 
+    std::cout << "FMT Byte: " << _NOM_MAKE_FMT_BYTE(dictionary_offset_sign, dictionary_fmt_1) << std::endl;
+
     //compute hash sizing
-    size_t hashBits = fast_log2(ctx.nEntries);
+    size_t hashBits = mu_max(1, fast_log2(ctx.nEntries));
     hashBits = ((hashBits >> 3) + ((hashBits & 7) > 0)) << 3;
 
     if (ctx.ns.maxHashBits > __nea_max_hash) ctx.ns.maxHashBits = __nea_max_hash;
@@ -456,6 +472,8 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
         l = na.id.idp_lens[0];
 
         nbll = mu_max(nbll, fast_log2(l));
+        if ((nbll & 7) != 0) nbll += 8;
+
         maxLen = mu_max(maxLen, l);
 
         m++;
@@ -467,6 +485,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
 
         //compute the hash for each entry
         fa->hash = compute_basic_hash_32(hashBits, fa->id.id_dat, fa->id.idp_lens[0]);
+        fa->hash64 = compute_basic_hash_64(63, fa->id.id_dat, fa->id.idp_lens[0]);
 
         //get a count of number of entries that'll pass on
         if (na.id.nParts > 1)
@@ -483,6 +502,8 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
         v = (v >> 3) + ((v & 7) > 0);
     } while(x < v && x < 8);
     size_t hls = x;
+
+    std::cout << "HLS: " << hls << " | NBLL: " << nbll << " | HBITS: " << hashBits << std::endl;
     
     //fmt1 header
     s->writeByte(hls);
@@ -522,7 +543,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
 
     uLen = mu_i_infinity_64;
 
-    i32 j;
+    i32 j, freeLink = 0;
 
     #define _off_stack_push(v) (*ofc++ = (v)); ofo++
     #define _off_stack_ptr_pop() (*--ofc)
@@ -543,11 +564,22 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
 
         const size_t end = nes + start;
 
+        dirEntry ent, lent, la;
+
+        i32 li = start; //last i that begins the whole sub sector
+
+        std::cout << "Writing subsectors for: " << start << " >>to>> " << end << std::endl;
+
+        bool at_last;
+
         for (i = start; i < end; i++) {
             na = *fa;
+            if (i > start) la = *(fa-1);
             l = na.id.idp_lens[0];
+            at_last = i == end-1;
 
-            if (l != uLen) {
+            if (l != uLen || at_last) {
+                if (at_last) _off_stack_push(s->tell());
                 uLen = l;
                 u++;
 
@@ -567,7 +599,9 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
 
                 i64 off;
 
-                for (j = 0; j < ofo; j++) {
+                const auto sie = ofo + li;
+
+                for (j = li; j < sie; j++) {
                     off = _off_stack_ptr_pop();
 
                     if (off < 0) {
@@ -576,11 +610,30 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
                     }
 
                     //write the entry
-                    s->writeBytes(reinterpret_cast<byte*>(ctx.entries[i].id.id_dat), l);
-                    s->writeUInt(ctx.entries[i].off, nOffsetBytes);
+                    ent = ctx.entries[j];
+
+                    //skip duplicate entry but still link it
+                    if (j > li) {
+                        lent = ctx.entries[j-1];
+
+                        if (lent.hash64 == ent.hash64 && mu_safe_streq(lent.id.id_dat, ent.id.id_dat, lent.id.idp_lens[0], ent.id.idp_lens[0])) {
+                            ctx.entries[j].link = lent.link;
+                            ctx.entries[j].woffAt = -1; //set the offset to -1 in order to not have multiple modifications
+                            continue;
+                        }
+                    }
+
+                    //write entry and create a new link
+                    ctx.entries[j].link = freeLink++;
+                    s->writeBytes(reinterpret_cast<byte*>(ent.id.id_dat), l);
+                    ctx.entries[j].woffAt = s->tell();
+                    s->writeUInt(ent.id.nParts <= 1 ? ent.off : 0, nOffsetBytes); //write a 0 as a place holder so the write off at can modify later
                 }
             
                 _off_stack_reset();
+                li = i;
+
+                if (at_last) continue;
             }
 
             if (u < 0) {
@@ -596,18 +649,21 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
         }
     };
 
-    //write main sectors
+    //TODO: ACTUALLY WRITE THE HASH TABLE!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    ///////////////////////////////
     u32 lHash = ctx.entries[0].hash;
     dirEntry ce;
 
     size_t nEForHash = 1;
     i32 secStart = 0;
 
+    //write main sectors
     for (i = 0; i < ctx.nEntries; i++) {
         ce = ctx.entries[i];
 
-        if (lHash != ce.hash) {
-            writeSubsectorGroup(secStart, nEForHash);
+        if (lHash != ce.hash || i == ctx.nEntries - 1) {
+            writeSubsectorGroup(secStart, nEForHash); //write the subsectors
 
             //number of subsectors is stored in u
             const i32 nSubSec = u;
@@ -681,31 +737,96 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0) {
 
     //modify context and call this function again to write other tables
     const size_t onEntries = ctx.nEntries;
-    ctx.nEntries = nNextE;
 
     if (nNextE == 0)
         return rePos;
 
     j = 0; //j will be the insert position of the entry
 
+    dirEntry la;
+
+    ctx.nEntries = 0;
+
     for (i = 0; i < onEntries; i++) {
         na = ctx.entries[i];
+
+        if (i > 0 && na.link != la.link) {
+            //if the entries are not linked then start the process
+            _addDirectoryFmt1(ctx, maxFdatOff, na.woffAt); //repeat le process
+
+            //effectivley an entry stack clear cmd
+            j = 0; //reset position of entries for next section
+            ctx.nEntries = 0;
+        }
+
+        cmod_proc:
 
         if (na.id.nParts <= 1)
             continue; //skip since nothing left to pass on
         
+        //effectivly a push to the entry stack
         na.id.nParts--; //decrement number of parts
         na.id.id_dat += na.id.idp_lens[0]; //go to beginning of the next id
         na.id.idp_lens++; //go to the next length
         na.id.p_hash++; //go to next phash
+        na.link = -1; //reset the link
+        ctx.nEntries++;
 
         //insert the entry properly (this whole thing should work since i should always trail ahead of j, and thus, j will never overwrite a non-processed entry)
         ctx.entries[j++] = na;
+        la = ctx.entries[i];
     }
 
-    _addDirectoryFmt1(ctx, maxFdatOff); //repeat le process
+    _addDirectoryFmt1(ctx, maxFdatOff); //flush out whatever is left if anything
 
     return rePos;
+}
+
+i64 WriteDirectoryFormat1(ByteStream *stream, nomfile f, nomsettings ns) {
+    if (!f.assets || f.nassets == 0) {
+        std::cout << "nom error: invalid file for writing directory fmt1" << std::endl;
+        return -1;
+    }
+
+    directoryGenContext1 ctx;
+
+    ctx.ns = ns;
+    ctx.nEntries = f.nassets;
+    ctx.s = stream;
+
+    //covert assets into entries
+    ctx.entries = new dirEntry[ctx.nEntries];
+
+    if (!ctx.entries) {
+        std::cout << "nom error: failed to alloc entries!" << std::endl;
+        return -1;
+    }
+
+    i32 i, j = 0; dirEntry *fa;
+
+    const size_t ne = ctx.nEntries;
+
+    for (i = 0; i < ne; i++) {
+        fa = ctx.entries + j;
+
+        asset_id id = f.assets[i]._side_info.id;
+
+        if (!id.id_dat || !id.idp_lens || id.nParts == 0) {
+            std::cout << "nom warning: skipped dir conversion for an asset" << std::endl;
+            ctx.nEntries--; //one less entry
+            std::cout << "nne: " << ctx.nEntries << std::endl;
+            continue;
+        }
+
+        std::cout << "successfully coverted an asset!" << std::endl;
+
+        in_memcpy(&fa->id, &id, sizeof(asset_id)); //copy over the id
+        fa->off = f.assets[i]._side_info.storage.offset;
+        j++;
+    }
+
+    std::cout << "NEntries: " << ctx.nEntries << std::endl;
+    return _addDirectoryFmt1(ctx);
 }
 
 void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
@@ -760,6 +881,7 @@ void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
 
         //compressed dat vars
         byte *sdat = sch.dat;
+        i64 wpos = -1;
         auto lg2l = (signed) fast_log2(na.len),
                  nbl = (signed) ((lg2l >> 3) + ((lg2l & 7) > 0));
 
@@ -792,7 +914,8 @@ void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
 
             //write the chunk
             //note: data is already compressed in genAssetDataChunk so no need to compress it here
-            i64 wpos = stream_write_chunk(actx, chonk, sch);
+            //wpos = stream_write_chunk(actx, chonk, sch);
+            wpos = 9999;
 
             if (wpos < 0) {
                 std::cout << "error failed to write asset: " << na._side_info.origin.f_path << std::endl;
@@ -816,8 +939,15 @@ void omn::WriteToFile(std::string opath, nomfile f, nomsettings ns) {
     //s.writeByte(unicorn_byte);
     //TODO: add stream functions to restore endians
 
-    //now create the whole directory of le assets
+    s.writeByte(0xaa);
+    s.writeByte(0xbb);
+    s.writeByte(0xcc);
+    s.writeByte(0xdd);
+    s.writeByte(0xee);
+    s.writeByte(0xff);
 
+    //now create the whole directory of le assets
+    const i64 prim_dir_pos = WriteDirectoryFormat1(&s, f, ns);
 
     //write to the file
     FileWrite::writeToBin(opath, s.getBytePtr(), s.size());
