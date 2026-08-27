@@ -413,7 +413,8 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
 
     //write the offset real quick in the prev dir
     if (writeOffAt > 0) {
-        if (s->size() < writeOffAt) {
+        std::cout << "writing woff at " << writeOffAt << std::endl;
+        if (s->size() > writeOffAt) {
             s->seek(writeOffAt);
             s->writeUInt(rePos, nOffsetBytes);
             s->seek(rePos);
@@ -514,11 +515,16 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
     //create da hash table
     const size_t hashSz = 1 << hashBits;
     const size_t hz = hls * hashSz;
+
+    std::cout << "Skipping: " << hz << " bytes for hash..." << std::endl;
+
     byte *hashTable = new byte[hz];
     ZeroMem(hashTable, hz);
     const size_t hashFPos = s->tell(); //seek to here and then write the proper hash table once all sectors are written and calculated
     s->skip(hz); //reserve area to hash table we will write here later
     const size_t hashEPos = s->tell(); //end pos of hash which will be the reference point for the offsets of the sectors
+
+    std::cout << "Hash poses: " << hashFPos << " ==> " << hashEPos << std::endl;
 
     //write all of the sectors
     if (maxSuSz == 0) {
@@ -626,7 +632,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
                     //write entry and create a new link
                     ctx.entries[j].link = freeLink++;
                     s->writeBytes(reinterpret_cast<byte*>(ent.id.id_dat), l);
-                    ctx.entries[j].woffAt = s->tell();
+                    ctx.entries[j].woffAt = s->tell() + 1;
                     s->writeUInt(ent.id.nParts <= 1 ? ent.off : 0, nOffsetBytes); //write a 0 as a place holder so the write off at can modify later
                 }
             
@@ -650,6 +656,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
     };
 
     //TODO: ACTUALLY WRITE THE HASH TABLE!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
     ///////////////////////////////
     u32 lHash = ctx.entries[0].hash;
@@ -684,6 +691,16 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
                     std::cout << "error hash is poorly positied" << std::endl;
                     continue;
                 }
+            }
+
+            //write into the hash table
+            if (lHash < hashSz) {
+                const size_t ret = s->seek(hashFPos + hls * lHash);
+                s->writeUInt(secPos, hls);
+                s->seek(ret);
+            } else {
+                std::cout << "error: sector hash is invalid | hash: " << lHash << std::endl;
+                continue;
             }
 
             //ensure that hls is accurate
@@ -738,7 +755,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
     //modify context and call this function again to write other tables
     const size_t onEntries = ctx.nEntries;
 
-    if (nNextE == 0)
+    if (nNextE == 0 || onEntries == 0)
         return rePos;
 
     j = 0; //j will be the insert position of the entry
@@ -747,16 +764,20 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
 
     ctx.nEntries = 0;
 
+    i64 lastWoff = ctx.entries[0].woffAt;
+
     for (i = 0; i < onEntries; i++) {
         na = ctx.entries[i];
 
         if (i > 0 && na.link != la.link) {
             //if the entries are not linked then start the process
-            _addDirectoryFmt1(ctx, maxFdatOff, na.woffAt); //repeat le process
+            std::cout << " WOAH: " << la.woffAt << std::endl;
+            _addDirectoryFmt1(ctx, maxFdatOff, lastWoff); //repeat le process
 
             //effectivley an entry stack clear cmd
             j = 0; //reset position of entries for next section
             ctx.nEntries = 0;
+            lastWoff = na.woffAt;
         }
 
         cmod_proc:
@@ -777,7 +798,7 @@ i64 _addDirectoryFmt1(directoryGenContext1 ctx, size_t maxFdatOff = 0, i64 write
         la = ctx.entries[i];
     }
 
-    _addDirectoryFmt1(ctx, maxFdatOff); //flush out whatever is left if anything
+    _addDirectoryFmt1(ctx, maxFdatOff, lastWoff); //flush out whatever is left if anything
 
     return rePos;
 }

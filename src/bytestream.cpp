@@ -939,7 +939,11 @@ void ByteStream::clip() {
 	this->resize(this->len);
 }
 
+//TODO: make sure this works properly
 void ByteStream::skip(size_t nBytes) {
+	const size_t p = this->tell();
+	const size_t ext = nBytes - (this->size() - p);
+	this->len_inc(ext);
 	this->pos_adv(nBytes);
 }
 
