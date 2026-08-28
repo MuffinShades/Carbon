@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<body>
+<center id='a'><input type="range" min="0" max="3" step="0.01" id="l"><br></center><script>
+
+const can = document.createElement('canvas');
+const ctx = can.getContext('2d');
+
+can.style = 'border: 1px solid #000;';
+
+const canW = 500;
+const canH = 300;
+
+can.width = canW;
+can.height = canH;
+const A = document.querySelector('#a');
+const cr = document.createElement('i');
+cr.innerHTML="<br>copyright lambdana software 2026-present";
+
+//weights: 0x08 0x4d 0x56 0x4d 0x08, 0x00 0x55 0x56 0x55 0x00
+
+A.appendChild(can);
+A.appendChild(cr);
+
+const T = document.querySelector('#l');
+
+const Tests = {
+
+basic: function(x,w,y0,y1) {
+    const g1 = 255 - Math.min(1, w) * 255;
+    const g0 = 255 - (Math.max(1, w) - 1) * 255 * 0.5;
+
+    console.log(w);
+
+    var chroma = [
+        `rgb(${g0},${g0},${g0})`,
+        `rgb(${g1},${g1},${g1})`,
+        `rgb(${g0},${g0},${g0})`
+    ];
+
+    for (var i = 0; i < chroma.length; i++) {
+        ctx.strokeStyle = chroma[i];
+        ctx.beginPath();
+        ctx.lineWidth = 1;
+        ctx.moveTo(x+i, y0);
+        ctx.lineTo(x+i, y1);
+        ctx.stroke();
+    }
+},
+
+clearTypeNoFilter: function(x,w,y0,y1) {
+    const g0 = 255 - Math.min(0.5, w) * 255 * 2;
+    const g1 = 255 - Math.min(1.0, w) * 255 * 1;
+    const g2 = 255 - (Math.max(1 + (2/3) * 0, Math.min(1 + (2/3) * 1, w)) - (1 + (2/3) * 0)) * 255 * (3/2), 
+          g3 = 255 - (Math.max(1 + (2/3) * 1, Math.min(1 + (2/3) * 2, w)) - (1 + (2/3) * 1)) * 255 * (3/2), 
+          g4 = 255 - (Math.max(1 + (2/3) * 2, Math.min(1 + (2/3) * 3, w)) - (1 + (2/3) * 2)) * 255 * (3/2);
+
+    console.log(w);
+
+    var chroma = [
+        `rgb(${g2},${g3},${g4})`,
+        `rgb(${g1},${g0},${g1})`,
+        `rgb(${g4},${g3},${g2})`
+    ];
+
+    for (var i = 0; i < chroma.length; i++) {
+        ctx.strokeStyle = chroma[i];
+        ctx.beginPath();
+        ctx.lineWidth = 1;
+        ctx.moveTo(x+i, y0);
+        ctx.lineTo(x+i, y1);
+        ctx.stroke();
+    }
+},
+
+clearTypeLumaFilter: function(x,w,y0,y1) {
+    const g0 = 255 - Math.min(0.5, w) * 255 * 2;
+    const g1 = 255 - Math.min(1.0, w) * 255 * 1;
+    const g2 = 255 - (Math.max(1 + (2/3) * 0, Math.min(1 + (2/3) * 1, w)) - (1 + (2/3) * 0)) * 255 * (3/2), 
+          g3 = 255 - (Math.max(1 + (2/3) * 1, Math.min(1 + (2/3) * 2, w)) - (1 + (2/3) * 1)) * 255 * (3/2), 
+          g4 = 255 - (Math.max(1 + (2/3) * 2, Math.min(1 + (2/3) * 3, w)) - (1 + (2/3) * 2)) * 255 * (3/2);
+
+    console.log(w);
+
+    const lr = 0.2126, lg = 0.7152, lb = 0.0722;
+
+    var chroma = [
+        `rgb(${g2 / lr},${g3 / lg},${g4 / lb})`,
+        `rgb(${g1 / lr},${g0 / lg},${g1 / lb})`,
+        `rgb(${g4 / lr},${g3 / lg},${g2 / lb})`
+    ];
+
+    for (var i = 0; i < chroma.length; i++) {
+        ctx.strokeStyle = chroma[i];
+        ctx.beginPath();
+        ctx.lineWidth = 1;
+        ctx.moveTo(x+i, y0);
+        ctx.lineTo(x+i, y1);
+        ctx.stroke();
+    }
+}
+
+
+};
+
+const sidePadd = 100, yPadd = 100;
+
+function render(w) {
+    if (w <= 0.00001)
+        return;
+
+    //
+    const k = Object.keys(Tests);
+    const step = (canW - (sidePadd * 2)) / k.length;
+
+    var x = sidePadd;
+
+    ctx.clearRect(0,0,can.width,can.height);
+    ctx.translate(0.5,0.5);
+
+    for (var i = 0; i < k.length; i++) {
+        if (typeof Tests[k[i]] == 'function')
+            Tests[k[i]](x + step * 0.5,w, yPadd, canH - yPadd);
+        x += step;
+    }
+
+    ctx.translate(-0.5,-0.5);
+}
+
+T.addEventListener('input', function() {
+    const v = T.value;
+
+    render(v);
+})
+
+const defSz = 1;
+setTimeout(function(){render(defSz);T.value = defSz;},100);
+
+</script>
+</body>
+</html>
