@@ -2,17 +2,19 @@
     "render": {
         "shader": {
             "font_frag": "../../src/font_render_ray_count_frag.glsl",
-            "font_vert": "",
-            "msdf_frag": "",
-            "msdf_vert": ""
+            "font_vert": "../../src/font_render_ray_count_vert.glsl",
+            "msdf_frag": "../../src/msdf_gl_accel.glsl",
+            "msdf_vert": "../../src/msdf_gl_accel_frag.glsl",
+            "basic_font_frag": "../../src/basic_font_frag.glsl",
+            "basic_font_vert": "../../src/basic_font_vert.glsl"
         }
     },
     "dat": {
 
     },
     "funny": {
-        "cat": "",
-        "saul": "",
+        "cat": "C:\\Users\\chris\\Downloads\\bong.jfif",
+        "saul": "C:\\Users\\chris\\Downloads\\saul.jfif",
         "getClipped": ""
     }
 }
