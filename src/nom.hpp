@@ -89,6 +89,7 @@ class omn {
 public:
     static void WriteToFile(std::string opath, nomfile f, nomsettings ns);
     static nomfile GenNomFileFromJson(std::string jsonPath);
+    static nomasset ExtractAssetFromFile(std::string src, std::string path);
 };
 
 class omnLoad {

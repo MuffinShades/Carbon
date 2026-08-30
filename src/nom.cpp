@@ -1290,3 +1290,111 @@ nomfile omn::GenNomFileFromJson(std::string jsonPath) {
     //
     return res;
 };
+
+//TODO: this function
+Version nomStreamReadVersion(ByteStream *s) {
+    Version ver;
+
+    if (!s) return ver;
+
+    s->skip(8);
+    return ver;
+}
+
+nomasset omn::ExtractAssetFromFile(std::string src, std::string path) {
+    nomasset a;
+
+    a.dat = nullptr;
+    a.len = 0;
+
+    if (src.length() == 0 || path.length() == 0)
+        return a;
+
+    std::vector<std::string> pDat = SplitString(path, '.');
+
+    if (pDat.size() == 0)
+        return a;
+
+    file f = FileWrite::readFromBin(src);
+
+    if (!f.dat || f.len == 0) {
+        std::cout << "nom error: failed to read find or read from asset file " << src << std::endl;
+        return a;
+    }
+
+    ByteStream s = ByteStream(f.dat, f.len);
+    s.seek(0);
+
+    //check to make sure right type of file
+    const size_t sig_len = sizeof(fih) / sizeof(char);
+
+    i32 i;
+
+    for (i = 0; i < sig_len; i++) {
+        if ((const char) s.readByte() != fih[i]) {
+            std::cout << "nom error: file sig was invalid" << std::endl;
+            s.free();
+            if (f.dat) _safe_free_a(f.dat);
+            return a;
+        }
+    }
+
+    const byte subFormat = s.readByte();
+
+    if (subFormat != 0) {
+        std::cout << "nom error: sub format was invalid, only subformat 0 is currently supported!" << std::endl;
+        s.free();
+        if (f.dat) _safe_free_a(f.dat);
+        return a;
+    }
+
+    Version fVer = nomStreamReadVersion(&s);
+    const byte unicornByte = s.readByte();
+
+    //process unicorn byte and offsets and what not
+    IntFormat fEndian = (IntFormat) ((unicornByte >> 7) & 1);
+    const i32 fBitFmt = 1 << ((unicornByte >> 5) & 3);
+    const size_t offsetLen = (unicornByte >> 1) & 7;
+
+    if (offsetLen > 8) {
+        std::cout << "nom error: failed to read nom file: offset was greater than 8 | Value was: " << offsetLen << std::endl;
+        goto unicorn_check_fail;
+    }
+
+    if (false) {
+    unicorn_check_fail:
+        s.free();
+        if (f.dat) _safe_free_a(f.dat);
+        return a;
+    }
+
+    //read and process offsets
+    const size_t chunkIdLen = s.readByte();
+    const size_t rsrvOff = s.readUInt(offsetLen);
+    const size_t rootDirOff = s.readUInt(offsetLen);
+    const size_t issueLogOff = s.readUInt(offsetLen);
+    
+    if (rootDirOff == ((1ULL << (offsetLen << 3ULL)) - 1ULL)) {
+        std::cout << "nom error: failed to read nom file: no root directory was noted as present..." << std::endl;
+        goto chunk_off_proc_fail;
+    }
+
+    if (chunkIdLen == 0) {
+        std::cout << "nom error: failed to read nom file: invalid chunk id length | Value: " << chunkIdLen << ", Expected: cid != 0" << std::endl;
+        goto chunk_off_proc_fail;
+    }
+
+    if (false) {
+    chunk_off_proc_fail:
+        s.free();
+        if (f.dat) _safe_free_a(f.dat);
+        return a;
+    }
+
+    //todo: process directory chunk and read asset from path
+
+    //mem manage and return
+    s.free();
+    if (f.dat) _safe_free_a(f.dat);
+    return a;
+}
