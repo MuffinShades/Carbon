@@ -4512,6 +4512,39 @@ f32 get_rc_cu_left_pos(gpu_rc_curve cu) {
 #endif
 }
 
+void printCharJson(Character c, FontInst *f) {
+    const bool sGrid = false;
+
+    ///////////////////////////////////////////
+    std::cout << std::endl;
+    std::cout << "\n{";
+    //inf
+    std::cout << "\"inf\":{"; //inf
+    std::cout << "\"dim\":{"; //dim
+
+    std::cout << "},"; //dim
+    std::cout << "\"showGrid\":" << sGrid;
+    std::cout << "},"; //inf
+
+    std::cout << "\"dat\":[";
+
+    i32 i, j;
+
+    for (j = c.rc_Dat.rc_curve_start; j <= c.rc_Dat.rc_curve_end; j++) {
+        if (j < 0 || j >= f->rc_dat.nCurves)
+            continue;
+
+        std::cout << "{\"p\":[";
+
+        std::cout << "],\"c\":[";
+
+        std::cout << "]}";
+    }
+
+    std::cout << "]";
+    std::cout << "}\n" << std::endl;
+}
+
 /**********************************************************
  * 
  * Auto font tweaking
@@ -4701,6 +4734,10 @@ void find_font_curve_friends(FontInst *font) {
         Character& c = font->gdata[k];
 
         process_glf(c, process_glf);
+
+        if (c.val == (u32) 'B') {
+            printCharJson(c, font);
+        }
     }
 
     //check width orientation

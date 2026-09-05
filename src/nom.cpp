@@ -1394,6 +1394,8 @@ nomasset omn::ExtractAssetFromFile(std::string src, std::string path) {
     //todo: process directory chunk and read asset from path
     s.seek(rootDirOff);
 
+    
+
     //mem manage and return
     s.free();
     if (f.dat) _safe_free_a(f.dat);

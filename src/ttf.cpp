@@ -941,12 +941,16 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
         if ((bool)GetFlagValue(flag, PointFlag_repeat)) {
             size_t repeatAmount = stream->readByte();
 
-            while (repeatAmount--)
-                flags[++i] = flag;
+            while (repeatAmount--) {
+                if (++i >= nPoints)
+                    break;
+                flags[i] = flag;
+            }
         }
     }
 
     //now do point stuff
+    std::cout << "np: " << nPoints << std::endl;
     Point* glyphPoints = new Point[nPoints];
 
     //x coordinates
