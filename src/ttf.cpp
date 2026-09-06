@@ -894,14 +894,31 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
         return res;
     }
 
+    std::cout << "seeeeek" << std::endl;
     const size_t rPos = stream->seek(f->glyph_table.off + loc);
+
+    std::cout << "seeeeek yuh" << std::endl;
 
     //read some glyph data
     res.nContours = stream->readInt16();
+
+    std::cout << "seeeeek yuh1" << std::endl;
+
     res.xMin = stream->readFWord();
+
+    std::cout << "seeeeek yuh2" << std::endl;
+
     res.yMin = stream->readFWord();
+
+    std::cout << "seeeeek yuh3" << std::endl;
+
     res.xMax = stream->readFWord();
+
+    std::cout << "seeeeek yuh4" << std::endl;
+
     res.yMax = stream->readFWord();
+
+    std::cout << "seeeeek yuh5" << std::endl;
 
     if (res.nContours == 0) {
         std::cout << "ttf warning: found no contours!" << std::endl;
@@ -909,8 +926,11 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     }
 
     if (res.nContours < 0) {
+        std::cout << "ret: " << res.nContours << std::endl;
         return read_compound_glyph(stream, f);
     }
+
+    std::cout << "alloc: " << res.nContours << std::endl;
 
     //for now we can only read simple glyphs
     i32* contourEnds = new i32[res.nContours];
@@ -952,6 +972,7 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     //now do point stuff
     std::cout << "np: " << nPoints << std::endl;
     Point* glyphPoints = new Point[nPoints];
+    std::cout << " allco fin " << std::endl;
 
     //x coordinates
     for (i = 0; i < nPoints; i++) {
@@ -1022,6 +1043,8 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
         }
     }
 
+    std::cout << "gllf read..." << std::endl;
+
     //set res stuff
     res.points = glyphPoints;
     res.flags = flags;
@@ -1029,6 +1052,9 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     res.nPoints = nPoints;
 
     stream->seek(rPos);
+    
+    std::cout << "asdf " << std::endl;
+
     return res;
 }
 
@@ -1096,8 +1122,10 @@ Glyph ttfParse::ReadTTFGlyph(std::string src, u32 id) {
 
     tGlyph.char_id = (offset == 0) * -1 + (offset != 0) * (id);
 
+    std::cout << "dat del" << std::endl;
     delete[] fBytes.dat;
     fStream.free();
+    std::cout << "dat del done" << std::endl;
 
     return tGlyph;
 }
@@ -1263,6 +1291,8 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
     //SimpleHashMap e_glyph_mabobidfk;
 
     i32 k,l;
+
+    std::cout << "//reading glyphs\\\\" << std::endl;
     
     //read in the glyphs
     for (r = 0; r < rd.nRanges; r++) {
@@ -1274,7 +1304,11 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
         gs.minChar = mu_min(gs.minChar, rd.min[r]);
 
         for (ucode_i = rd.min[r]; ucode_i < rd.max[r]; ucode_i++) {
+            std::cout << "loc read" << std::endl;
             i32 loc = getUnicodeOffset(&fStream, &f, ucode_i), offset;
+            std::cout << "lor done" << std::endl;
+
+            std::cout << cc.size() << std::endl;
 
             for (k = 0; k < cc.size(); k++) {
                 Glyph cg = cc[k];
@@ -1285,10 +1319,14 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                 }
             }
 
+            std::cout << "ggh" << std::endl;
+
             if (false) {
             skip_glf_add:
                 continue;
             }
+
+            std::cout << "ggh2" << std::endl;
 
             if (loc >= 0) {
                 offset = getGlyphOffset(&fStream, &f, loc);
@@ -1307,12 +1345,16 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                 continue; //dont add the glyph since it is gonna be a missing character anyways
             }
 
+            std::cout << "ggh3" << std::endl;
+
             const i32 gi = tg++;
 
             glf = read_glyph(&fStream, &f, offset);
             glf.char_id = ucode_i;
             glf.glyph_id = gi;
             gs.glyphs[gi] = glf;
+
+            std::cout << "set glyph dat 4: " << r << " / " << ucode_i << std::endl;
 
             //gs.minGlyphId = mu_min(gs.minGlyphId, gi);
 
@@ -1322,16 +1364,18 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
             else if (gi < f.n_metrics)
                 glf.h_inf = f.h_metrics[gi];
 
+            std::cout << "mmmm" << std::endl;
+
             //handle compound glyphs
             if (glf.compound) {
                 GlyphPart co;
-
+                std::cout << "reading compound dat" << std::endl;
                 for (k = 0; k < glf.compound_inf.nGlyphParts; k++) {
                     co = glf.compound_inf.glyph_parts[k];
 
                     bool copy = false;
 
-                    for (Glyph cg : cc) {
+                    for (const Glyph& cg : cc) {
                         if (co.idx == cg.glyph_id) {
                             copy = true;
                             break;
@@ -1341,6 +1385,8 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                     if (copy)
                         continue;
 
+                    std::cout << "A";
+
                     for (l = 0; l < tg; l++) {
                         if (co.idx == gs.glyphs[l].glyph_id) {
                             copy = true;
@@ -1348,17 +1394,27 @@ GlyphSet ttfParse::GenerateGlyphSet(std::string src, UnicodeRange charRange) {
                         }
                     }
 
+                    std::cout << "B";
+
                     if (copy)
                         continue;
 
+                    std::cout << "C";
+
                     i32 co_off = getGlyphOffset(&fStream, &f, co.idx);
+
+                    std::cout << "D";
                     Glyph co_glf = read_glyph(&fStream, &f, co_off);
+
+                    std::cout << "E" << std::endl;
                     co_glf.glyph_id = co.idx;
                     co_glf.char_id = -2;
                     co_glf.component = true;
                     cc.push_back(co_glf);
                 }
             }
+
+            std::cout << "eh" << std::endl;
         }
     }
 

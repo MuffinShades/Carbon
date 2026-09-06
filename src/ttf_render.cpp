@@ -11,14 +11,20 @@
 
 #define MSFL_TTFRENDER_DEBUG
 
-#define MSDF_ACCEL_SHADER_PATH_VERT "../../src/msdf_gl_accel_vert.glsl"
-#define MSDF_ACCEL_SHADER_PATH_FRAG "../../src/msdf_gl_accel.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_VERT "../../src/msdf_precision_correction_vert.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_FRAG "../../src/msdf_precision_correction_frag.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_TCS "../../src/msdf_precision_correction_tcs.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_TES "../../src/msdf_precision_correction_tes.glsl"
-#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_VERT "../../src/msdf_pc_appl_vert.glsl"
-#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_FRAG "../../src/msdf_pc_appl_frag.glsl"
+#define MSDF_ACCEL_SHADER_PATH_VERT "../src/msdf_gl_accel_vert.glsl"
+#define MSDF_ACCEL_SHADER_PATH_FRAG "../src/msdf_gl_accel.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_VERT "../src/msdf_precision_correction_vert.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_FRAG "../src/msdf_precision_correction_frag.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TCS "../src/msdf_precision_correction_tcs.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TES "../src/msdf_precision_correction_tes.glsl"
+#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_VERT "../src/msdf_pc_appl_vert.glsl"
+#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_FRAG "../src/msdf_pc_appl_frag.glsl"
+
+#define DEF_FONT_SHADER_VERT_SRC "../src/basic_font_vert.glsl"
+#define DEF_FONT_SHADER_FRAG_SRC "../src/basic_font_frag.glsl"
+
+#define SIMPLE_RC_SHADER_VERT_SRC "../src/font_render_ray_count_vert.glsl"
+#define SIMPLE_RC_SHADER_FRAG_SRC "../src/font_render_ray_count_adv_frag.glsl"
 
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 constexpr f32 chonk_number = 3.402e38f; //number that is chonk
@@ -4016,13 +4022,6 @@ void graphics::ini_rc_font_state() {
 
     rcFontRenderStateCreated = true;
 }
-
-//todo: set these paths
-#define DEF_FONT_SHADER_VERT_SRC "../../src/basic_font_vert.glsl"
-#define DEF_FONT_SHADER_FRAG_SRC "../../src/basic_font_frag.glsl"
-
-#define SIMPLE_RC_SHADER_VERT_SRC "../../src/font_render_ray_count_vert.glsl"
-#define SIMPLE_RC_SHADER_FRAG_SRC "../../src/font_render_ray_count_adv_frag.glsl"
 
 /*
 MAJOR TODO:
