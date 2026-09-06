@@ -15,11 +15,12 @@
                     "bl": [-500.0, 500.0],
                     "br": [500.0, 500.0]
                 },
-                "showGrid": 0
+                "showGrid": 0,
+                "maintainDerivatives": 1
             },
             "dat": [
                 {
-                    "p":[[0.0,0.0],[100.0,0.0],[200.0,0.0]],
+                    "p":[[0.0,0.0],[100.0,-100.0],[200.0,0.0]],
                     "c": [[2,2],[-1,0],[1,0]]
                 },
                 {
@@ -126,8 +127,8 @@ var run = (function(edat) {
     can.style = 'border: 1px solid #999; border-radius: 3px;';
 
     ///
-    var ddim = dat.inf;
-    if (ddim) ddim = ddim.dim;
+    var iinf = dat.inf, ddim = null;
+    if (iinf) ddim = iinf.dim;
 
     var ctrans = {
         x: 0,
@@ -146,7 +147,14 @@ var run = (function(edat) {
         ctrans.y = -ddim.tl[1] * ctrans.ys;
     }
 
+    var mDeriv = false;
+
+    if (iinf.maintainDerivatives) {
+        mDeriv = iinf.maintainDerivatives;
+    }
+
     console.log(ddim, ctrans);
+    console.log(mDeriv);
 
     const options = dat.inf;
 
@@ -215,8 +223,68 @@ var run = (function(edat) {
         render.all(ctrans);
 
         if (movCurve >= 0) {
+            var cMag = function (cc, p0, p1) {
+                return Math.sqrt((cc.p[p0].x - cc.p[p1].x) ** 2 + (cc.p[p0].y - cc.p[p1].y) ** 2);
+            }
+
+            var pDot = function(p0, p1) {
+                return p0.x * p1.x + p0.y * p1.y;
+            }
+
+            var pAdd = function(p0, p1) {
+                return {
+                    x: p0.x + p1.x,
+                    y: p0.y + p1.y
+                };
+            }
+
+            var pSub = function(p0, p1) {
+                return {
+                    x: p0.x - p1.x,
+                    y: p0.y - p1.y
+                };
+            }
+
+            var pScale = function(p, s) {
+                return {
+                    x: p.x * s,
+                    y: p.y * s
+                };
+            }
+
+            const epsil_min = 0.0001;
+            const m1 = cMag(cu[movCurve], 0, 1), m2 = cMag(cu[movCurve], 0, 2);
+            if (m1 < epsil_min) m1 = epsil_min;
+            if (m2 < epsil_min) m2 = epsil_min;
+            var magR = m1 / m2,
+                _dot = pDot(
+                    pScale(
+                        pSub(cu[movCurve].p[1], cu[movCurve].p[0])
+                    , 1.0 / m1), 
+                    /*pScale( 
+                        pSub(cu[movCurve].p[2], cu[movCurve].p[0])
+                    , 1.0 / m2)*/
+                    {x:1.0,y:0.0}
+                );
+
+            if (_dot > 1.0) _dot = 1.0;
+            if (_dot < -1.0) _dot = -1.0;
+
+            var mTheta = Math.acos(_dot);
+
+            console.log(m1, m2, mTheta, _dot, magR);
+
+            const dir = pSub(cu[movCurve].p[2], cu[movCurve].p[0]);
+
             cu[movCurve].p[movPoint].x = (mouse.x + mdx - ctrans.x)  / ctrans.xs;
             cu[movCurve].p[movPoint].y = (mouse.y + mdy - ctrans.y)  / ctrans.ys;
+
+            if (movPoint != 1 && mDeriv) {
+                const M = magR * m2;
+
+                cu[movCurve].p[1].x = cu[movCurve].p[0].x + Math.cos(mTheta) * M * Math.sign(dir.x);
+                cu[movCurve].p[1].y = cu[movCurve].p[0].y + Math.sin(mTheta) * M * Math.sign(dir.y);
+            }
 
             const cc = cu[movCurve].p[movPoint];
 
@@ -268,7 +336,7 @@ var run = (function(edat) {
     render.all(ctrans);
 });
 
-            //run(testDat);
+            run(testDat);
         </script>
         <button onclick="(function(){var d = document.getElementById('h').value; run(d);})();">go</button>
     </body>

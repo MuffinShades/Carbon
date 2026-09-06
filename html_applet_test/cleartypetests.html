@@ -74,9 +74,15 @@ clearTypeNoFilter: function(x,w,y0,y1) {
 },
 
 clearTypeLumaFilter: function(x,w,y0,y1) {
-    const g0 = 255 - Math.min(0.5, w) * 255 * 2;
-    const g1 = 255 - Math.min(1.0, w) * 255 * 1;
-    const g2 = 255 - (Math.max(1 + (2/3) * 0, Math.min(1 + (2/3) * 1, w)) - (1 + (2/3) * 0)) * 255 * (3/2), 
+    const chromaRCoeff = [0.5, -0.4187, -0.0813],
+          chromaBCoeff = [-0.1687, -0.3313, 0.5],
+          lumaCoeff = [0.299, 0.587, 0.114];
+
+    const noLumaDelta = 0.02, noChromaDelta = 0.05;
+
+    var g0 = 255 - Math.min(0.5, w) * 255 * 2;
+    var g1 = 255 - Math.min(1.0, w) * 255 * 1;
+    var g2 = 255 - (Math.max(1 + (2/3) * 0, Math.min(1 + (2/3) * 1, w)) - (1 + (2/3) * 0)) * 255 * (3/2), 
           g3 = 255 - (Math.max(1 + (2/3) * 1, Math.min(1 + (2/3) * 2, w)) - (1 + (2/3) * 1)) * 255 * (3/2), 
           g4 = 255 - (Math.max(1 + (2/3) * 2, Math.min(1 + (2/3) * 3, w)) - (1 + (2/3) * 2)) * 255 * (3/2);
 
@@ -84,18 +90,47 @@ clearTypeLumaFilter: function(x,w,y0,y1) {
 
     const lr = 0.2126, lg = 0.7152, lb = 0.0722;
 
+    var computeChromaR = function(r,g,b) {
+        return r*chromaRCoeff[0]+g*chromaRCoeff[1]+b*chromaRCoeff[2]+128;
+    }
+
+    var computeChromaB = function(r,g,b) {
+        return r*chromaBCoeff[0]+g*chromaBCoeff[1]+b*chromaBCoeff[2]+128;
+    }
+    var computeLuma = function(r,g,b) {
+        return r*lumaCoeff[0]+g*lumaCoeff[1]+b*lumaCoeff[2];
+    }
+
+    var constructRgb = function(y,cr,cb) {
+        return [y + 1.402 * (cr - 128), y - 0.34414 * (cb - 128) - 0.71414 * (cr - 128), y + 1.772 * (cb - 128)];
+    }
+
+    var procColor = function(r,g,b, tr,tg,tb) {
+        var ccr = computeChromaR(r,g,b), tcr = computeChromaR(tr,tg,tb);
+        var ccb = computeChromaR(r,g,b), tcb = computeChromaR(tr,tg,tb);
+        var cy = computeLuma(r,g,b);
+
+        console.log(tcr, ccr);
+
+        return constructRgb(cy, 128, 128);
+    }
+
+    var adjg24 = procColor(g2,g3,g4,0,0,0);
+
+    g2 = adjg24[0]; g3 = adjg24[1]; g4 = adjg24[2];
+
     var chroma = [
-        `rgb(${g2 / lr},${g3 / lg},${g4 / lb})`,
-        `rgb(${g1 / lr},${g0 / lg},${g1 / lb})`,
-        `rgb(${g4 / lr},${g3 / lg},${g2 / lb})`
+        `rgb(${g2},${g3},${g4})`,
+        `rgb(${g1},${g0},${g1})`,
+        `rgb(${g4},${g3},${g2})`
     ];
 
     for (var i = 0; i < chroma.length; i++) {
         ctx.strokeStyle = chroma[i];
         ctx.beginPath();
-        ctx.lineWidth = 1;
-        ctx.moveTo(x+i, y0);
-        ctx.lineTo(x+i, y1);
+        ctx.lineWidth = 3;
+        ctx.moveTo(x+i*3, y0);
+        ctx.lineTo(x+i*3, y1);
         ctx.stroke();
     }
 }

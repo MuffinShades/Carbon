@@ -116,7 +116,7 @@ _IHDR ProcessIDHR(png_chunk hChunk) {
 
 	h_stream.int_mode = IntFormat_BigEndian;
 
-	l.LogHex(h_stream.getBytePtr(), h_stream.size());
+	//l.LogHex(h_stream.getBytePtr(), h_stream.size());
 
 	_IHDR header = {
 		.w = h_stream.readUInt32(),
@@ -346,23 +346,6 @@ byte* defilterDat(byte* i_dat, const size_t datSz, _IHDR *hdr) {
 	return out;
 };
 
-//decode a file
-/*png_image PngParse::Decode(ContentSrc src) {
-	png_image rs;
-	if (src == "" || src.length() <= 0)
-		return rs;
-	file fDat = FileWrite::readFromBin(src);
-
-	//error check
-	if (!fDat.dat) {
-		std::cout << "Failed to read png..." << std::endl;
-		return rs;
-	}
-	rs = PngParse::DecodeBytes(fDat.dat, fDat.len);
-	delete[] fDat.dat;
-	return rs;
-}*/
-
 //to free png chunk
 void free_png_chunk(png_chunk* p) {
 	if (p && p->dat) {
@@ -393,8 +376,6 @@ png_image PngParse::Decode(ContentSrc src) {
 		if ((sig_byte_read = stream.readByte()) != sig_byte) {
 			std::cout << "[png error] invalid png sig! Got: " << (i32) sig_byte_read << " expected: " << (i32) sig_byte << std::endl;
 			return rpng;
-		} else {
-			std::cout << "sig check: " << sig_byte_read << std::endl;
 		}
 	}
 
@@ -467,6 +448,9 @@ png_image PngParse::Decode(ContentSrc src) {
 		case IEND:
 			extraChunks = false;
 			break;
+		default:
+			std::cout << "png error: non idat chunk within the idat chunks" << std::endl;
+			break;
 		}
 
 		if (curIdata.type == IEND || curIdata.type != IDAT) {
@@ -506,8 +490,8 @@ png_image PngParse::Decode(ContentSrc src) {
 	byte* imgDat;
 	size_t iDPos = 0;
 
-	l.Log("Compressed Data: ");
-	l.LogHex(compressedIdata, mu_min(256, compressedIdataSz));
+	//l.Log("Compressed Data: ");
+	//l.LogHex(compressedIdata, mu_min(256, compressedIdataSz));
 
 	//FileWrite::writeToBin("idatDumpCompressed.bin", compressedIdata, compressedIdataSz);
 	
@@ -520,10 +504,10 @@ png_image PngParse::Decode(ContentSrc src) {
 	imgDat = rawImgData.data;
 	size_t decodeDatSz = rawImgData.sz;
 
-	l.Log("Decompressed Data: ");
-	l.LogHex(imgDat, mu_min(256, decodeDatSz));
+	//l.Log("Decompressed Data: ");
+	//l.LogHex(imgDat, mu_min(256, decodeDatSz));
 
-	std::cout << "Expected Size: " << expectedDataSz << " | Actual Size: " << decodeDatSz << std::endl;
+	//std::cout << "Expected Size: " << expectedDataSz << " | Actual Size: " << decodeDatSz << std::endl;
 
 	//check calculatinos
 	if (decodeDatSz != expectedDataSz) {
@@ -543,7 +527,7 @@ png_image PngParse::Decode(ContentSrc src) {
 	const size_t defilterSize = p_header.w * p_header.h * p_header.bytesPerPixel;
 
 	//for testing just write data to a bitmap
-	Bitmap testOut;
+	/*Bitmap testOut;
 	testOut.header.w = p_header.w;
 	testOut.header.h = p_header.h;
 	testOut.header.fSz = decodeDatSz - p_header.h;
@@ -554,7 +538,7 @@ png_image PngParse::Decode(ContentSrc src) {
 
 	l.DrawBitMapClip(70,70,testOut);
 
-	BitmapParse::WriteToFile("testpngread.bmp", &testOut);
+	BitmapParse::WriteToFile("testpngread.bmp", &testOut);*/
 
 	p_header.from_src = true;
 
@@ -573,6 +557,30 @@ png_image PngParse::Decode(ContentSrc src) {
 		.sz = decodeDatSz,
 		.inf = h
 	};
+}
+
+bool writeIHDR(ByteStream *s, _IHDR hdr) {
+	if (!s) {
+		std::cout << "failed to write png header: bad stream" << std::endl;
+		return false;
+	}
+
+	if (hdr.w == 0 || hdr.h == 0) {
+		std::cout << "failed to write png header: width or height are 0" << std::endl;
+		return false;
+	}
+
+	s->int_mode = IntFormat::IntFormat_BigEndian;
+
+	s->writeUInt32(hdr.w);
+	s->writeUInt32(hdr.h);
+	s->writeByte(hdr.bitDepth);
+	s->writeByte(hdr.colorSpace);
+	s->writeByte(hdr.compressionMethod);
+	s->writeByte(hdr.filterType);
+	s->writeByte(hdr.interlaced & 1);
+
+	return true;
 }
 
 bool PngParse::Encode(std::string src, png_image p) {
@@ -594,7 +602,7 @@ bool PngParse::Encode(std::string src, png_image p) {
 		.interlaced = false
 	};
 
-	//TODO: this
+	
 
 	return true;
 }
