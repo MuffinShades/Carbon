@@ -894,43 +894,28 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
         return res;
     }
 
-    std::cout << "seeeeek" << std::endl;
     const size_t rPos = stream->seek(f->glyph_table.off + loc);
 
-    std::cout << "seeeeek yuh" << std::endl;
+    std::cout << "Reading at:" << stream->tell() << " | off: " << f->glyph_table.off << ", " << loc << std::endl;
 
     //read some glyph data
     res.nContours = stream->readInt16();
 
-    std::cout << "seeeeek yuh1" << std::endl;
-
     res.xMin = stream->readFWord();
-
-    std::cout << "seeeeek yuh2" << std::endl;
-
     res.yMin = stream->readFWord();
-
-    std::cout << "seeeeek yuh3" << std::endl;
-
     res.xMax = stream->readFWord();
-
-    std::cout << "seeeeek yuh4" << std::endl;
-
     res.yMax = stream->readFWord();
-
-    std::cout << "seeeeek yuh5" << std::endl;
 
     if (res.nContours == 0) {
         std::cout << "ttf warning: found no contours!" << std::endl;
         return res;
     }
 
+    std::cout << "Num cont: " << res.nContours << std::endl;
     if (res.nContours < 0) {
         std::cout << "ret: " << res.nContours << std::endl;
         return read_compound_glyph(stream, f);
     }
-
-    std::cout << "alloc: " << res.nContours << std::endl;
 
     //for now we can only read simple glyphs
     i32* contourEnds = new i32[res.nContours];
@@ -970,9 +955,7 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     }
 
     //now do point stuff
-    std::cout << "np: " << nPoints << std::endl;
     Point* glyphPoints = new Point[nPoints];
-    std::cout << " allco fin " << std::endl;
 
     //x coordinates
     for (i = 0; i < nPoints; i++) {
@@ -1043,8 +1026,6 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
         }
     }
 
-    std::cout << "gllf read..." << std::endl;
-
     //set res stuff
     res.points = glyphPoints;
     res.flags = flags;
@@ -1052,8 +1033,6 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
     res.nPoints = nPoints;
 
     stream->seek(rPos);
-    
-    std::cout << "asdf " << std::endl;
 
     return res;
 }

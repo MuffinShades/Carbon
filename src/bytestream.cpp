@@ -442,9 +442,26 @@ void ByteStream::writeInt(i64 val, size_t nBytes) {
 	if (this->int_mode != __getOSEndian()) val = endian_swap(val, nBytes);
 	this->len_inc(nBytes);
 
+	const size_t onBytes = nBytes;
+
+	size_t valOff = 0;
+
 	//block overflow stuff
-	if ((this->blockPos += nBytes) >= this->cur_block->sz) {
-		const size_t left = this->cur_block->sz - (this->blockPos - nBytes);
+	if ((this->blockPos + nBytes) >= this->cur_block->sz) {
+		const size_t left = (this->cur_block->sz) - this->blockPos;
+
+		if (left > nBytes) {
+			std::cout << "Stream fail: invalid left size" << std::endl;
+			std::cout << this->cur_block->sz << " \\ " << this->blockPos << " \\ " << nBytes << std::endl;
+			return;
+		}
+
+		//std::cout << "vv: " << val << " | " << (left << 3) << " " << right_b << std::endl;
+		//val = ((val >> right_b) & lMask) | ((val & MAKE_MASK_64(right_b)) << left_b);
+		//std::cout << "vv: " << val << std::endl;
+
+
+
 		in_minicpy256(this->cur, &val, left);
 
 		//block adv
@@ -454,30 +471,38 @@ void ByteStream::writeInt(i64 val, size_t nBytes) {
 		}
 
 		//adjust int yk
-		val >>= (left << 3);
+		valOff = left;
 		//this->blockPos = (nBytes -= left);
 		//this->blockPos = nBytes;
+		nBytes -= left;
 	}
 
 	//right hand copy / base copy
-	in_minicpy256(this->cur, &val, nBytes);
+	in_minicpy256(this->cur, ((byte*) &val) + valOff, nBytes);
 
 	this->cur += nBytes;
-	this->pos += nBytes;
+	this->pos += onBytes;
 	this->blockPos = this->pos - this->cur_block->pos;
 }
 
 void ByteStream::writeUInt(u64 val, size_t nBytes) {
-	//numeric clease :3
+	/*//numeric clease :3
 	if (nBytes <= 0) return;
 	if (nBytes > 8) nBytes = 8;
 	if (this->int_mode != __getOSEndian()) val = endian_swap(val, nBytes);
 	this->len_inc(nBytes);
 
 	//block overflow stuff
-	if ((this->blockPos += nBytes) >= this->cur_block->sz) {
-		const size_t left = this->cur_block->sz - (this->blockPos - nBytes);
-		in_minicpy256(this->cur, &val, left);
+	if ((this->blockPos + nBytes) >= this->cur_block->sz) {
+		const size_t left = (this->cur_block->sz - 1) - this->blockPos;
+
+		if (left > nBytes) {
+			std::cout << "Stream fail: invalid left size" << std::endl;
+			std::cout << this->cur_block->sz << " \\ " << this->blockPos << " \\ " << nBytes << std::endl;
+			return;
+		}
+
+		if (left > 0) in_minicpy256(this->cur, &val, left);
 
 		//block adv
 		if (!this->block_adv(0,1)) {
@@ -489,13 +514,62 @@ void ByteStream::writeUInt(u64 val, size_t nBytes) {
 		val >>= (left << 3);
 		//this->blockPos = (nBytes -= left);
 		//this->blockPos = nBytes;
+		nBytes -= left;
 	}
-
+ 
 	//right hand copy / base copy
 	in_minicpy256(this->cur, &val, nBytes);
 
 	this->cur += nBytes;
 	this->pos += nBytes;
+	this->blockPos = this->pos - this->cur_block->pos;*/
+
+	//numeric clease :3
+	if (nBytes <= 0) return;
+	if (nBytes > 8) nBytes = 8;
+	if (this->int_mode != __getOSEndian()) val = endian_swap(val, nBytes);
+	this->len_inc(nBytes);
+
+	const size_t onBytes = nBytes;
+
+	size_t valOff = 0;
+
+	//block overflow stuff
+	if ((this->blockPos + nBytes) >= this->cur_block->sz) {
+		const size_t left = (this->cur_block->sz) - this->blockPos;
+
+		if (left > nBytes) {
+			std::cout << "Stream fail: invalid left size" << std::endl;
+			std::cout << this->cur_block->sz << " \\ " << this->blockPos << " \\ " << nBytes << std::endl;
+			return;
+		}
+
+		//std::cout << "vv: " << val << " | " << (left << 3) << " " << right_b << std::endl;
+		//val = ((val >> right_b) & lMask) | ((val & MAKE_MASK_64(right_b)) << left_b);
+		//std::cout << "vv: " << val << std::endl;
+
+
+
+		in_minicpy256(this->cur, &val, left);
+
+		//block adv
+		if (!this->block_adv(0,1)) {
+			std::cout << "Failed to block advance!" << std::endl;
+			return;
+		}
+
+		//adjust int yk
+		valOff = left;
+		//this->blockPos = (nBytes -= left);
+		//this->blockPos = nBytes;
+		nBytes -= left;
+	}
+
+	//right hand copy / base copy
+	in_minicpy256(this->cur, ((byte*) &val) + valOff, nBytes);
+
+	this->cur += nBytes;
+	this->pos += onBytes;
 	this->blockPos = this->pos - this->cur_block->pos;
 }
 
@@ -1049,11 +1123,23 @@ void ByteStream::__printDebugInfo() {
 		c_chunk = c_chunk->next;
 	}
 
+	Logger l;
+
 	std::cout << "| N Chunks: " << nChunks << std::endl;
 	std::cout << "|\n";
 	std::cout << "| Pos: " << this->pos << "\n";
 	std::cout << "| Block: " << this->blockPos << " / " << this->cur_block->sz << "\n";
 	std::cout << "--------Area Dump--------" << std::endl;
+	if (this->cur_block && this->cur_block->dat && this->cur_block->sz > 0) {
+		std::cout << "Current Block: " << std::endl;
+		FileWrite::writeToBin("cur_block.dump.bin", this->cur_block->dat, this->cur_block->sz);
+		mem_block *prev = this->cur_block->prev;
+		if (prev && prev->dat && prev->sz > 0) {
+			std::cout << "Previous Block: " << std::endl;
+			FileWrite::writeToBin("prev_block.dump.bin", prev->dat, prev->sz);
+		}
+		std::cout << std::endl;
+	}
 	std::cout << "\n#######################" << std::endl;
 }
 
