@@ -970,7 +970,8 @@ Glyph read_glyph(ttfStream* stream, ttfFile* f, u32 loc) {
                     break;
                 flags[i] = flag;
             }
-        }
+        } 
+        //warning: don't add any code at or after this comment since the value of i can be unpredictable
     }
 
     //now do point stuff
