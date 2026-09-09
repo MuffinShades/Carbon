@@ -207,6 +207,18 @@ void ByteStream::block_end() {
 
 void ByteStream::set_stream_data(byte* dat, const size_t sz) {
 	if (!dat || sz <= 0) return;
+
+	const size_t datSetWarn = (1ULL << mu_min(63ULL, this->security.lenIncWarningLevel));
+
+	if (sz >= datSetWarn) {
+		if (sz >= (1ULL << mu_min(63ULL, this->security.lenIncAbsoluteMax))) {
+			std::cout << "stream error: allocating too many bytes | attempted to allocate " << sz << " bytes" << std::endl;
+			return;
+		}
+
+		std::cout << "stream warning: setting large number of " << sz << " bytes" << std::endl;
+	}
+
 	this->free();
 
 	size_t bytesLeft = sz, blck_sz = 0;
@@ -286,9 +298,18 @@ void ByteStream::len_inc() {
 }
 
 void ByteStream::len_inc(const size_t sz) {
-	this->len += sz;
+	const size_t nbWarn = (1ULL << mu_min(63ULL, this->security.lenIncWarningLevel));
 
-	std::cout << "New Len: " << sz << std::endl;
+	if (sz >= nbWarn) {
+		if (sz >= (1ULL << mu_min(this->security.lenIncAbsoluteMax, 63ULL))) {
+			std::cout << "stream error: failed increase length by " << sz << " bytes | INCREMENT WAY TOO LARGE" << std::endl;
+			return;
+		}
+
+		std::cout << "stream warning: large increase length of " << nbWarn << " bytes" << std::endl;
+	}
+
+	this->len += sz;
 
 	while (this->len >= this->allocSz) {
 		this->add_new_block(this->blockAllocSz);

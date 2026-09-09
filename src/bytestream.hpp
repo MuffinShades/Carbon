@@ -131,6 +131,30 @@ protected:
 	byte* cur = nullptr;
 	mem_block* alloc_new_block(size_t blockSz);
 
+	struct {
+		/*
+		
+		Will check for length increments greater than or equal to 2 ^ this number and
+		wil flag a warning
+		
+		*/
+		u8 lenIncWarningLevel = 30;
+		/*
+		
+		Same procedure as previous value but will error and not allocate for values
+		greater than or equal to this number
+		
+		*/
+		u8 lenIncAbsoluteMax = 33;
+		/*
+		
+		Same idea as lenIncWarningLevel but with initial allocation
+		
+		*/
+		u8 iniAllocWarningLevel = 30;
+		u8 iniAllocAbsMax = 33;
+	} security;
+
 	/*
 
 	block_append important info
