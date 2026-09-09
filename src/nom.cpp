@@ -257,10 +257,12 @@ Chunk genAssetDataChunk(nomasset a) {
     if (a._side_info.storage.compression != CompressionMode::None) {
         res.h.ty = ChunkType::CompressedDat;
 
+        balloon_result cres;
+
         switch (a._side_info.storage.compression) {
         case CompressionMode::Zlib:
             //compress the chunk data
-            balloon_result cres = Balloon::Deflate(res.dat, res.h.len);
+            cres = Balloon::Deflate(res.dat, res.h.len);
 
             if (!cres.data || cres.sz == 0) {
                 std::cout << "Asset error: failed to compress data! Zlib failed" << std::endl;

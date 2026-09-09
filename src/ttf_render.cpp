@@ -29,8 +29,13 @@
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 constexpr f32 chonk_number = 3.402e38f; //number that is chonk
 
+#ifdef WIN32
 constexpr f64 very_smol_number = DBL_MIN;
 constexpr f64 very_chonk_number = DBL_MAX;
+#else 
+constexpr f64 very_smol_number = 2.22507e-308;
+constexpr f64 very_chonk_number = 1.7976931348623157e+308;
+#endif
 
 
 //frequencies for the whole heuristics thingy to load common characters into memory better

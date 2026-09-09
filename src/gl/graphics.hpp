@@ -5,7 +5,7 @@
 #include "mesh.hpp"
 #include "vertex.hpp"
 #include "../bitmap.hpp"
-#include "../Color.hpp"
+#include "../color.hpp"
 
 #define _CARBONGL_SHADOW_SPECIAL_VAL 0xfb01
 

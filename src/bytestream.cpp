@@ -221,6 +221,8 @@ void ByteStream::set_stream_data(byte* dat, const size_t sz) {
 		this->block_append(block);
 	} while ((i64)(bytesLeft -= blck_sz) > 0);
 
+	std::cout << "Stream dat set len: " << sz << std::endl;
+
 	this->len = sz;
 	this->blockPos = 0;
 
@@ -285,6 +287,8 @@ void ByteStream::len_inc() {
 
 void ByteStream::len_inc(const size_t sz) {
 	this->len += sz;
+
+	std::cout << "New Len: " << sz << std::endl;
 
 	while (this->len >= this->allocSz) {
 		this->add_new_block(this->blockAllocSz);
@@ -1016,8 +1020,11 @@ void ByteStream::clip() {
 //TODO: make sure this works properly
 void ByteStream::skip(size_t nBytes) {
 	const size_t p = this->tell();
-	const size_t ext = nBytes - (this->size() - p);
-	this->len_inc(ext);
+	const auto rdiff = this->size() - p;
+	if (rdiff < nBytes) {
+		const size_t ext = nBytes - rdiff;
+		this->len_inc(ext);
+	}
 	this->pos_adv(nBytes);
 }
 
