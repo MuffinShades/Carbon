@@ -21,8 +21,8 @@ public:
 #define UI_VAL_PERCENT(v) USpec(v, USpec::Mode::percent)
 #define UI_VAL_SCALAR(v) USpec(v, USpec::Mode::scalar)
 
-#define UI_SIMPLE_SHADER_VERT_PATH "../src/gl/ui/uiShaders/uiSimple_vert.glsl"
-#define UI_SIMPLE_SHADER_FRAG_PATH "../src/gl/ui/uiShaders/uiSimple_frag.glsl"
+#define UI_SIMPLE_SHADER_VERT_PATH "../../src/gl/ui/uiShaders/uiSimple_vert.glsl"
+#define UI_SIMPLE_SHADER_FRAG_PATH "../../src/gl/ui/uiShaders/uiSimple_frag.glsl"
 
 struct UIDimension {
     USpec x, y, w, h;

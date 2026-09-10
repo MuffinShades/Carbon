@@ -11,20 +11,20 @@
 
 #define MSFL_TTFRENDER_DEBUG
 
-#define MSDF_ACCEL_SHADER_PATH_VERT "../src/msdf_gl_accel_vert.glsl"
-#define MSDF_ACCEL_SHADER_PATH_FRAG "../src/msdf_gl_accel.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_VERT "../src/msdf_precision_correction_vert.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_FRAG "../src/msdf_precision_correction_frag.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_TCS "../src/msdf_precision_correction_tcs.glsl"
-#define MSDF_ACCEL_CC_SHADER_PATH_TES "../src/msdf_precision_correction_tes.glsl"
-#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_VERT "../src/msdf_pc_appl_vert.glsl"
-#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_FRAG "../src/msdf_pc_appl_frag.glsl"
+#define MSDF_ACCEL_SHADER_PATH_VERT "../../src/msdf_gl_accel_vert.glsl"
+#define MSDF_ACCEL_SHADER_PATH_FRAG "../../src/msdf_gl_accel.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_VERT "../../src/msdf_precision_correction_vert.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_FRAG "../../src/msdf_precision_correction_frag.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TCS "../../src/msdf_precision_correction_tcs.glsl"
+#define MSDF_ACCEL_CC_SHADER_PATH_TES "../../src/msdf_precision_correction_tes.glsl"
+#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_VERT "../../src/msdf_pc_appl_vert.glsl"
+#define MSDF_ACCEL_CC_COMPOSITE_SHADER_PATH_FRAG "../../src/msdf_pc_appl_frag.glsl"
 
-#define DEF_FONT_SHADER_VERT_SRC "../src/basic_font_vert.glsl"
-#define DEF_FONT_SHADER_FRAG_SRC "../src/basic_font_frag.glsl"
+#define DEF_FONT_SHADER_VERT_SRC "../../src/basic_font_vert.glsl"
+#define DEF_FONT_SHADER_FRAG_SRC "../../src/basic_font_frag.glsl"
 
-#define SIMPLE_RC_SHADER_VERT_SRC "../src/font_render_ray_count_vert.glsl"
-#define SIMPLE_RC_SHADER_FRAG_SRC "../src/font_render_ray_count_adv_frag.glsl"
+#define SIMPLE_RC_SHADER_VERT_SRC "../../src/font_render_ray_count_vert.glsl"
+#define SIMPLE_RC_SHADER_FRAG_SRC "../../src/font_render_ray_count_adv_frag.glsl"
 
 constexpr f32 smol_number = 1.175e-38f; //number that is smol
 constexpr f32 chonk_number = 3.402e38f; //number that is chonk
@@ -1323,7 +1323,7 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu, i32 connect) {
     const Point b = pointScale(pointSub(cu->p[1], cu->p[0]), 2.0f);
     const f32 dz = (-0.5f * b.y) / (cu->p[0].y - 2.0f * cu->p[1].y + cu->p[2].y);
 
-    if (dz >= 1 || dz <= 0) {
+    if (dz >= 1 || dz <= 0 || isnan(dz)) {
         ctx->curveBuf[ctx->wOff++] = {
             .p0 = {cu->p[0].x, cu->p[0].y},
             .p1 = {cu->p[1].x, cu->p[1].y},
@@ -1338,8 +1338,19 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu, i32 connect) {
         Point piv = pointAdd(pointScale(aa, dz2), pointAdd(pointScale(b, dz), cu->p[0]));
         const f32 la = (piv.y - cu->p[0].y) / b.y,
                   lb = (piv.y - cu->p[2].y) / (2.0f * aa.y + b.y); //labubu
+
         Point pa = pointAdd(cu->p[0], pointScale(b, la)),
               pb = pointAdd(cu->p[2], pointScale(pointAdd(pointScale(aa, 2.0f), b), lb));
+
+
+        if (isnan(pa.x) || isnan(pb.x) || isnan(pa.y) || isnan(pb.y)) {
+            std::cout << "Nan Found: " << pa.x << ", " << pa.y << ", " << pb.x << ", " << pb.y << std::endl;
+            std::cout << "\tla,  lb:" << la << " | " << lb << std::endl;
+            std::cout << "\tpiv x|y: " << piv.x << " | " << piv.y << std::endl;
+            std::cout << "\tdz, dz2: " << dz << " | " << dz2 << std::endl;
+            std::cout << "\tpx: " << cu->p[0].x << "-" << cu->p[1].x << "-" << cu->p[2].x << std::endl;
+            std::cout << "\tpy: " << cu->p[0].y << "-" << cu->p[1].y << "-" << cu->p[2].y << std::endl;
+        }
 
         //adjust the connections
         //that's gonna be fun
@@ -4516,6 +4527,8 @@ f32 get_rc_cu_left_pos(gpu_rc_curve cu) {
 #endif
 }
 
+#include <cmath>
+
 void printCharJson(Character c, FontInst *f) {
     const bool sGrid = false;
 
@@ -4526,6 +4539,11 @@ void printCharJson(Character c, FontInst *f) {
     std::cout << "\"inf\":{"; //inf
     std::cout << "\"dim\":{"; //dim
 
+    std::cout << "\"tl\":[" << c.dim.ranges.xMin << "," << c.dim.ranges.yMin << "],";
+    std::cout << "\"tr\":[" << c.dim.ranges.xMax << "," << c.dim.ranges.yMin << "],";
+    std::cout << "\"bl\":[" << c.dim.ranges.xMin << "," << c.dim.ranges.yMax << "],";
+    std::cout << "\"br\":[" << c.dim.ranges.xMax << "," << c.dim.ranges.yMax << "]";
+
     std::cout << "},"; //dim
     std::cout << "\"showGrid\":" << sGrid;
     std::cout << "},"; //inf
@@ -4534,15 +4552,38 @@ void printCharJson(Character c, FontInst *f) {
 
     i32 i, j;
 
+    auto jNan = [](f32 v) -> std::string {
+        if (isnan(v)){
+            return "-999.0";
+        } else {
+            return std::to_string(v);
+        }
+    };
+
     for (j = c.rc_Dat.rc_curve_start; j <= c.rc_Dat.rc_curve_end; j++) {
         if (j < 0 || j >= f->rc_dat.nCurves)
             continue;
 
         std::cout << "{\"p\":[";
 
+        gpu_rc_curve cu = f->rc_dat.lcs[j];
+
+        std::cout << "[" << jNan(cu.p0[0]) << ", " << jNan(cu.p0[1]) << "],";
+        std::cout << "[" << jNan(cu.p1[0]) << ", " << jNan(cu.p1[1]) << "],";
+        std::cout << "[" << jNan(cu.p2[0]) << ", " << jNan(cu.p2[1]) << "]";
+
         std::cout << "],\"c\":[";
 
+        const u16 connect0 = (cu.cu_connect >> 16) & 0xFFFF,
+                  connect1 = (cu.cu_connect) & 0xFFFF;
+
+        std::cout << "[" << ((connect0 & 0x7FFF) - c.rc_Dat.rc_curve_start) << "," << (((connect0 >> 15) & 1) << 1) << "],";
+        std::cout << "[-1,0],";
+        std::cout << "[" << ((connect1 & 0x7FFF) - c.rc_Dat.rc_curve_start) << "," << (((connect1 >> 15) & 1) << 1) << "]";
         std::cout << "]}";
+
+        if (j < c.rc_Dat.rc_curve_end)
+            std::cout << ",";
     }
 
     std::cout << "]";

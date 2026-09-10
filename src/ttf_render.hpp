@@ -230,7 +230,7 @@ struct gpu_rc_curve {
     Bit 0 1 2 3 4 5 6 7 ... 15
      0b C I I I I I I I ... I
 
-    C --> 1bit curve selector that determines whether the curve is connected to point 0 or 1
+    C --> 1bit curve selector that determines whether the curve is connected to point 0 or 2
         C=0: curve is attached to p0 of the other curve
         C=1: curve is attached to p2 of the other curve
     I --> 15bit uint that stores the index of the curve that the connection references
