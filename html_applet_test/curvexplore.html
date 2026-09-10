@@ -5,6 +5,9 @@
     </head>
     <body>
         <textarea placeholder='input json here' id='h'></textarea>
+        <div style="display:none;" id="">
+
+        </div>
         <script>
             var testDat = `
             {
@@ -287,6 +290,8 @@ var run = (function(edat) {
             }
 
             const cc = cu[movCurve].p[movPoint];
+
+            console.log(cc);
 
             if (cc.ci >= 0) {
                 cu[cc.ci].p[cc.cp].x = cu[movCurve].p[movPoint].x;

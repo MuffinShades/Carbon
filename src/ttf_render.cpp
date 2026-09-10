@@ -1456,7 +1456,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
     }
 
     beg_p_idx = 0;
-    i32 contStart = rcCtx->wOff, c = 0;
+    i32 contStart = rcCtx->wOff, c = 0, glfStart = rcCtx->wOff;
     i32 cur_connect = 0;
 
     for (i = 0; i < nPoints; i++) {
@@ -1496,8 +1496,8 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
         #define _wOff_prev(ctx) (ctx->wOff-1)
         #define _mask_con0(co) co &= 0xFFFF0000
         #define _mask_con2(co) co &= 0x0000FFFF
-        #define _set_con0(co, pSelect, cuIdx) co |= (((((pSelect) & 1) << 15) | ((cuIdx) & 0x7FFF)) << 16)
-        #define _set_con2(co, pSelect, cuIdx) co |= ((((pSelect) & 1) << 15) | ((cuIdx) & 0x7FFF))
+        #define _set_con0(co, pSelect, cuIdx) co &= 0x0000FFFF; co |= (((((pSelect) & 1) << 15) | ((cuIdx) & 0x7FFF)) << 16)
+        #define _set_con2(co, pSelect, cuIdx) co &= 0xFFFF0000; co |= ((((pSelect) & 1) << 15) | ((cuIdx) & 0x7FFF))
         #define TTF_CU_CONNECTION_SELECT_P0 0
         #define TTF_CU_CONNECTION_SELECT_P2 1
 
@@ -1507,6 +1507,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
 
             if (rcCtx) { 
                 if ((i == glyph_data.modifiedContourEnds[c] || i >= nPoints-3) && rcCtx->nCurves > contStart) {     // -----------------------------------------------------------------
+                    std::cout << "CONTOUR STUFF: " << (char) glyph_data.char_id << " (" << glyph_data.char_id << ") " << contStart << " | " << c << " " << (_wOff(rcCtx)-glfStart) << " | " << i << std::endl;
                     _mask_con0(rcCtx->curveBuf[contStart].cu_connect);                                              // Discard any junk in the p0 slot of the contour curve's connection
                     _set_con0(rcCtx->curveBuf[contStart].cu_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff(rcCtx));    // Set the p0 slot of the contour curve's connection to the second point in the current curve (final point in the contour)
                     _set_con2(cur_connect, TTF_CU_CONNECTION_SELECT_P0, contStart);                                 // Set the p2 slot of the current curve's connection to be the p0 (first) point of the first curve in the contour
@@ -4539,10 +4540,10 @@ void printCharJson(Character c, FontInst *f) {
     std::cout << "\"inf\":{"; //inf
     std::cout << "\"dim\":{"; //dim
 
-    std::cout << "\"tl\":[" << c.dim.ranges.xMin << "," << c.dim.ranges.yMin << "],";
-    std::cout << "\"tr\":[" << c.dim.ranges.xMax << "," << c.dim.ranges.yMin << "],";
-    std::cout << "\"bl\":[" << c.dim.ranges.xMin << "," << c.dim.ranges.yMax << "],";
-    std::cout << "\"br\":[" << c.dim.ranges.xMax << "," << c.dim.ranges.yMax << "]";
+    std::cout << "\"tl\":[" << c.dim.ranges.xMin << "," << c.dim.ranges.yMax << "],";
+    std::cout << "\"tr\":[" << c.dim.ranges.xMax << "," << c.dim.ranges.yMax << "],";
+    std::cout << "\"bl\":[" << c.dim.ranges.xMin << "," << c.dim.ranges.yMin << "],";
+    std::cout << "\"br\":[" << c.dim.ranges.xMax << "," << c.dim.ranges.yMin << "]";
 
     std::cout << "},"; //dim
     std::cout << "\"showGrid\":" << sGrid;
