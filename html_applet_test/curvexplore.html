@@ -46,13 +46,22 @@ const clickGrace = 2;
             
 var curve = function(p0, p1, p2) {
     this.p = [p0,p1,p2];
-    this.colorComponent = {
+    /*this.colorComponent = {
         r: Math.random() * 255,
         g: Math.random() * 255,
         b: Math.random() * 255
+    };*/
+    this.colorComponent = {
+        r: 0,
+        g: 0,
+        b: 0
     };
     this.color = `rgb(${this.colorComponent.r}, ${this.colorComponent.g}, ${this.colorComponent.b})`;
     this.darkColor = `rgb(${this.colorComponent.r * 0.75}, ${this.colorComponent.g * 0.75}, ${this.colorComponent.b * 0.75})`;
+    this.updateColor = function() {
+        this.color = `rgb(${this.colorComponent.r}, ${this.colorComponent.g}, ${this.colorComponent.b})`;
+        this.darkColor = `rgb(${this.colorComponent.r * 0.75}, ${this.colorComponent.g * 0.75}, ${this.colorComponent.b * 0.75})`;
+    };
     this.draw = function(ctx, translate) {
         const lw = 2;
 
