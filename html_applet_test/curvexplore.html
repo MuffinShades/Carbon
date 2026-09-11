@@ -4,10 +4,13 @@
         <title> </title>
     </head>
     <body>
-        <textarea placeholder='input json here' id='h'></textarea>
-        <div style="display:none;" id="">
-
+        <div id='inp'>
+            <textarea placeholder='input json here' id='h'></textarea>
         </div>
+        <div style="display:none;" id="controls">
+            <button id='zin'>Zoom In</button>
+            <button id='zout'>Zoom Out</button>
+        </div><br>
         <script>
             var testDat = `
             {
@@ -120,7 +123,7 @@ var run = (function(edat) {
 
     ctx.translate(0.5,0.5);
 
-    document.body.innerHTML = '';
+    document.getElementById('inp').style.display = 'none';
     document.body.appendChild(can);
     document.body.style = 'background-image:linear-gradient(#f9f9f9,#fff); width: 100%; height: 100%; position: absolute; top: 0; left: 0;';
 
@@ -140,7 +143,9 @@ var run = (function(edat) {
         ys: 1.0
     };
 
-    if (ddim) {
+    var zoomBox = ddim;
+
+    function computeTranslations(ddim) {
         const ww = ddim.tr[0] - ddim.tl[0], hh = ddim.bl[1] - ddim.tl[1];
 
         ctrans.xs = can.width / ww;
@@ -148,6 +153,10 @@ var run = (function(edat) {
 
         ctrans.x = -ddim.tl[0] * ctrans.xs;
         ctrans.y = -ddim.tl[1] * ctrans.ys;
+    }
+
+    if (zoomBox) {
+        computeTranslations(zoomBox);
     }
 
     var mDeriv = false;
@@ -338,11 +347,63 @@ var run = (function(edat) {
         movCurve = -1;
     });
 
+    const zoom = {
+        in: function() {
+            zoomBox.tl[0] += 50;
+            zoomBox.tr[0] -= 50;
+            zoomBox.bl[0] += 50;
+            zoomBox.br[0] -= 50;
+
+            zoomBox.tl[1] -= 50;
+            zoomBox.tr[1] -= 50;
+            zoomBox.bl[1] += 50;
+            zoomBox.br[1] += 50;
+
+            computeTranslations(zoomBox);
+            console.log(ctrans);
+            render.all(ctrans);
+        },
+        out: function() {
+            zoomBox.tl[0] -= 50;
+            zoomBox.tr[0] += 50;
+            zoomBox.bl[0] -= 50;
+            zoomBox.br[0] += 50;
+
+            zoomBox.tl[1] += 50;
+            zoomBox.tr[1] += 50;
+            zoomBox.bl[1] -= 50;
+            zoomBox.br[1] -= 50;
+
+            console.log(ctrans);
+            computeTranslations(zoomBox);
+            render.all(ctrans);
+        }
+    }
+
+    document.getElementById('zin').addEventListener('click', function(e) {
+        zoom.in();
+    })
+
+    document.getElementById('zout').addEventListener('click', function(e) {
+        zoom.out();
+    })
+
+    const ContourCorrect = {
+        findCurveFriends: function() {
+            
+        },
+        snapShape: function() {
+
+        }
+    };
+
     render.all(ctrans);
+
+    document.getElementById('controls').style.display = 'block';
 });
 
             //run(testDat);
         </script>
-        <button onclick="(function(){var d = document.getElementById('h').value; run(d);})();">go</button>
+        <button id='g' onclick="(function(){var d = document.getElementById('h').value; run(d); document.getElementById('g').style.display = 'none';})();">go</button>
     </body>
 </html>
