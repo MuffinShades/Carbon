@@ -1360,7 +1360,7 @@ inline void rc_process_curve(rcGenContext *ctx, BCurve *cu, i32 connect) {
             con1 = 
                  ((0x8000 + (c0 & 0x7FFF)) << 16) | //p0 connection for curve 2
                  (
-                    ((connect + 1) & 0x7FFF) | 
+                    (((connect & 0x7FFF) + 1) & 0x7FFF) | 
                     (connect & 0x8000)
                 );
 
@@ -1508,7 +1508,7 @@ glfEdgeObject generateGlyphEdges(Glyph glyph_data, gPData& points, size_t nPoint
             if (rcCtx) { 
                 if ((i == glyph_data.modifiedContourEnds[c] || i >= nPoints-3) && rcCtx->nCurves > contStart) {     // -----------------------------------------------------------------
                     std::cout << "CONTOUR STUFF: " << (char) glyph_data.char_id << " (" << glyph_data.char_id << ") " << contStart << " | " << c << " " << (_wOff(rcCtx)-glfStart) << " | " << i << std::endl;
-                    _mask_con0(rcCtx->curveBuf[contStart].cu_connect);                                              // Discard any junk in the p0 slot of the contour curve's connection
+                    //_mask_con0(rcCtx->curveBuf[contStart].cu_connect);                                              // Discard any junk in the p0 slot of the contour curve's connection
                     _set_con0(rcCtx->curveBuf[contStart].cu_connect, TTF_CU_CONNECTION_SELECT_P2, _wOff(rcCtx));    // Set the p0 slot of the contour curve's connection to the second point in the current curve (final point in the contour)
                     _set_con2(cur_connect, TTF_CU_CONNECTION_SELECT_P0, contStart);                                 // Set the p2 slot of the current curve's connection to be the p0 (first) point of the first curve in the contour
                     contStart = _wOff_next(rcCtx);                                                                  // Set the new contour start to be the next curve (NEED TO VERIFY THIS IS RIGHT AND NOT _wOff)
