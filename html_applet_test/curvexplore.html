@@ -6,10 +6,13 @@
     <body>
         <div id='inp'>
             <textarea placeholder='input json here' id='h'></textarea>
+            <button id='ld'>Load Glyph</button>
         </div>
         <div style="display:none;" id="controls">
             <button id='zin'>Zoom In</button>
             <button id='zout'>Zoom Out</button>
+            <button id='sg'>Save Glyph</button>
+            <button id='ld'>Load Glyph</button>
         </div><br>
         <script>
             var testDat = `
@@ -52,9 +55,9 @@ var curve = function(p0, p1, p2) {
         b: Math.random() * 255
     };*/
     this.colorComponent = {
-        r: 0,
-        g: 0,
-        b: 0
+        r: 40,
+        g: 40,
+        b: 40
     };
     this.color = `rgb(${this.colorComponent.r}, ${this.colorComponent.g}, ${this.colorComponent.b})`;
     this.darkColor = `rgb(${this.colorComponent.r * 0.75}, ${this.colorComponent.g * 0.75}, ${this.colorComponent.b * 0.75})`;
@@ -63,7 +66,7 @@ var curve = function(p0, p1, p2) {
         this.darkColor = `rgb(${this.colorComponent.r * 0.75}, ${this.colorComponent.g * 0.75}, ${this.colorComponent.b * 0.75})`;
     };
     this.draw = function(ctx, translate) {
-        const lw = 2;
+        const lw = 1;
 
 
         var rl = function(c, l, self) {
@@ -92,21 +95,43 @@ var curve = function(p0, p1, p2) {
 
         for (var i = 0; i < this.p.length; i++) {
             ctx.fillStyle = this.darkColor;
+            
+            const xx = this.p[i].x * translate.xs + translate.x, yy = this.p[i].y * translate.ys + translate.y;
 
-            ctx.beginPath();
-            ctx.arc(this.p[i].x * translate.xs + translate.x, this.p[i].y * translate.ys + translate.y, pointR, 0, 2 * Math.PI, false);
-            ctx.fill();
+            if (i != 1) {
+                ctx.beginPath();
+                ctx.arc(xx, yy, pointR, 0, 2 * Math.PI, false);
+                ctx.fill();
 
-            ctx.fillStyle = this.color;
+                ctx.fillStyle = this.color;
 
-            ctx.beginPath();
-            ctx.arc(this.p[i].x * translate.xs + translate.x, this.p[i].y * translate.ys + translate.y, pointR-1, 0, 2 * Math.PI, false);
-            ctx.fill();
+                ctx.beginPath();
+                ctx.arc(this.p[i].x * translate.xs + translate.x, this.p[i].y * translate.ys + translate.y, pointR-1, 0, 2 * Math.PI, false);
+                ctx.fill();
+            } else {
+                ctx.beginPath();
+
+                ctx.moveTo(xx - pointR, yy - pointR);
+                ctx.lineTo(xx + pointR, yy + pointR);
+
+                ctx.moveTo(xx + pointR, yy - pointR);
+                ctx.lineTo(xx - pointR, yy + pointR);
+
+                ctx.stroke();
+            }
         }
     }
 }
 
 var run = (function(edat) {
+    const ocan = document.querySelectorAll('canvas');
+
+    for (var cc = 0; cc < ocan.length; cc++) {
+        console.log(ocan);
+        ocan[cc].remove();
+    }
+
+    const rdat = edat;
     const dat = JSON.parse(edat);
 
     if (!dat) {
@@ -274,7 +299,7 @@ var run = (function(edat) {
             }
 
             const epsil_min = 0.0001;
-            const m1 = cMag(cu[movCurve], 0, 1), m2 = cMag(cu[movCurve], 0, 2);
+            var m1 = cMag(cu[movCurve], 0, 1), m2 = cMag(cu[movCurve], 0, 2);
             if (m1 < epsil_min) m1 = epsil_min;
             if (m2 < epsil_min) m2 = epsil_min;
             var magR = m1 / m2,
@@ -409,10 +434,58 @@ var run = (function(edat) {
     render.all(ctrans);
 
     document.getElementById('controls').style.display = 'block';
+    document.getElementById('g').style.display = 'none';
 });
+
+    const save = {
+        save: function() {
+            var name = prompt("Enter save name", "");
+
+            name = "ce_save_entry." + name;
+
+            if (localStorage.getItem(name) != null) {
+                var replace = confirm("Name is already taken! Replace entry?");
+
+                if (replace) {
+                    localStorage.setItem(name, rdat);
+                }
+
+                return;
+            }
+
+            localStorage.setItem(name, rdat);
+        },
+        load: function() {
+            var name = prompt("Enter load name", "");
+
+            name = "ce_save_entry." + name;
+
+            if (localStorage.getItem(name) == null) {
+                alert("Failed to load: could not find entry!");
+                return;
+            }
+
+            var ent = localStorage.getItem(name);
+
+            run(ent);
+        }
+    }
+
+    document.getElementById('sg').addEventListener('click', function(e) {
+        save.save();
+    })
+
+    var ldb = document.querySelectorAll('#ld');
+
+    for (var k = 0; k < ldb.length; k++) {
+        const E = ldb[k];
+        E.addEventListener('click', function(e) {
+            save.load();
+        })
+    }
 
             //run(testDat);
         </script>
-        <button id='g' onclick="(function(){var d = document.getElementById('h').value; run(d); document.getElementById('g').style.display = 'none';})();">go</button>
+        <button id='g' onclick="(function(){var d = document.getElementById('h').value; run(d);})();">go</button>
     </body>
 </html>
